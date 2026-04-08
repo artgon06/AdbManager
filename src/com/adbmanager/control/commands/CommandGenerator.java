@@ -5,6 +5,8 @@ import com.adbmanager.exceptions.CommandParseException;
 public class CommandGenerator {
 
     private static final Command[] AVAILABLE = {
+            new ListDevicesCommand(),
+            new SelectDeviceCommand(),
             new HelpCommand(),
             new ExitCommand()
     };
