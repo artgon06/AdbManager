@@ -46,7 +46,3 @@ java -cp bin com.adbmanager.App --cli
 - `src/com/adbmanager/view`: mensajes y salida de consola.
 - `src/com/adbmanager/view/swing`: interfaz grafica Swing.
 - `src/com/adbmanager/control`: controladores de consola y de la UI.
-
-## Repositorio
-
-[https://github.com/artgon06/AdbManager](https://github.com/artgon06/AdbManager)
