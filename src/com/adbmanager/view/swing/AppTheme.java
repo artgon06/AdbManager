@@ -32,18 +32,31 @@ public enum AppTheme {
             new Color(44, 50, 60),
             new Color(184, 190, 201));
 
+    // Window background and the outer canvas behind cards and content sections.
     private final Color background;
+    // Main surfaces such as the top bar, settings cards, summary card, and combo popups.
     private final Color surface;
+    // Elevated control surfaces such as combo box fields, RAM card, and selected top-bar tabs.
     private final Color secondarySurface;
+    // Shared stroke color for section outlines, combo borders, popup borders, and separators.
     private final Color border;
+    // Primary text for values, titles, buttons, and combo box content.
     private final Color textPrimary;
+    // Secondary text for labels, muted text, and inactive icons.
     private final Color textSecondary;
+    // Highlight background for selected rows in combo box popups.
     private final Color selectionBackground;
+    // Text/icon color shown on top of selectionBackground.
     private final Color selectionForeground;
+    // Accent color for primary actions, active icons, links, and selected navigation state.
     private final Color actionBackground;
+    // Text color shown on top of actionBackground buttons.
     private final Color actionForeground;
+    // Border color for disabled controls and low-emphasis states.
     private final Color disabledBorder;
+    // Placeholder surface for empty screenshot previews.
     private final Color placeholderBackground;
+    // Placeholder text color for empty screenshot previews.
     private final Color placeholderForeground;
 
     AppTheme(

@@ -5,6 +5,7 @@ import com.adbmanager.exceptions.CommandExecuteException;
 import com.adbmanager.exceptions.CommandParseException;
 import com.adbmanager.logic.AdbModel;
 import com.adbmanager.logic.model.Device;
+import com.adbmanager.view.Messages;
 
 public class SelectDeviceCommand extends AbstractCommand {
 
@@ -15,7 +16,7 @@ public class SelectDeviceCommand extends AbstractCommand {
     }
 
     private SelectDeviceCommand(String selector) {
-        super("select", "s", "Selecciona el dispositivo activo", "Uso: select <numero|serial>");
+        super("select", "s", Messages.text("command.select.details"), Messages.text("command.select.usage"));
         this.selector = selector;
     }
 
@@ -26,7 +27,7 @@ public class SelectDeviceCommand extends AbstractCommand {
         }
 
         if (words.length != 2) {
-            throw new CommandParseException("Uso: select <numero|serial>");
+            throw new CommandParseException(Messages.text("command.select.usage"));
         }
 
         return new SelectDeviceCommand(words[1]);
@@ -37,11 +38,11 @@ public class SelectDeviceCommand extends AbstractCommand {
         try {
             model.refreshDevices();
             Device selectedDevice = selectDevice(model);
-            return CommandResult.ok("Dispositivo seleccionado: " + selectedDevice.serial());
+            return CommandResult.ok(Messages.format("device.select.success", selectedDevice.serial()));
         } catch (IllegalArgumentException e) {
             throw new CommandExecuteException(e.getMessage(), e);
         } catch (Exception e) {
-            throw new CommandExecuteException("No se pudo seleccionar el dispositivo.", e);
+            throw new CommandExecuteException(Messages.text("error.device.select"), e);
         }
     }
 
@@ -58,7 +59,7 @@ public class SelectDeviceCommand extends AbstractCommand {
         try {
             int parsedIndex = Integer.parseInt(value);
             if (parsedIndex <= 0) {
-                throw new IllegalArgumentException("El indice del dispositivo debe ser mayor que cero.");
+                throw new IllegalArgumentException(Messages.text("error.device.indexPositive"));
             }
             return parsedIndex - 1;
         } catch (NumberFormatException e) {

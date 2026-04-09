@@ -12,6 +12,8 @@ import javax.swing.BorderFactory;
 import javax.swing.JPanel;
 import javax.swing.border.TitledBorder;
 
+import com.adbmanager.view.Messages;
+
 public class ScreenshotPreviewPanel extends JPanel {
 
     private BufferedImage screenshot;
@@ -19,6 +21,7 @@ public class ScreenshotPreviewPanel extends JPanel {
 
     public ScreenshotPreviewPanel() {
         setPreferredSize(new Dimension(520, 620));
+        refreshTexts();
         applyTheme(AppTheme.LIGHT);
     }
 
@@ -32,17 +35,21 @@ public class ScreenshotPreviewPanel extends JPanel {
         repaint();
     }
 
-    public void applyTheme(AppTheme theme) {
-        this.theme = theme;
-        setBackground(theme.surface());
+    public void refreshTexts() {
         setBorder(BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(theme.border(), 2),
-                "ULTIMA CAPTURA HECHA",
+                Messages.text("home.preview.title"),
                 TitledBorder.LEFT,
                 TitledBorder.TOP,
                 new Font(Font.SANS_SERIF, Font.BOLD, 16),
                 theme.textPrimary()));
         repaint();
+    }
+
+    public void applyTheme(AppTheme theme) {
+        this.theme = theme;
+        setBackground(theme.surface());
+        refreshTexts();
     }
 
     @Override
@@ -76,10 +83,10 @@ public class ScreenshotPreviewPanel extends JPanel {
 
         g2d.setColor(theme.placeholderForeground());
         g2d.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
-        drawCenteredString(g2d, "Sin capturas todavia", getWidth(), getHeight() / 2 - 10);
+        drawCenteredString(g2d, Messages.text("home.preview.empty.title"), getWidth(), getHeight() / 2 - 10);
 
         g2d.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
-        drawCenteredString(g2d, "La ultima captura aparecera aqui", getWidth(), getHeight() / 2 + 24);
+        drawCenteredString(g2d, Messages.text("home.preview.empty.subtitle"), getWidth(), getHeight() / 2 + 24);
     }
 
     private void drawScreenshot(Graphics2D g2d, int inset, int availableWidth, int availableHeight) {

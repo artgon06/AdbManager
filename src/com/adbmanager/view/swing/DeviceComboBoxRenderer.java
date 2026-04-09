@@ -2,6 +2,7 @@ package com.adbmanager.view.swing;
 
 import java.awt.Component;
 
+import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JList;
 
@@ -24,12 +25,22 @@ public class DeviceComboBoxRenderer extends DefaultListCellRenderer {
             boolean isSelected,
             boolean cellHasFocus) {
         super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+        if (index == -1) {
+            setOpaque(true);
+            setBackground(theme.secondarySurface());
+            setForeground(theme.textPrimary());
+        } else {
+            setOpaque(true);
+            setBackground(isSelected ? theme.selectionBackground() : theme.surface());
+            setForeground(isSelected ? theme.selectionForeground() : theme.textPrimary());
+        }
 
-        setBackground(isSelected ? theme.selectionBackground() : theme.surface());
-        setForeground(isSelected ? theme.selectionForeground() : theme.textPrimary());
+        setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
 
         if (value instanceof Device device) {
             setText(buildLabel(device));
+        } else {
+            setText("");
         }
 
         return this;

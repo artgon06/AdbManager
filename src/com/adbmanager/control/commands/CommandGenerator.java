@@ -1,6 +1,7 @@
 package com.adbmanager.control.commands;
 
 import com.adbmanager.exceptions.CommandParseException;
+import com.adbmanager.view.Messages;
 
 public class CommandGenerator {
 
@@ -12,17 +13,19 @@ public class CommandGenerator {
     };
 
     public static Command parse(String[] words) throws CommandParseException {
-        for (Command c : AVAILABLE) {
-            Command parsed = c.parse(words);
-            if (parsed != null) return parsed;
+        for (Command command : AVAILABLE) {
+            Command parsed = command.parse(words);
+            if (parsed != null) {
+                return parsed;
+            }
         }
-        throw new CommandParseException("Comando desconocido: " + String.join(" ", words));
+        throw new CommandParseException(Messages.format("error.unknownCommand", String.join(" ", words)));
     }
 
     public static String helpText() {
         StringBuilder sb = new StringBuilder();
-        for (Command c : AVAILABLE) {
-            sb.append(c.helpText()).append("\n\n");
+        for (Command command : AVAILABLE) {
+            sb.append(command.helpText()).append("\n\n");
         }
         return sb.toString();
     }

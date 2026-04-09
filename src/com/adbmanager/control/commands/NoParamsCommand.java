@@ -1,6 +1,7 @@
 package com.adbmanager.control.commands;
 
 import com.adbmanager.exceptions.CommandParseException;
+import com.adbmanager.view.Messages;
 
 public abstract class NoParamsCommand extends AbstractCommand {
 
@@ -11,11 +12,11 @@ public abstract class NoParamsCommand extends AbstractCommand {
     @Override
     public Command parse(String[] words) throws CommandParseException {
         if (words.length > 1 && matchCommandName(words[0])) {
-            throw new CommandParseException("Este comando no admite parámetros.");
+            throw new CommandParseException(Messages.text("error.command.noParams"));
         }
         if (words.length == 1 && matchCommandName(words[0])) {
-            return this; // el “this” es HelpCommand o ExitCommand, según cuál sea
+            return this;
         }
-        return null; // no es este comando
+        return null;
     }
 }

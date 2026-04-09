@@ -54,7 +54,7 @@ public class AdbService implements AdbModel {
     @Override
     public Device selectDeviceByIndex(int index) {
         if (index < 0 || index >= devices.size()) {
-            throw new IllegalArgumentException("Indice de dispositivo no valido: " + (index + 1));
+            throw new IllegalArgumentException(Messages.format("error.invalidDeviceIndex", index + 1));
         }
 
         Device selectedDevice = devices.get(index);
@@ -67,7 +67,7 @@ public class AdbService implements AdbModel {
         Device selectedDevice = devices.stream()
                 .filter(device -> device.serial().equals(serial))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("No existe un dispositivo con serial: " + serial));
+                .orElseThrow(() -> new IllegalArgumentException(Messages.format("error.deviceNotFound", serial)));
 
         selectedDeviceSerial = selectedDevice.serial();
         return selectedDevice;
@@ -95,16 +95,43 @@ public class AdbService implements AdbModel {
             throw new Exception("adb -s " + device.serial() + " shell cat /proc/meminfo failed:\n" + memoryResult.output());
         }
 
-        return Optional.of(detailsParser.parse(device, propertiesResult.output(), memoryResult.output()));
+        AdbResult featuresResult = client.runForSerial(device.serial(), List.of("shell", "pm", "list", "features"));
+        if (!featuresResult.ok()) {
+            throw new Exception("adb -s " + device.serial() + " shell pm list features failed:\n" + featuresResult.output());
+        }
+
+        AdbResult sizeResult = client.runForSerial(device.serial(), List.of("shell", "wm", "size"));
+        if (!sizeResult.ok()) {
+            throw new Exception("adb -s " + device.serial() + " shell wm size failed:\n" + sizeResult.output());
+        }
+
+        AdbResult densityResult = client.runForSerial(device.serial(), List.of("shell", "wm", "density"));
+        if (!densityResult.ok()) {
+            throw new Exception("adb -s " + device.serial() + " shell wm density failed:\n" + densityResult.output());
+        }
+
+        AdbResult displayResult = client.runForSerial(device.serial(), List.of("shell", "dumpsys", "display"));
+        if (!displayResult.ok()) {
+            throw new Exception("adb -s " + device.serial() + " shell dumpsys display failed:\n" + displayResult.output());
+        }
+
+        return Optional.of(detailsParser.parse(
+                device,
+                propertiesResult.output(),
+                memoryResult.output(),
+                featuresResult.output(),
+                sizeResult.output(),
+                densityResult.output(),
+                displayResult.output()));
     }
 
     @Override
     public byte[] captureSelectedDeviceScreenshot() throws Exception {
         Device device = getSelectedDevice()
-                .orElseThrow(() -> new IllegalStateException("Selecciona un dispositivo antes de hacer una captura."));
+                .orElseThrow(() -> new IllegalStateException(Messages.text("error.capture.selectDevice")));
 
         if (!Messages.STATUS_CONNECTED.equals(device.state())) {
-            throw new IllegalStateException("El dispositivo seleccionado debe estar conectado para hacer una captura.");
+            throw new IllegalStateException(Messages.text("error.capture.deviceDisconnected"));
         }
 
         AdbBinaryResult screenshotResult = client.runBinaryForSerial(

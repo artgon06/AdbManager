@@ -11,7 +11,7 @@ public class DeviceListFormatter {
         String selectedSerial = selectedDevice.map(Device::serial).orElse(null);
         StringBuilder sb = new StringBuilder();
 
-        sb.append("Dispositivos conectados: ").append(devices.size()).append("\n");
+        sb.append(Messages.format("devices.count", devices.size())).append("\n");
 
         for (int i = 0; i < devices.size(); i++) {
             Device device = devices.get(i);
@@ -21,30 +21,38 @@ public class DeviceListFormatter {
                     .append(") ")
                     .append(device.serial())
                     .append(": ")
-                    .append(device.state());
+                    .append(Messages.stateLabel(device.state()));
 
             if (isSelected) {
-                sb.append(" [seleccionado]");
+                sb.append(Messages.text("devices.selectedMarker"));
             }
 
             sb.append("\n");
 
             if (Messages.STATUS_CONNECTED.equals(device.state())) {
-                sb.append("\t").append(Messages.MODEL).append(": ").append(device.model()).append("\n")
-                        .append("\t").append(Messages.CODENAME).append(": ").append(device.device()).append("\n");
+                sb.append("\t")
+                        .append(Messages.text("device.field.model"))
+                        .append(": ")
+                        .append(device.model())
+                        .append("\n")
+                        .append("\t")
+                        .append(Messages.text("device.field.codename"))
+                        .append(": ")
+                        .append(device.device())
+                        .append("\n");
             } else {
-                sb.append("\t").append(Messages.ERROR_NOT_CONECTED).append("\n");
+                sb.append("\t").append(Messages.text("devices.notConnectedInfo")).append("\n");
             }
         }
 
-        sb.append("Dispositivo seleccionado: ");
+        sb.append(Messages.text("devices.selected"));
         if (selectedDevice.isPresent()) {
             Device device = selectedDevice.get();
             sb.append(findDevicePosition(devices, device) + 1)
                     .append(") ")
                     .append(device.serial());
         } else {
-            sb.append("ninguno");
+            sb.append(Messages.text("common.none"));
         }
 
         return sb.toString();

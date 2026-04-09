@@ -1,6 +1,40 @@
 package com.adbmanager.view;
 
-public class Messages {
+import java.text.MessageFormat;
+import java.util.Locale;
+import java.util.ResourceBundle;
+
+import com.adbmanager.logic.model.DeviceType;
+
+public final class Messages {
+
+    public enum Language {
+        ENGLISH("en", "settings.language.english"),
+        SPANISH("es", "settings.language.spanish");
+
+        private final Locale locale;
+        private final String displayKey;
+
+        Language(String languageCode, String displayKey) {
+            this.locale = Locale.forLanguageTag(languageCode);
+            this.displayKey = displayKey;
+        }
+
+        public Locale locale() {
+            return locale;
+        }
+
+        public String displayKey() {
+            return displayKey;
+        }
+
+        @Override
+        public String toString() {
+            return Messages.text(displayKey);
+        }
+    }
+
+    private static final String BUNDLE_BASE_NAME = "com.adbmanager.view.i18n.messages";
 
     public static final String ADB_DEVICES_LIST = "List of devices attached";
 
@@ -10,31 +44,67 @@ public class Messages {
     public static final String STATUS_OFFLINE = "offline";
     public static final String STATUS_RECOVERY = "recovery";
 
-    public static final String CONNECTED = "Conectado";
-    public static final String CONNECTING = "Conectando";
-    public static final String UNAUTHORIZED = "No autorizado";
-    public static final String OFFLINE = "Desconectado";
-    public static final String RECOVERY = "Recovery";
-    public static final String UNKNOWN = "Desconocido";
-    public static final String CODENAME = "Nombre en clave";
-    public static final String MODEL = "Modelo";
-    public static final String ERROR_NOT_CONECTED = "El dispositivo debe estar conectado para mostrar mas informacion.";
-
-    public static final String APP_NAME = "ADB Manager";
-    public static final String VERSION = "0.2.0";
-    public static final String REPOSITORY_URL = "https://github.com/artgon06/AdbManager";
+    private static Language currentLanguage = defaultLanguage();
+    private static ResourceBundle bundle = loadBundle(currentLanguage);
 
     private Messages() {
     }
 
+    public static Language getLanguage() {
+        return currentLanguage;
+    }
+
+    public static void setLanguage(Language language) {
+        currentLanguage = language == null ? defaultLanguage() : language;
+        bundle = loadBundle(currentLanguage);
+    }
+
+    public static Language defaultLanguage() {
+        return Locale.getDefault().getLanguage().equalsIgnoreCase("es")
+                ? Language.SPANISH
+                : Language.ENGLISH;
+    }
+
+    public static String text(String key) {
+        return bundle.containsKey(key) ? bundle.getString(key) : "!" + key + "!";
+    }
+
+    public static String format(String key, Object... args) {
+        return MessageFormat.format(text(key), args);
+    }
+
+    public static String appName() {
+        return text("app.name");
+    }
+
+    public static String version() {
+        return text("app.version");
+    }
+
+    public static String repositoryUrl() {
+        return text("app.repository.url");
+    }
+
+    public static String appTitle() {
+        return format("app.title", appName(), version());
+    }
+
     public static String stateLabel(String state) {
         return switch (state) {
-            case STATUS_CONNECTED -> CONNECTED;
-            case STATUS_CONNECTING -> CONNECTING;
-            case STATUS_UNAUTHORIZED -> UNAUTHORIZED;
-            case STATUS_OFFLINE -> OFFLINE;
-            case STATUS_RECOVERY -> RECOVERY;
-            default -> UNKNOWN;
+            case STATUS_CONNECTED -> text("state.connected");
+            case STATUS_CONNECTING -> text("state.connecting");
+            case STATUS_UNAUTHORIZED -> text("state.unauthorized");
+            case STATUS_OFFLINE -> text("state.offline");
+            case STATUS_RECOVERY -> text("state.recovery");
+            default -> text("state.unknown");
         };
+    }
+
+    public static String deviceTypeLabel(DeviceType deviceType) {
+        return text(deviceType == null ? DeviceType.UNKNOWN.messageKey() : deviceType.messageKey());
+    }
+
+    private static ResourceBundle loadBundle(Language language) {
+        return ResourceBundle.getBundle(BUNDLE_BASE_NAME, language.locale());
     }
 }

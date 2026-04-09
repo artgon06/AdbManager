@@ -1,20 +1,40 @@
 package com.adbmanager.view.swing;
 
-import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Shape;
+import java.awt.geom.Path2D;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.swing.Icon;
 
 public class ToolbarIcon implements Icon {
 
+    private static final Pattern SVG_TOKEN = Pattern.compile(
+            "[A-Za-z]|[-+]?(?:\\d*\\.\\d+|\\d+)(?:[eE][-+]?\\d+)?");
+    private static final int VIEWBOX_SIZE = 24;
+
     public enum Type {
-        HOME,
-        REFRESH,
-        SETTINGS
+        HOME("M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"),
+        DISPLAY("M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 16H7V5h10v12z"),
+        REFRESH("M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"),
+        SETTINGS("M19.14,12.94c0.04-0.31,0.06-0.63,0.06-0.94s-0.02-0.63-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.4,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.3-0.59-0.22l-2.39,0.96c-0.5-0.38-1.05-0.69-1.66-0.92L14.46,2.5C14.43,2.24,14.21,2,13.95,2h-3.9C9.79,2,9.57,2.24,9.54,2.5L9.17,5.03C8.56,5.26,8.01,5.58,7.51,5.95L5.12,4.99c-0.22-0.09-0.47,0-0.59,0.22L2.61,8.53c-0.12,0.22-0.07,0.47,0.12,0.61l2.03,1.58C4.72,11.37,4.7,11.69,4.7,12s0.02,0.63,0.06,0.94l-2.03,1.58c-0.18,0.14-0.23,0.4-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.3,0.59,0.22l2.39-0.96c0.5,0.38,1.05,0.69,1.66,0.92l0.37,2.53c0.03,0.26,0.25,0.5,0.51,0.5h3.9c0.26,0,0.48-0.24,0.51-0.5l0.37-2.53c0.61-0.23,1.16-0.55,1.66-0.92l2.39,0.96c0.22,0.09,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.5c-1.93,0-3.5-1.57-3.5-3.5s1.57-3.5,3.5-3.5s3.5,1.57,3.5,3.5S13.93,15.5,12,15.5z");
+
+        private final Shape shape;
+
+        Type(String pathData) {
+            this.shape = SvgPathParser.parse(pathData);
+        }
+
+        public Shape shape() {
+            return shape;
+        }
     }
 
     private final Type type;
@@ -32,15 +52,10 @@ public class ToolbarIcon implements Icon {
         Graphics2D g2d = (Graphics2D) graphics.create();
         g2d.translate(x, y);
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+        g2d.scale(size / (double) VIEWBOX_SIZE, size / (double) VIEWBOX_SIZE);
         g2d.setColor(color);
-        g2d.setStroke(new BasicStroke(Math.max(1.7f, size / 10f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-
-        switch (type) {
-            case HOME -> paintHome(g2d);
-            case REFRESH -> paintRefresh(g2d);
-            case SETTINGS -> paintSettings(g2d);
-        }
-
+        g2d.fill(type.shape());
         g2d.dispose();
     }
 
@@ -54,50 +69,189 @@ public class ToolbarIcon implements Icon {
         return size;
     }
 
-    private void paintHome(Graphics2D g2d) {
-        int roofTop = size / 5;
-        int roofBottom = size / 2;
-        int left = size / 5;
-        int right = size - left;
-        int bodyBottom = size - size / 6;
+    private static final class SvgPathParser {
 
-        g2d.drawLine(left, roofBottom, size / 2, roofTop);
-        g2d.drawLine(size / 2, roofTop, right, roofBottom);
-        g2d.drawLine(left + 1, roofBottom, left + 1, bodyBottom);
-        g2d.drawLine(right - 1, roofBottom, right - 1, bodyBottom);
-        g2d.drawLine(left + 1, bodyBottom, right - 1, bodyBottom);
+        private SvgPathParser() {
+        }
 
-        int doorLeft = size / 2 - size / 10;
-        int doorTop = size / 2 + size / 6;
-        g2d.drawLine(doorLeft, bodyBottom, doorLeft, doorTop);
-        g2d.drawLine(size - doorLeft, bodyBottom, size - doorLeft, doorTop);
-    }
+        public static Shape parse(String pathData) {
+            List<String> tokens = tokenize(pathData);
+            Path2D.Double path = new Path2D.Double(Path2D.WIND_NON_ZERO);
 
-    private void paintRefresh(Graphics2D g2d) {
-        int padding = size / 6;
-        int arcSize = size - (padding * 2);
-        g2d.drawArc(padding, padding, arcSize, arcSize, 35, 270);
+            double currentX = 0;
+            double currentY = 0;
+            double startX = 0;
+            double startY = 0;
+            double lastControlX = 0;
+            double lastControlY = 0;
+            char command = ' ';
+            int index = 0;
 
-        int arrowX = size - padding - 1;
-        int arrowY = size / 2 - size / 5;
-        g2d.drawLine(arrowX, arrowY, arrowX - size / 5, arrowY);
-        g2d.drawLine(arrowX, arrowY, arrowX - size / 9, arrowY + size / 5);
-    }
+            while (index < tokens.size()) {
+                String token = tokens.get(index);
+                if (isCommand(token)) {
+                    command = token.charAt(0);
+                    index++;
+                }
 
-    private void paintSettings(Graphics2D g2d) {
-        int center = size / 2;
-        int outerRadius = size / 3;
-        int innerRadius = size / 7;
+                switch (command) {
+                    case 'M', 'm' -> {
+                        boolean relative = command == 'm';
+                        double x = nextNumber(tokens, index++);
+                        double y = nextNumber(tokens, index++);
+                        if (relative) {
+                            x += currentX;
+                            y += currentY;
+                        }
 
-        g2d.drawOval(center - innerRadius, center - innerRadius, innerRadius * 2, innerRadius * 2);
+                        path.moveTo(x, y);
+                        currentX = x;
+                        currentY = y;
+                        startX = x;
+                        startY = y;
+                        lastControlX = x;
+                        lastControlY = y;
 
-        for (int i = 0; i < 6; i++) {
-            double angle = Math.toRadians(i * 60);
-            int innerX = center + (int) Math.round(Math.cos(angle) * innerRadius * 1.8);
-            int innerY = center + (int) Math.round(Math.sin(angle) * innerRadius * 1.8);
-            int outerX = center + (int) Math.round(Math.cos(angle) * outerRadius);
-            int outerY = center + (int) Math.round(Math.sin(angle) * outerRadius);
-            g2d.drawLine(innerX, innerY, outerX, outerY);
+                        while (hasNumber(tokens, index)) {
+                            x = nextNumber(tokens, index++);
+                            y = nextNumber(tokens, index++);
+                            if (relative) {
+                                x += currentX;
+                                y += currentY;
+                            }
+
+                            path.lineTo(x, y);
+                            currentX = x;
+                            currentY = y;
+                            lastControlX = x;
+                            lastControlY = y;
+                        }
+                    }
+                    case 'L', 'l' -> {
+                        boolean relative = command == 'l';
+                        while (hasNumber(tokens, index)) {
+                            double x = nextNumber(tokens, index++);
+                            double y = nextNumber(tokens, index++);
+                            if (relative) {
+                                x += currentX;
+                                y += currentY;
+                            }
+                            path.lineTo(x, y);
+                            currentX = x;
+                            currentY = y;
+                            lastControlX = x;
+                            lastControlY = y;
+                        }
+                    }
+                    case 'H', 'h' -> {
+                        boolean relative = command == 'h';
+                        while (hasNumber(tokens, index)) {
+                            double x = nextNumber(tokens, index++);
+                            if (relative) {
+                                x += currentX;
+                            }
+                            path.lineTo(x, currentY);
+                            currentX = x;
+                            lastControlX = x;
+                            lastControlY = currentY;
+                        }
+                    }
+                    case 'V', 'v' -> {
+                        boolean relative = command == 'v';
+                        while (hasNumber(tokens, index)) {
+                            double y = nextNumber(tokens, index++);
+                            if (relative) {
+                                y += currentY;
+                            }
+                            path.lineTo(currentX, y);
+                            currentY = y;
+                            lastControlX = currentX;
+                            lastControlY = y;
+                        }
+                    }
+                    case 'C', 'c' -> {
+                        boolean relative = command == 'c';
+                        while (hasNumber(tokens, index)) {
+                            double x1 = nextNumber(tokens, index++);
+                            double y1 = nextNumber(tokens, index++);
+                            double x2 = nextNumber(tokens, index++);
+                            double y2 = nextNumber(tokens, index++);
+                            double x = nextNumber(tokens, index++);
+                            double y = nextNumber(tokens, index++);
+
+                            if (relative) {
+                                x1 += currentX;
+                                y1 += currentY;
+                                x2 += currentX;
+                                y2 += currentY;
+                                x += currentX;
+                                y += currentY;
+                            }
+
+                            path.curveTo(x1, y1, x2, y2, x, y);
+                            currentX = x;
+                            currentY = y;
+                            lastControlX = x2;
+                            lastControlY = y2;
+                        }
+                    }
+                    case 'S', 's' -> {
+                        boolean relative = command == 's';
+                        while (hasNumber(tokens, index)) {
+                            double reflectedX = (2 * currentX) - lastControlX;
+                            double reflectedY = (2 * currentY) - lastControlY;
+                            double x2 = nextNumber(tokens, index++);
+                            double y2 = nextNumber(tokens, index++);
+                            double x = nextNumber(tokens, index++);
+                            double y = nextNumber(tokens, index++);
+
+                            if (relative) {
+                                x2 += currentX;
+                                y2 += currentY;
+                                x += currentX;
+                                y += currentY;
+                            }
+
+                            path.curveTo(reflectedX, reflectedY, x2, y2, x, y);
+                            currentX = x;
+                            currentY = y;
+                            lastControlX = x2;
+                            lastControlY = y2;
+                        }
+                    }
+                    case 'Z', 'z' -> {
+                        path.closePath();
+                        currentX = startX;
+                        currentY = startY;
+                        lastControlX = startX;
+                        lastControlY = startY;
+                    }
+                    default -> throw new IllegalArgumentException("Unsupported SVG path command: " + command);
+                }
+            }
+
+            return path;
+        }
+
+        private static List<String> tokenize(String pathData) {
+            List<String> tokens = new ArrayList<>();
+            Matcher matcher = SVG_TOKEN.matcher(pathData);
+            while (matcher.find()) {
+                tokens.add(matcher.group());
+            }
+            return tokens;
+        }
+
+        private static boolean isCommand(String token) {
+            return token.length() == 1 && Character.isLetter(token.charAt(0));
+        }
+
+        private static boolean hasNumber(List<String> tokens, int index) {
+            return index < tokens.size() && !isCommand(tokens.get(index));
+        }
+
+        private static double nextNumber(List<String> tokens, int index) {
+            return Double.parseDouble(tokens.get(index));
         }
     }
 }

@@ -8,6 +8,7 @@ import com.adbmanager.control.commands.ListDevicesCommand;
 import com.adbmanager.exceptions.CommandException;
 import com.adbmanager.logic.AdbModel;
 import com.adbmanager.view.ConsoleView;
+import com.adbmanager.view.Messages;
 
 public class Controller {
 
@@ -51,10 +52,10 @@ public class Controller {
             } catch (CommandException e) {
                 showCommandError(e);
             } catch (IOException e) {
-                view.showError("Error leyendo de consola: " + e.getMessage());
+                view.showError(Messages.format("console.readError", e.getMessage()));
                 running = false;
             } catch (Exception e) {
-                view.showError("Error al ejecutar el comando: " + e.getMessage());
+                view.showError(Messages.format("console.executeError", e.getMessage()));
                 running = false;
             }
         }

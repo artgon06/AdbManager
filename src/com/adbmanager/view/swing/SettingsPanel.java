@@ -1,6 +1,7 @@
 package com.adbmanager.view.swing;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Font;
 import java.awt.Insets;
 import java.awt.event.ActionListener;
@@ -9,37 +10,49 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
-
 import com.adbmanager.view.Messages;
+import com.adbmanager.view.Messages.Language;
 
 public class SettingsPanel extends JPanel {
 
-    private final JLabel titleLabel = new JLabel("Ajustes");
+    private final JLabel titleLabel = new JLabel();
     private final JPanel aboutPanel = new JPanel();
     private final JPanel appearancePanel = new JPanel();
-    private final JLabel appNameTitle = new JLabel("Aplicacion");
-    private final JLabel appNameValue = new JLabel(Messages.APP_NAME);
-    private final JLabel versionTitle = new JLabel("Version");
-    private final JLabel versionValue = new JLabel(Messages.VERSION);
-    private final JLabel repositoryTitle = new JLabel("Repositorio");
-    private final JButton repositoryButton = new JButton(Messages.REPOSITORY_URL);
-    private final JRadioButton lightThemeRadio = new JRadioButton("Claro");
-    private final JRadioButton darkThemeRadio = new JRadioButton("Oscuro");
+    private final JLabel appNameTitle = new JLabel();
+    private final JLabel appNameValue = new JLabel();
+    private final JLabel versionTitle = new JLabel();
+    private final JLabel versionValue = new JLabel();
+    private final JLabel repositoryTitle = new JLabel();
+    private final JButton repositoryButton = new JButton();
+    private final JLabel themeLabel = new JLabel();
+    private final JLabel languageLabel = new JLabel();
+    private final JRadioButton lightThemeRadio = new JRadioButton();
+    private final JRadioButton darkThemeRadio = new JRadioButton();
+    private final JComboBox<Language> languageCombo = new JComboBox<>(Language.values());
+    private final LanguageRenderer languageRenderer = new LanguageRenderer();
 
     public SettingsPanel() {
         buildPanel();
+        refreshTexts();
         applyTheme(AppTheme.LIGHT);
     }
 
     public void setThemeChangeAction(ActionListener actionListener) {
         lightThemeRadio.addActionListener(actionListener);
         darkThemeRadio.addActionListener(actionListener);
+    }
+
+    public void setLanguageChangeAction(ActionListener actionListener) {
+        languageCombo.addActionListener(actionListener);
     }
 
     public void setRepositoryAction(ActionListener actionListener) {
@@ -58,21 +71,48 @@ public class SettingsPanel extends JPanel {
         }
     }
 
+    public Language getSelectedLanguage() {
+        Object selectedItem = languageCombo.getSelectedItem();
+        return selectedItem instanceof Language language ? language : Messages.getLanguage();
+    }
+
+    public void setSelectedLanguage(Language language) {
+        languageCombo.setSelectedItem(language);
+    }
+
+    public void refreshTexts() {
+        titleLabel.setText(Messages.text("settings.title"));
+        appNameTitle.setText(Messages.text("settings.application"));
+        appNameValue.setText(Messages.appName());
+        versionTitle.setText(Messages.text("settings.version"));
+        versionValue.setText(Messages.version());
+        repositoryTitle.setText(Messages.text("settings.repository"));
+        repositoryButton.setText(Messages.repositoryUrl());
+        themeLabel.setText(Messages.text("settings.theme"));
+        lightThemeRadio.setText(Messages.text("settings.theme.light"));
+        darkThemeRadio.setText(Messages.text("settings.theme.dark"));
+        languageLabel.setText(Messages.text("settings.language"));
+        languageCombo.repaint();
+    }
+
     public void applyTheme(AppTheme theme) {
         setBackground(theme.background());
         titleLabel.setForeground(theme.textPrimary());
 
-        applySectionTheme(aboutPanel, "Acerca de", theme);
-        applySectionTheme(appearancePanel, "Apariencia", theme);
+        applySectionTheme(aboutPanel, Messages.text("settings.about.title"), theme);
+        applySectionTheme(appearancePanel, Messages.text("settings.appearance.title"), theme);
 
         styleInfoLabel(appNameTitle, theme, true);
         styleInfoLabel(appNameValue, theme, false);
         styleInfoLabel(versionTitle, theme, true);
         styleInfoLabel(versionValue, theme, false);
         styleInfoLabel(repositoryTitle, theme, true);
+        styleInfoLabel(themeLabel, theme, true);
+        styleInfoLabel(languageLabel, theme, true);
         styleLinkButton(theme);
         styleRadio(lightThemeRadio, theme);
         styleRadio(darkThemeRadio, theme);
+        styleLanguageCombo(theme);
     }
 
     private void buildPanel() {
@@ -120,12 +160,23 @@ public class SettingsPanel extends JPanel {
         themeGroup.add(darkThemeRadio);
         lightThemeRadio.setSelected(true);
 
-        appearancePanel.add(lightThemeRadio);
-        appearancePanel.add(Box.createVerticalStrut(10));
-        appearancePanel.add(darkThemeRadio);
+        JPanel themeOptionsPanel = new JPanel();
+        themeOptionsPanel.setOpaque(false);
+        themeOptionsPanel.setLayout(new BoxLayout(themeOptionsPanel, BoxLayout.Y_AXIS));
+        themeOptionsPanel.add(lightThemeRadio);
+        themeOptionsPanel.add(Box.createVerticalStrut(10));
+        themeOptionsPanel.add(darkThemeRadio);
+
+        languageCombo.setRenderer(languageRenderer);
+        languageCombo.setFocusable(false);
+        languageCombo.setMaximumSize(new java.awt.Dimension(220, 38));
+
+        appearancePanel.add(createAboutRow(themeLabel, themeOptionsPanel));
+        appearancePanel.add(Box.createVerticalStrut(18));
+        appearancePanel.add(createAboutRow(languageLabel, languageCombo));
     }
 
-    private JPanel createAboutRow(JLabel keyLabel, java.awt.Component valueComponent) {
+    private JPanel createAboutRow(JLabel keyLabel, Component valueComponent) {
         JPanel row = new JPanel(new BorderLayout(12, 0));
         row.setOpaque(false);
         row.add(keyLabel, BorderLayout.WEST);
@@ -169,5 +220,44 @@ public class SettingsPanel extends JPanel {
         radioButton.setFocusPainted(false);
         radioButton.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 16));
         radioButton.setMargin(new Insets(6, 2, 6, 2));
+    }
+
+    private void styleLanguageCombo(AppTheme theme) {
+        languageRenderer.applyTheme(theme);
+        ThemedComboBoxUI.apply(languageCombo, theme);
+        languageCombo.setUI(new ThemedComboBoxUI(theme));
+        languageCombo.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(theme.border(), 1),
+                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+        languageCombo.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+    }
+
+    private static final class LanguageRenderer extends DefaultListCellRenderer {
+
+        private AppTheme theme = AppTheme.LIGHT;
+
+        public void applyTheme(AppTheme theme) {
+            this.theme = theme;
+        }
+
+        @Override
+        public Component getListCellRendererComponent(
+                JList<?> list,
+                Object value,
+                int index,
+                boolean isSelected,
+                boolean cellHasFocus) {
+            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            if (index == -1) {
+                setOpaque(true);
+                setBackground(theme.secondarySurface());
+                setForeground(theme.textPrimary());
+            } else {
+                setOpaque(true);
+                setBackground(isSelected ? theme.selectionBackground() : theme.surface());
+                setForeground(isSelected ? theme.selectionForeground() : theme.textPrimary());
+            }
+            return this;
+        }
     }
 }

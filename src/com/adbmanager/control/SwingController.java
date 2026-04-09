@@ -18,6 +18,7 @@ import com.adbmanager.logic.AdbModel;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.view.Messages;
+import com.adbmanager.view.Messages.Language;
 import com.adbmanager.view.swing.AppTheme;
 import com.adbmanager.view.swing.MainFrame;
 
@@ -36,6 +37,8 @@ public class SwingController {
 
     public void start() {
         bindEvents();
+        view.setSelectedLanguage(Messages.getLanguage());
+        view.setLanguage(Messages.getLanguage());
         view.setSelectedTheme(AppTheme.LIGHT);
         view.setTheme(AppTheme.LIGHT);
         view.showHomeScreen();
@@ -49,8 +52,10 @@ public class SwingController {
         view.setSaveCaptureAction(event -> saveScreenshot());
         view.setRefreshAction(event -> refreshDevices());
         view.setHomeAction(event -> view.showHomeScreen());
+        view.setDisplayAction(event -> view.showDisplayScreen());
         view.setSettingsAction(event -> view.showSettingsScreen());
         view.setThemeChangeAction(event -> applyThemeSelection());
+        view.setLanguageChangeAction(event -> applyLanguageSelection());
         view.setRepositoryAction(event -> openRepository());
         view.addWindowFocusListener(new WindowAdapter() {
             @Override
@@ -86,7 +91,7 @@ public class SwingController {
                     RefreshState state = get();
                     applyRefreshState(state);
                 } catch (Exception e) {
-                    handleError("No se pudieron cargar los dispositivos.", e);
+                    handleError(Messages.text("error.devices.load"), e);
                     view.setDevices(List.of(), null);
                     view.clearDeviceDetails();
                     view.clearScreenshot();
@@ -164,7 +169,7 @@ public class SwingController {
                     view.clearScreenshot();
                     updateDevicePresentation(selectedDevice, details);
                 } catch (Exception e) {
-                    handleError("No se pudo seleccionar el dispositivo.", e);
+                    handleError(Messages.text("error.device.select"), e);
                 } finally {
                     view.setDeviceSelectorEnabled(true);
                 }
@@ -181,7 +186,7 @@ public class SwingController {
                 byte[] screenshotBytes = model.captureSelectedDeviceScreenshot();
                 BufferedImage screenshot = ImageIO.read(new ByteArrayInputStream(screenshotBytes));
                 if (screenshot == null) {
-                    throw new IllegalStateException("La captura devuelta por adb no tiene un formato de imagen valido.");
+                    throw new IllegalStateException(Messages.text("error.capture.invalidImage"));
                 }
                 return screenshot;
             }
@@ -193,7 +198,7 @@ public class SwingController {
                     view.setScreenshot(screenshot);
                     view.setSaveCaptureEnabled(true);
                 } catch (Exception e) {
-                    handleError("No se pudo hacer la captura.", e);
+                    handleError(Messages.text("error.capture"), e);
                 } finally {
                     Device selectedDevice = model.getSelectedDevice().orElse(null);
                     view.setCaptureEnabled(isCaptureAvailable(selectedDevice));
@@ -205,7 +210,7 @@ public class SwingController {
     private void saveScreenshot() {
         BufferedImage screenshot = view.getCurrentScreenshot();
         if (screenshot == null) {
-            view.showError("No hay ninguna captura para guardar.");
+            view.showError(Messages.text("error.save.empty"));
             return;
         }
 
@@ -216,9 +221,9 @@ public class SwingController {
 
         try {
             ImageIO.write(screenshot, "png", outputFile);
-            view.showInfo("Captura guardada en:\n" + outputFile.getAbsolutePath());
+            view.showInfo(Messages.format("info.screenshot.saved", outputFile.getAbsolutePath()));
         } catch (IOException e) {
-            handleError("No se pudo guardar la captura.", e);
+            handleError(Messages.text("error.save"), e);
         }
     }
 
@@ -226,18 +231,24 @@ public class SwingController {
         view.setTheme(view.getSelectedTheme());
     }
 
+    private void applyLanguageSelection() {
+        Language language = view.getSelectedLanguage();
+        Messages.setLanguage(language);
+        view.setLanguage(language);
+    }
+
     private void openRepository() {
         try {
             if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                Desktop.getDesktop().browse(URI.create(Messages.REPOSITORY_URL));
+                Desktop.getDesktop().browse(URI.create(Messages.repositoryUrl()));
                 return;
             }
         } catch (Exception e) {
-            handleError("No se pudo abrir el repositorio.", e);
+            handleError(Messages.text("error.repository.open"), e);
             return;
         }
 
-        view.showInfo(Messages.REPOSITORY_URL);
+        view.showInfo(Messages.repositoryUrl());
     }
 
     private void updateDevicePresentation(Device selectedDevice, DeviceDetails details) {

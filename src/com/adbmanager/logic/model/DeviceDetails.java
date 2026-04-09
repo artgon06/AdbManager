@@ -1,5 +1,6 @@
 package com.adbmanager.logic.model;
 
+import java.util.Objects;
 import java.util.Locale;
 
 public record DeviceDetails(
@@ -13,8 +14,15 @@ public record DeviceDetails(
         String androidVersion,
         String apiLevel,
         String soc,
+        DeviceType deviceType,
+        DisplayInfo displayInfo,
         long totalRamMb,
         long usedRamMb) {
+
+    public DeviceDetails {
+        deviceType = deviceType == null ? DeviceType.UNKNOWN : deviceType;
+        displayInfo = Objects.requireNonNullElse(displayInfo, DisplayInfo.empty());
+    }
 
     public boolean hasRamInfo() {
         return totalRamMb > 0;

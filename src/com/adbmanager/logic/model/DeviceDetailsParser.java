@@ -11,10 +11,21 @@ public class DeviceDetailsParser {
     private static final Pattern MEM_TOTAL = Pattern.compile("^MemTotal:\\s+(\\d+)\\s+kB$", Pattern.MULTILINE);
     private static final Pattern MEM_AVAILABLE = Pattern.compile("^MemAvailable:\\s+(\\d+)\\s+kB$", Pattern.MULTILINE);
     private static final Pattern MEM_FREE = Pattern.compile("^MemFree:\\s+(\\d+)\\s+kB$", Pattern.MULTILINE);
+    private final DisplayInfoParser displayInfoParser = new DisplayInfoParser();
+    private final DeviceTypeDetector deviceTypeDetector = new DeviceTypeDetector();
 
-    public DeviceDetails parse(Device device, String getpropOutput, String meminfoOutput) {
+    public DeviceDetails parse(
+            Device device,
+            String getpropOutput,
+            String meminfoOutput,
+            String featuresOutput,
+            String wmSizeOutput,
+            String wmDensityOutput,
+            String displayOutput) {
         Map<String, String> properties = parseProperties(getpropOutput);
         MemoryStats memoryStats = parseMemory(meminfoOutput);
+        DisplayInfo displayInfo = displayInfoParser.parse(properties, wmSizeOutput, wmDensityOutput, displayOutput);
+        DeviceType deviceType = deviceTypeDetector.detect(properties, featuresOutput, displayInfo);
 
         String manufacturer = firstNonBlank(
                 properties.get("ro.product.manufacturer"),
@@ -49,6 +60,8 @@ public class DeviceDetailsParser {
                 safeValue(androidVersion),
                 safeValue(apiLevel),
                 safeValue(soc),
+                deviceType,
+                displayInfo,
                 memoryStats.totalMb(),
                 memoryStats.usedMb());
     }
@@ -65,6 +78,8 @@ public class DeviceDetailsParser {
                 "-",
                 "-",
                 "-",
+                DeviceType.UNKNOWN,
+                DisplayInfo.empty(),
                 -1,
                 -1);
     }
