@@ -29,6 +29,8 @@ import javax.swing.plaf.basic.BasicToggleButtonUI;
 
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
+import com.adbmanager.logic.model.AppDetails;
+import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.view.Messages;
 import com.adbmanager.view.Messages.Language;
 
@@ -36,6 +38,7 @@ public class MainFrame extends JFrame {
 
     private static final String HOME_TAB = "home";
     private static final String DISPLAY_TAB = "display";
+    private static final String APPS_TAB = "apps";
     private static final String SETTINGS_TAB = "settings";
     private static final int TOP_BAR_HEIGHT = 56;
 
@@ -50,11 +53,15 @@ public class MainFrame extends JFrame {
     private final JLabel deviceLabel = new JLabel();
     private final JToggleButton homeButton = new JToggleButton();
     private final JToggleButton displayButton = new JToggleButton();
+    private final JToggleButton appsButton = new JToggleButton();
     private final JToggleButton settingsButton = new JToggleButton();
+    private final JButton wirelessButton = new JButton("+");
     private final JButton refreshButton = new JButton();
     private final HomePanel homePanel = new HomePanel();
     private final DisplayPanel displayPanel = new DisplayPanel();
+    private final AppsPanel appsPanel = new AppsPanel();
     private final SettingsPanel settingsPanel = new SettingsPanel();
+    private final WirelessConnectionDialog wirelessDialog = new WirelessConnectionDialog(this);
     private AppTheme currentTheme = AppTheme.LIGHT;
 
     public MainFrame() {
@@ -92,8 +99,28 @@ public class MainFrame extends JFrame {
         displayButton.addActionListener(actionListener);
     }
 
+    public void setApplyDisplayAction(ActionListener actionListener) {
+        displayPanel.setApplyDisplayAction(actionListener);
+    }
+
+    public void setResetDisplayAction(ActionListener actionListener) {
+        displayPanel.setResetDisplayAction(actionListener);
+    }
+
+    public void setDeviceDarkModeAction(ActionListener actionListener) {
+        displayPanel.setDeviceDarkModeAction(actionListener);
+    }
+
+    public void setAppsAction(ActionListener actionListener) {
+        appsButton.addActionListener(actionListener);
+    }
+
     public void setRefreshAction(ActionListener actionListener) {
         refreshButton.addActionListener(actionListener);
+    }
+
+    public void setWirelessAssistantAction(ActionListener actionListener) {
+        wirelessButton.addActionListener(actionListener);
     }
 
     public void setThemeChangeAction(ActionListener actionListener) {
@@ -104,8 +131,56 @@ public class MainFrame extends JFrame {
         settingsPanel.setLanguageChangeAction(actionListener);
     }
 
+    public void setAutoRefreshOnFocusChangeAction(ActionListener actionListener) {
+        settingsPanel.setAutoRefreshOnFocusChangeAction(actionListener);
+    }
+
     public void setRepositoryAction(ActionListener actionListener) {
         settingsPanel.setRepositoryAction(actionListener);
+    }
+
+    public WirelessConnectionDialog getWirelessConnectionDialog() {
+        return wirelessDialog;
+    }
+
+    public void setApplicationSelectionAction(Runnable action) {
+        appsPanel.setApplicationSelectionAction(action);
+    }
+
+    public void setApplicationsViewportChangeAction(Runnable action) {
+        appsPanel.setVisibleApplicationsChangedAction(action);
+    }
+
+    public void setApplicationPermissionToggleHandler(AppsPanel.PermissionToggleHandler handler) {
+        appsPanel.setPermissionToggleHandler(handler);
+    }
+
+    public void setOpenApplicationAction(ActionListener actionListener) {
+        appsPanel.setOpenAction(actionListener);
+    }
+
+    public void setStopApplicationAction(ActionListener actionListener) {
+        appsPanel.setStopAction(actionListener);
+    }
+
+    public void setUninstallApplicationAction(ActionListener actionListener) {
+        appsPanel.setUninstallAction(actionListener);
+    }
+
+    public void setToggleApplicationEnabledAction(ActionListener actionListener) {
+        appsPanel.setToggleEnabledAction(actionListener);
+    }
+
+    public void setClearApplicationDataAction(ActionListener actionListener) {
+        appsPanel.setClearDataAction(actionListener);
+    }
+
+    public void setClearApplicationCacheAction(ActionListener actionListener) {
+        appsPanel.setClearCacheAction(actionListener);
+    }
+
+    public void setExportApplicationApkAction(ActionListener actionListener) {
+        appsPanel.setExportApkAction(actionListener);
     }
 
     public String getSelectedDeviceSerial() {
@@ -129,6 +204,14 @@ public class MainFrame extends JFrame {
         settingsPanel.setSelectedLanguage(language);
     }
 
+    public boolean isAutoRefreshOnFocusSelected() {
+        return settingsPanel.isAutoRefreshOnFocusSelected();
+    }
+
+    public void setAutoRefreshOnFocusSelected(boolean selected) {
+        settingsPanel.setAutoRefreshOnFocusSelected(selected);
+    }
+
     public void setLanguage(Language language) {
         setTitle(Messages.appTitle());
         if (settingsPanel.getSelectedLanguage() != language) {
@@ -138,12 +221,16 @@ public class MainFrame extends JFrame {
         deviceLabel.setText(Messages.text("main.device.label"));
         homeButton.setToolTipText(Messages.text("navigation.home.tooltip"));
         displayButton.setToolTipText(Messages.text("navigation.display.tooltip"));
+        appsButton.setToolTipText(Messages.text("navigation.apps.tooltip"));
         settingsButton.setToolTipText(Messages.text("navigation.settings.tooltip"));
+        wirelessButton.setToolTipText(Messages.text("navigation.wireless.tooltip"));
         refreshButton.setToolTipText(Messages.text("navigation.refresh.tooltip"));
 
         homePanel.refreshTexts();
         displayPanel.refreshTexts();
+        appsPanel.refreshTexts();
         settingsPanel.refreshTexts();
+        wirelessDialog.refreshTexts();
         setTheme(currentTheme);
     }
 
@@ -151,6 +238,7 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, HOME_TAB);
         homeButton.setSelected(true);
         displayButton.setSelected(false);
+        appsButton.setSelected(false);
         settingsButton.setSelected(false);
         updateNavigationStyles();
     }
@@ -159,6 +247,16 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, DISPLAY_TAB);
         homeButton.setSelected(false);
         displayButton.setSelected(true);
+        appsButton.setSelected(false);
+        settingsButton.setSelected(false);
+        updateNavigationStyles();
+    }
+
+    public void showAppsScreen() {
+        cardLayout.show(contentPanel, APPS_TAB);
+        homeButton.setSelected(false);
+        displayButton.setSelected(false);
+        appsButton.setSelected(true);
         settingsButton.setSelected(false);
         updateNavigationStyles();
     }
@@ -167,6 +265,7 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, SETTINGS_TAB);
         homeButton.setSelected(false);
         displayButton.setSelected(false);
+        appsButton.setSelected(false);
         settingsButton.setSelected(true);
         updateNavigationStyles();
     }
@@ -202,6 +301,62 @@ public class MainFrame extends JFrame {
     public void clearDeviceDetails() {
         homePanel.clearDeviceDetails();
         displayPanel.clearDeviceDetails();
+    }
+
+    public void setApplications(List<InstalledApp> applications, String selectedPackageName) {
+        appsPanel.setApplications(applications, selectedPackageName);
+    }
+
+    public void setApplicationsLoading(boolean loading, String statusText) {
+        appsPanel.setApplicationsLoading(loading, statusText);
+    }
+
+    public void updateApplication(InstalledApp application) {
+        appsPanel.updateApplication(application);
+    }
+
+    public void clearApplications() {
+        appsPanel.clearApplications();
+    }
+
+    public String getSelectedApplicationPackage() {
+        return appsPanel.getSelectedPackageName();
+    }
+
+    public List<String> getVisibleApplicationPackages(int extraRows) {
+        return appsPanel.getVisibleApplicationPackages(extraRows);
+    }
+
+    public AppDetails getCurrentApplicationDetails() {
+        return appsPanel.getCurrentDetails();
+    }
+
+    public void setApplicationDetails(AppDetails details) {
+        appsPanel.setApplicationDetails(details);
+    }
+
+    public void clearApplicationDetails() {
+        appsPanel.clearApplicationDetails();
+    }
+
+    public void showApplicationDetailsLoading(String packageName) {
+        appsPanel.showApplicationDetailsLoading(packageName);
+    }
+
+    public Integer getRequestedDisplayWidth() {
+        return displayPanel.getRequestedWidth();
+    }
+
+    public Integer getRequestedDisplayHeight() {
+        return displayPanel.getRequestedHeight();
+    }
+
+    public Integer getRequestedDisplayDensity() {
+        return displayPanel.getRequestedDensity();
+    }
+
+    public boolean isDeviceDarkModeSelected() {
+        return displayPanel.isDeviceDarkModeSelected();
     }
 
     public void setScreenshot(BufferedImage image) {
@@ -240,6 +395,30 @@ public class MainFrame extends JFrame {
         return selectedFile;
     }
 
+    public File chooseApkDestination(String defaultFileName) {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle(Messages.text("filechooser.saveApk.title"));
+        fileChooser.setFileFilter(new FileNameExtensionFilter(
+                Messages.text("filechooser.saveApk.filter"),
+                "apk"));
+        fileChooser.setSelectedFile(new File(defaultFileName));
+
+        int result = fileChooser.showSaveDialog(this);
+        if (result != JFileChooser.APPROVE_OPTION) {
+            return null;
+        }
+
+        File selectedFile = fileChooser.getSelectedFile();
+        if (!selectedFile.getName().toLowerCase().endsWith(".apk")) {
+            File parentDirectory = selectedFile.getParentFile();
+            selectedFile = parentDirectory == null
+                    ? new File(selectedFile.getName() + ".apk")
+                    : new File(parentDirectory, selectedFile.getName() + ".apk");
+        }
+
+        return selectedFile;
+    }
+
     public void setCaptureEnabled(boolean enabled) {
         homePanel.setCaptureEnabled(enabled);
     }
@@ -255,6 +434,18 @@ public class MainFrame extends JFrame {
     public void setRefreshEnabled(boolean enabled) {
         refreshButton.setEnabled(enabled);
         styleRefreshButton();
+    }
+
+    public void setApplicationsEnabled(boolean enabled) {
+        appsPanel.setApplicationsEnabled(enabled);
+    }
+
+    public void setApplicationActionsEnabled(boolean enabled) {
+        appsPanel.setApplicationActionsEnabled(enabled);
+    }
+
+    public void setDisplayControlsEnabled(boolean enabled) {
+        displayPanel.setDisplayControlsEnabled(enabled);
     }
 
     public void setTheme(AppTheme theme) {
@@ -283,10 +474,14 @@ public class MainFrame extends JFrame {
 
         homePanel.applyTheme(theme);
         displayPanel.applyTheme(theme);
+        appsPanel.applyTheme(theme);
         settingsPanel.applyTheme(theme);
+        wirelessDialog.applyTheme(theme);
         styleNavigationButton(homeButton);
         styleNavigationButton(displayButton);
+        styleNavigationButton(appsButton);
         styleNavigationButton(settingsButton);
+        styleWirelessButton();
         styleRefreshButton();
 
         revalidate();
@@ -309,6 +504,19 @@ public class MainFrame extends JFrame {
                 JOptionPane.ERROR_MESSAGE);
     }
 
+    public boolean confirmAction(String title, String message) {
+        return JOptionPane.showConfirmDialog(
+                this,
+                message,
+                title,
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION;
+    }
+
+    public boolean isAppsScreenVisible() {
+        return appsButton.isSelected();
+    }
+
     private void buildFrame() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setMinimumSize(new Dimension(1240, 820));
@@ -323,19 +531,24 @@ public class MainFrame extends JFrame {
     private void addTopBar() {
         configureNavigationButton(homeButton, ToolbarIcon.Type.HOME);
         configureNavigationButton(displayButton, ToolbarIcon.Type.DISPLAY);
+        configureNavigationButton(appsButton, ToolbarIcon.Type.APPS);
         configureNavigationButton(settingsButton, ToolbarIcon.Type.SETTINGS);
+        configureWirelessButton();
         configureRefreshButton();
 
         navigationGroup.add(homeButton);
         navigationGroup.add(displayButton);
+        navigationGroup.add(appsButton);
         navigationGroup.add(settingsButton);
         navigationTabsPanel.add(homeButton);
         navigationTabsPanel.add(displayButton);
+        navigationTabsPanel.add(appsButton);
         navigationTabsPanel.add(settingsButton);
 
-        deviceSelectorPanel.add(refreshButton);
         deviceSelectorPanel.add(deviceLabel);
         deviceSelectorPanel.add(deviceSelector);
+        deviceSelectorPanel.add(wirelessButton);
+        deviceSelectorPanel.add(refreshButton);
 
         topBar.add(navigationTabsPanel, BorderLayout.WEST);
         topBar.add(deviceSelectorPanel, BorderLayout.EAST);
@@ -346,6 +559,7 @@ public class MainFrame extends JFrame {
     private void addContent() {
         contentPanel.add(homePanel, HOME_TAB);
         contentPanel.add(displayPanel, DISPLAY_TAB);
+        contentPanel.add(appsPanel, APPS_TAB);
         contentPanel.add(settingsPanel, SETTINGS_TAB);
         getContentPane().add(contentPanel, BorderLayout.CENTER);
         showHomeScreen();
@@ -374,9 +588,19 @@ public class MainFrame extends JFrame {
         deviceSelector.setMaximumRowCount(12);
     }
 
+    private void configureWirelessButton() {
+        wirelessButton.setUI(new BasicButtonUI());
+        wirelessButton.setFocusable(false);
+        wirelessButton.setFocusPainted(false);
+        wirelessButton.setPreferredSize(new Dimension(TOP_BAR_HEIGHT, TOP_BAR_HEIGHT));
+        wirelessButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
+        wirelessButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 24));
+    }
+
     private void updateNavigationStyles() {
         styleNavigationButton(homeButton);
         styleNavigationButton(displayButton);
+        styleNavigationButton(appsButton);
         styleNavigationButton(settingsButton);
     }
 
@@ -407,6 +631,17 @@ public class MainFrame extends JFrame {
                 : currentTheme.textSecondary());
         refreshButton.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
         refreshButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.REFRESH, 20, refreshButton.getForeground()));
+    }
+
+    private void styleWirelessButton() {
+        wirelessButton.setOpaque(true);
+        wirelessButton.setContentAreaFilled(true);
+        wirelessButton.setBackground(currentTheme.surface());
+        wirelessButton.setForeground(wirelessButton.isEnabled()
+                ? currentTheme.actionBackground()
+                : currentTheme.textSecondary());
+        wirelessButton.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        wirelessButton.setText("+");
     }
 
     private String defaultScreenshotName() {

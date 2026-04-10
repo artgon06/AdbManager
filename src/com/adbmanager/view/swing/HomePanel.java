@@ -6,21 +6,23 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
+import javax.swing.SwingConstants;
+import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.plaf.basic.BasicButtonUI;
 
@@ -30,32 +32,49 @@ import com.adbmanager.view.Messages;
 public class HomePanel extends JPanel {
 
     private static final String FIELD_STATE = "state";
-    private static final String FIELD_DEVICE_TYPE = "deviceType";
-    private static final String FIELD_SERIAL = "serial";
+    private static final String FIELD_TYPE = "type";
     private static final String FIELD_MANUFACTURER = "manufacturer";
     private static final String FIELD_BRAND = "brand";
-    private static final String FIELD_MODEL = "model";
-    private static final String FIELD_CODENAME = "codename";
     private static final String FIELD_PRODUCT = "product";
-    private static final String FIELD_ANDROID = "android";
-    private static final String FIELD_API = "api";
+    private static final String FIELD_CODENAME = "codename";
+    private static final String FIELD_ARCHITECTURE = "architecture";
+    private static final String FIELD_BATTERY = "battery";
+    private static final String FIELD_SERIAL = "serial";
     private static final String FIELD_SOC = "soc";
 
     private final JButton captureButton = new JButton();
     private final JButton saveScreenshotButton = new JButton();
     private final ScreenshotPreviewPanel screenshotPreviewPanel = new ScreenshotPreviewPanel();
+
     private final JPanel summaryPanel = new JPanel(new BorderLayout());
     private final JPanel capturePanel = new JPanel(new BorderLayout(0, 18));
     private final JPanel summaryContent = new JPanel();
+    private final JPanel heroPanel = new JPanel(new BorderLayout(16, 0));
+    private final JLabel heroIconLabel = new JLabel();
+    private final JPanel heroTextPanel = new JPanel();
+    private final JLabel heroTitleLabel = new JLabel("-");
+    private final JLabel heroSubtitleLabel = new JLabel("-");
+    private final JPanel chipPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+    private final JLabel stateChipLabel = createChipLabel();
+    private final JLabel platformChipLabel = createChipLabel();
+    private final JLabel batteryChipLabel = createChipLabel();
+
+    private final JPanel factsPanel = new JPanel(new GridBagLayout());
+    private final Map<String, FactCard> factCards = new LinkedHashMap<>();
+
+    private final JPanel metricsPanel = new JPanel(new GridLayout(1, 2, 12, 0));
     private final JPanel ramPanel = new JPanel();
-    private final Map<String, JLabel> valueLabels = new LinkedHashMap<>();
-    private final Map<String, JLabel> fieldLabels = new LinkedHashMap<>();
-    private final List<JPanel> rowPanels = new ArrayList<>();
-    private final List<JLabel> dynamicValueLabels = new ArrayList<>();
-    private final JLabel ramUsageTitleLabel = new JLabel();
-    private final JLabel ramUsageValueLabel = new JLabel("-");
-    private final JLabel ramTotalLabel = new JLabel();
-    private final JProgressBar ramUsageBar = new JProgressBar(0, 100);
+    private final JLabel ramTitleLabel = new JLabel();
+    private final JLabel ramValueLabel = new JLabel("-");
+    private final JLabel ramFooterLabel = new JLabel();
+    private final JProgressBar ramProgressBar = new JProgressBar(0, 100);
+
+    private final JPanel storagePanel = new JPanel();
+    private final JLabel storageTitleLabel = new JLabel();
+    private final JLabel storageValueLabel = new JLabel("-");
+    private final JLabel storageFooterLabel = new JLabel();
+    private final JProgressBar storageProgressBar = new JProgressBar(0, 100);
+
     private BufferedImage currentScreenshot;
     private DeviceDetails currentDetails;
     private AppTheme theme = AppTheme.LIGHT;
@@ -75,34 +94,62 @@ public class HomePanel extends JPanel {
     public void setDeviceDetails(DeviceDetails details) {
         currentDetails = details;
 
-        valueLabels.get(FIELD_STATE).setText(Messages.stateLabel(details.state()));
-        valueLabels.get(FIELD_DEVICE_TYPE).setText(Messages.deviceTypeLabel(details.deviceType()));
-        valueLabels.get(FIELD_SERIAL).setText(details.serial());
-        valueLabels.get(FIELD_MANUFACTURER).setText(details.manufacturer());
-        valueLabels.get(FIELD_BRAND).setText(details.brand());
-        valueLabels.get(FIELD_MODEL).setText(details.model());
-        valueLabels.get(FIELD_CODENAME).setText(details.codename());
-        valueLabels.get(FIELD_PRODUCT).setText(details.productName());
-        valueLabels.get(FIELD_ANDROID).setText(details.androidVersion());
-        valueLabels.get(FIELD_API).setText(details.apiLevel());
-        valueLabels.get(FIELD_SOC).setText(details.soc());
+        heroTitleLabel.setText(primaryDeviceTitle(details));
+        heroSubtitleLabel.setText(asHtml(secondaryDeviceTitle(details), 290));
+        heroIconLabel.setIcon(createHeroIcon());
+
+        stateChipLabel.setText(Messages.stateLabel(details.state()));
+        platformChipLabel.setText(details.apiLevel().equals("-")
+                ? "Android " + details.androidVersion()
+                : "Android " + details.androidVersion() + " / API " + details.apiLevel());
+        batteryChipLabel.setText(Messages.text("home.field.battery") + ": " + details.batteryLabel());
+
+        setFactValue(FIELD_STATE, Messages.stateLabel(details.state()));
+        setFactValue(FIELD_TYPE, Messages.deviceTypeLabel(details.deviceType()));
+        setFactValue(FIELD_MANUFACTURER, details.manufacturer());
+        setFactValue(FIELD_BRAND, details.brand());
+        setFactValue(FIELD_PRODUCT, details.productName());
+        setFactValue(FIELD_CODENAME, details.codename());
+        setFactValue(FIELD_ARCHITECTURE, details.architecture());
+        setFactValue(FIELD_BATTERY, details.batteryLabel());
+        setFactValue(FIELD_SERIAL, details.serial());
+        setFactValue(FIELD_SOC, details.soc());
 
         if (details.hasRamInfo()) {
-            ramUsageValueLabel.setText(details.usedRamLabel());
-            ramTotalLabel.setText(Messages.format("home.ram.total", details.totalRamLabel()));
-            ramUsageBar.setValue(details.ramUsagePercent());
-            ramUsageBar.setString(details.usedRamLabel() + " / " + details.totalRamLabel());
+            ramValueLabel.setText(details.usedRamLabel());
+            ramFooterLabel.setText(Messages.format("home.metric.total", details.totalRamLabel()));
+            ramProgressBar.setValue(details.ramUsagePercent());
+            ramProgressBar.setString(details.usedRamLabel() + " / " + details.totalRamLabel());
         } else {
-            resetRamPresentation();
+            resetMetric(ramValueLabel, ramFooterLabel, ramProgressBar);
+        }
+
+        if (details.hasStorageInfo()) {
+            storageValueLabel.setText(details.usedStorageLabel());
+            storageFooterLabel.setText(Messages.format("home.metric.total", details.totalStorageLabel()));
+            storageProgressBar.setValue(details.storageUsagePercent());
+            storageProgressBar.setString(details.usedStorageLabel() + " / " + details.totalStorageLabel());
+        } else {
+            resetMetric(storageValueLabel, storageFooterLabel, storageProgressBar);
         }
     }
 
     public void clearDeviceDetails() {
         currentDetails = null;
-        for (JLabel valueLabel : valueLabels.values()) {
-            valueLabel.setText("-");
+        heroTitleLabel.setText(Messages.appName());
+        heroSubtitleLabel.setText(asHtml(Messages.text("home.summary.empty"), 290));
+        heroIconLabel.setIcon(createHeroIcon());
+
+        stateChipLabel.setText(Messages.text("common.noData"));
+        platformChipLabel.setText(Messages.text("common.noData"));
+        batteryChipLabel.setText(Messages.text("home.field.battery") + ": -");
+
+        for (FactCard factCard : factCards.values()) {
+            factCard.setValue("-");
         }
-        resetRamPresentation();
+
+        resetMetric(ramValueLabel, ramFooterLabel, ramProgressBar);
+        resetMetric(storageValueLabel, storageFooterLabel, storageProgressBar);
     }
 
     public void setCaptureAction(ActionListener actionListener) {
@@ -143,20 +190,21 @@ public class HomePanel extends JPanel {
         captureButton.setText(Messages.text("home.capture"));
         saveScreenshotButton.setText(Messages.text("home.saveCapture"));
 
-        fieldLabels.get(FIELD_STATE).setText(Messages.text("home.field.state"));
-        fieldLabels.get(FIELD_DEVICE_TYPE).setText(Messages.text("home.field.deviceType"));
-        fieldLabels.get(FIELD_SERIAL).setText(Messages.text("home.field.serial"));
-        fieldLabels.get(FIELD_MANUFACTURER).setText(Messages.text("home.field.manufacturer"));
-        fieldLabels.get(FIELD_BRAND).setText(Messages.text("home.field.brand"));
-        fieldLabels.get(FIELD_MODEL).setText(Messages.text("home.field.model"));
-        fieldLabels.get(FIELD_CODENAME).setText(Messages.text("home.field.codename"));
-        fieldLabels.get(FIELD_PRODUCT).setText(Messages.text("home.field.product"));
-        fieldLabels.get(FIELD_ANDROID).setText(Messages.text("home.field.android"));
-        fieldLabels.get(FIELD_API).setText(Messages.text("home.field.api"));
-        fieldLabels.get(FIELD_SOC).setText(Messages.text("home.field.soc"));
+        factCards.get(FIELD_STATE).setTitle(Messages.text("home.field.state"));
+        factCards.get(FIELD_TYPE).setTitle(Messages.text("home.field.deviceType"));
+        factCards.get(FIELD_MANUFACTURER).setTitle(Messages.text("home.field.manufacturer"));
+        factCards.get(FIELD_BRAND).setTitle(Messages.text("home.field.brand"));
+        factCards.get(FIELD_PRODUCT).setTitle(Messages.text("home.field.product"));
+        factCards.get(FIELD_CODENAME).setTitle(Messages.text("home.field.codename"));
+        factCards.get(FIELD_ARCHITECTURE).setTitle(Messages.text("home.field.architecture"));
+        factCards.get(FIELD_BATTERY).setTitle(Messages.text("home.field.battery"));
+        factCards.get(FIELD_SERIAL).setTitle(Messages.text("home.field.serial"));
+        factCards.get(FIELD_SOC).setTitle(Messages.text("home.field.soc"));
 
-        ramUsageTitleLabel.setText(Messages.text("home.ram.inUse"));
-        summaryPanel.setBorder(createSectionBorder(Messages.text("home.summary.title"), theme));
+        ramTitleLabel.setText(Messages.text("home.ram.inUse"));
+        storageTitleLabel.setText(Messages.text("home.storage.inUse"));
+
+        summaryPanel.setBorder(createSectionBorder(Messages.text("home.summary.title")));
         screenshotPreviewPanel.refreshTexts();
 
         if (currentDetails == null) {
@@ -171,112 +219,145 @@ public class HomePanel extends JPanel {
         setBackground(theme.background());
 
         summaryPanel.setBackground(theme.surface());
-        capturePanel.setBackground(theme.background());
         summaryContent.setBackground(theme.surface());
-        ramPanel.setBackground(theme.secondarySurface());
+        capturePanel.setBackground(theme.background());
+        chipPanel.setBackground(theme.surface());
+        factsPanel.setBackground(theme.surface());
+        metricsPanel.setBackground(theme.surface());
 
-        for (JPanel rowPanel : rowPanels) {
-            rowPanel.setBackground(theme.surface());
+        styleSurfaceCard(heroPanel, true);
+        styleHeroIcon(theme);
+
+        heroTextPanel.setOpaque(false);
+        heroTitleLabel.setForeground(theme.textPrimary());
+        heroTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 30));
+        heroSubtitleLabel.setForeground(theme.textSecondary());
+        heroSubtitleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+
+        styleChip(stateChipLabel);
+        styleChip(platformChipLabel);
+        styleChip(batteryChipLabel);
+
+        for (FactCard factCard : factCards.values()) {
+            factCard.applyTheme(theme);
         }
 
-        for (JLabel keyLabel : fieldLabels.values()) {
-            keyLabel.setForeground(theme.textSecondary());
-            keyLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
-        }
+        styleMetricCard(ramPanel, ramTitleLabel, ramValueLabel, ramFooterLabel, ramProgressBar);
+        styleMetricCard(storagePanel, storageTitleLabel, storageValueLabel, storageFooterLabel, storageProgressBar);
 
-        for (JLabel valueLabel : dynamicValueLabels) {
-            valueLabel.setForeground(theme.textPrimary());
-            valueLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
-        }
-
-        ramUsageTitleLabel.setForeground(theme.textSecondary());
-        ramUsageTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
-        ramUsageValueLabel.setForeground(theme.textPrimary());
-        ramUsageValueLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 18));
-        ramTotalLabel.setForeground(theme.textSecondary());
-        ramTotalLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
-
-        ramUsageBar.setBackground(theme.background());
-        ramUsageBar.setForeground(theme.actionBackground());
-        ramUsageBar.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(theme.border(), 1),
-                BorderFactory.createEmptyBorder(1, 1, 1, 1)));
-        ramUsageBar.setStringPainted(true);
-        ramUsageBar.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
-
-        ramPanel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(theme.border(), 1),
-                BorderFactory.createEmptyBorder(14, 14, 14, 14)));
-
-        summaryPanel.setBorder(createSectionBorder(Messages.text("home.summary.title"), theme));
+        summaryPanel.setBorder(createSectionBorder(Messages.text("home.summary.title")));
         screenshotPreviewPanel.applyTheme(theme);
         updateActionButtonsStyle();
         repaint();
     }
 
     private void buildSummaryPanel() {
-        summaryPanel.setPreferredSize(new Dimension(380, 0));
-
+        summaryPanel.setPreferredSize(new Dimension(430, 0));
         summaryContent.setLayout(new BoxLayout(summaryContent, BoxLayout.Y_AXIS));
-        summaryContent.setBorder(BorderFactory.createEmptyBorder(18, 18, 18, 18));
+        summaryContent.setBorder(new EmptyBorder(18, 18, 18, 18));
 
-        summaryContent.add(createInfoRow(FIELD_STATE));
-        summaryContent.add(createInfoRow(FIELD_DEVICE_TYPE));
-        summaryContent.add(createInfoRow(FIELD_SERIAL));
-        summaryContent.add(createInfoRow(FIELD_MANUFACTURER));
-        summaryContent.add(createInfoRow(FIELD_BRAND));
-        summaryContent.add(createInfoRow(FIELD_MODEL));
-        summaryContent.add(createInfoRow(FIELD_CODENAME));
-        summaryContent.add(createInfoRow(FIELD_PRODUCT));
-        summaryContent.add(createInfoRow(FIELD_ANDROID));
-        summaryContent.add(createInfoRow(FIELD_API));
-        summaryContent.add(createInfoRow(FIELD_SOC));
-        summaryContent.add(Box.createVerticalStrut(18));
-        summaryContent.add(buildRamPanel());
+        summaryContent.add(buildHeroPanel());
+        summaryContent.add(Box.createVerticalStrut(14));
+        summaryContent.add(buildFactsPanel());
+        summaryContent.add(Box.createVerticalStrut(14));
+        summaryContent.add(buildMetricsPanel());
         summaryContent.add(Box.createVerticalGlue());
 
         summaryPanel.add(summaryContent, BorderLayout.CENTER);
     }
 
-    private JPanel buildRamPanel() {
-        ramPanel.setLayout(new BoxLayout(ramPanel, BoxLayout.Y_AXIS));
-        ramPanel.setAlignmentX(LEFT_ALIGNMENT);
+    private JPanel buildHeroPanel() {
+        heroPanel.setAlignmentX(LEFT_ALIGNMENT);
 
-        JPanel headerPanel = new JPanel(new BorderLayout());
-        headerPanel.setOpaque(false);
-        headerPanel.add(ramUsageTitleLabel, BorderLayout.WEST);
-        headerPanel.add(ramUsageValueLabel, BorderLayout.EAST);
+        heroIconLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        heroIconLabel.setVerticalAlignment(SwingConstants.CENTER);
+        heroIconLabel.setPreferredSize(new Dimension(72, 72));
 
-        ramUsageBar.setPreferredSize(new Dimension(0, 18));
-        ramUsageBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 18));
-        ramUsageBar.setBorderPainted(false);
+        heroTextPanel.setLayout(new BoxLayout(heroTextPanel, BoxLayout.Y_AXIS));
+        heroTextPanel.add(Box.createVerticalStrut(2));
+        heroTextPanel.add(heroTitleLabel);
+        heroTextPanel.add(Box.createVerticalStrut(6));
+        heroTextPanel.add(heroSubtitleLabel);
+        heroTextPanel.add(Box.createVerticalStrut(12));
 
-        ramPanel.add(headerPanel);
-        ramPanel.add(Box.createVerticalStrut(10));
-        ramPanel.add(ramUsageBar);
-        ramPanel.add(Box.createVerticalStrut(8));
-        ramPanel.add(ramTotalLabel);
+        chipPanel.add(stateChipLabel);
+        chipPanel.add(platformChipLabel);
+        chipPanel.add(batteryChipLabel);
+        heroTextPanel.add(chipPanel);
 
-        return ramPanel;
+        heroPanel.add(heroIconLabel, BorderLayout.WEST);
+        heroPanel.add(heroTextPanel, BorderLayout.CENTER);
+        return heroPanel;
     }
 
-    private JPanel createInfoRow(String fieldKey) {
-        JPanel rowPanel = new JPanel(new BorderLayout(14, 0));
-        rowPanel.setBorder(BorderFactory.createEmptyBorder(4, 0, 4, 0));
-        rowPanel.setAlignmentX(LEFT_ALIGNMENT);
+    private JPanel buildFactsPanel() {
+        addFactCard(FIELD_STATE, false, 0, 0, 1);
+        addFactCard(FIELD_TYPE, false, 1, 0, 1);
+        addFactCard(FIELD_MANUFACTURER, false, 0, 1, 1);
+        addFactCard(FIELD_BRAND, false, 1, 1, 1);
+        addFactCard(FIELD_PRODUCT, false, 0, 2, 1);
+        addFactCard(FIELD_CODENAME, false, 1, 2, 1);
+        addFactCard(FIELD_ARCHITECTURE, false, 0, 3, 1);
+        addFactCard(FIELD_BATTERY, false, 1, 3, 1);
+        addFactCard(FIELD_SERIAL, true, 0, 4, 2);
+        addFactCard(FIELD_SOC, true, 0, 5, 2);
+        return factsPanel;
+    }
 
-        JLabel keyLabel = new JLabel();
-        JLabel valueLabel = new JLabel("-");
-        valueLabel.setHorizontalAlignment(JLabel.RIGHT);
+    private JPanel buildMetricsPanel() {
+        metricsPanel.add(createMetricPanel(ramPanel, ramTitleLabel, ramValueLabel, ramProgressBar, ramFooterLabel));
+        metricsPanel.add(createMetricPanel(
+                storagePanel,
+                storageTitleLabel,
+                storageValueLabel,
+                storageProgressBar,
+                storageFooterLabel));
+        return metricsPanel;
+    }
 
-        rowPanels.add(rowPanel);
-        fieldLabels.put(fieldKey, keyLabel);
-        dynamicValueLabels.add(valueLabel);
-        valueLabels.put(fieldKey, valueLabel);
+    private JPanel createMetricPanel(
+            JPanel container,
+            JLabel titleLabel,
+            JLabel valueLabel,
+            JProgressBar progressBar,
+            JLabel footerLabel) {
+        container.setLayout(new BoxLayout(container, BoxLayout.Y_AXIS));
+        container.setAlignmentX(LEFT_ALIGNMENT);
+        container.setBorder(new EmptyBorder(14, 14, 14, 14));
 
-        rowPanel.add(keyLabel, BorderLayout.WEST);
-        rowPanel.add(valueLabel, BorderLayout.CENTER);
-        return rowPanel;
+        JPanel headerPanel = new JPanel(new BorderLayout(8, 0));
+        headerPanel.setOpaque(false);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        headerPanel.add(valueLabel, BorderLayout.EAST);
+
+        progressBar.setStringPainted(true);
+        progressBar.setBorderPainted(false);
+        progressBar.setPreferredSize(new Dimension(0, 18));
+        progressBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 18));
+
+        container.add(headerPanel);
+        container.add(Box.createVerticalStrut(10));
+        container.add(progressBar);
+        container.add(Box.createVerticalStrut(8));
+        container.add(footerLabel);
+        return container;
+    }
+
+    private void addFactCard(String key, boolean wide, int gridX, int gridY, int gridWidth) {
+        FactCard factCard = new FactCard(wide);
+        factCards.put(key, factCard);
+
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = gridX;
+        constraints.gridy = gridY;
+        constraints.gridwidth = gridWidth;
+        constraints.weightx = gridWidth == 2 ? 1.0 : 0.5;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        constraints.insets = new Insets(0, 0, 10, gridX == 0 && gridWidth == 1 ? 10 : 0);
+        if (gridWidth == 2) {
+            constraints.insets = new Insets(0, 0, 10, 0);
+        }
+        factsPanel.add(factCard.panel(), constraints);
     }
 
     private void buildCapturePanel() {
@@ -305,10 +386,9 @@ public class HomePanel extends JPanel {
         GridBagConstraints constraints = new GridBagConstraints();
         constraints.gridx = 0;
         constraints.gridy = 0;
-        constraints.weightx = 0.34;
+        constraints.weightx = 0.37;
         constraints.weighty = 1.0;
         constraints.fill = GridBagConstraints.BOTH;
-        constraints.anchor = GridBagConstraints.NORTHWEST;
         constraints.insets = new Insets(24, 24, 24, 18);
         return constraints;
     }
@@ -317,7 +397,7 @@ public class HomePanel extends JPanel {
         GridBagConstraints constraints = new GridBagConstraints();
         constraints.gridx = 1;
         constraints.gridy = 0;
-        constraints.weightx = 0.66;
+        constraints.weightx = 0.63;
         constraints.weighty = 1.0;
         constraints.fill = GridBagConstraints.BOTH;
         constraints.insets = new Insets(24, 18, 24, 24);
@@ -325,11 +405,12 @@ public class HomePanel extends JPanel {
     }
 
     private void updateActionButtonsStyle() {
-        styleActionButton(captureButton, true, captureButton.isEnabled());
-        styleActionButton(saveScreenshotButton, false, saveScreenshotButton.isEnabled());
+        styleActionButton(captureButton, true);
+        styleActionButton(saveScreenshotButton, false);
     }
 
-    private void styleActionButton(JButton button, boolean primary, boolean enabled) {
+    private void styleActionButton(JButton button, boolean primary) {
+        boolean enabled = button.isEnabled();
         button.setOpaque(true);
         button.setContentAreaFilled(true);
         button.setBorderPainted(true);
@@ -351,7 +432,116 @@ public class HomePanel extends JPanel {
                 BorderFactory.createEmptyBorder(8, 18, 8, 18)));
     }
 
-    private TitledBorder createSectionBorder(String title, AppTheme theme) {
+    private void styleHeroIcon(AppTheme theme) {
+        heroIconLabel.setOpaque(true);
+        heroIconLabel.setBackground(theme.secondarySurface());
+        heroIconLabel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(theme.border(), 1),
+                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
+        heroIconLabel.setIcon(createHeroIcon());
+    }
+
+    private void styleChip(JLabel label) {
+        label.setOpaque(true);
+        label.setBackground(theme.surface());
+        label.setForeground(theme.textPrimary());
+        label.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(theme.border(), 1),
+                BorderFactory.createEmptyBorder(6, 10, 6, 10)));
+        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+    }
+
+    private void styleSurfaceCard(JPanel panel, boolean elevated) {
+        panel.setOpaque(true);
+        panel.setBackground(elevated ? theme.secondarySurface() : theme.surface());
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(theme.border(), 1),
+                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
+    }
+
+    private void styleMetricCard(
+            JPanel panel,
+            JLabel titleLabel,
+            JLabel valueLabel,
+            JLabel footerLabel,
+            JProgressBar progressBar) {
+        styleSurfaceCard(panel, false);
+
+        titleLabel.setForeground(theme.textSecondary());
+        titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+
+        valueLabel.setForeground(theme.textPrimary());
+        valueLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 18));
+
+        footerLabel.setForeground(theme.textSecondary());
+        footerLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+
+        progressBar.setBackground(theme.background());
+        progressBar.setForeground(theme.actionBackground());
+        progressBar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(theme.border(), 1),
+                BorderFactory.createEmptyBorder(1, 1, 1, 1)));
+        progressBar.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+    }
+
+    private void resetMetric(JLabel valueLabel, JLabel footerLabel, JProgressBar progressBar) {
+        valueLabel.setText("-");
+        footerLabel.setText(Messages.format("home.metric.total", "-"));
+        progressBar.setValue(0);
+        progressBar.setString(Messages.text("common.noData"));
+    }
+
+    private void setFactValue(String key, String value) {
+        FactCard factCard = factCards.get(key);
+        if (factCard == null) {
+            return;
+        }
+        factCard.setValue(value);
+    }
+
+    private JLabel createChipLabel() {
+        return new JLabel("-");
+    }
+
+    private Icon createHeroIcon() {
+        return new ToolbarIcon(ToolbarIcon.Type.DISPLAY, 24, theme.actionBackground());
+    }
+
+    private String primaryDeviceTitle(DeviceDetails details) {
+        return details.model() == null || details.model().isBlank() || "-".equals(details.model())
+                ? details.serial()
+                : details.model();
+    }
+
+    private String secondaryDeviceTitle(DeviceDetails details) {
+        String manufacturer = normalizeDisplayValue(details.manufacturer());
+        String brand = normalizeDisplayValue(details.brand());
+        String soc = normalizeDisplayValue(details.soc());
+
+        StringBuilder builder = new StringBuilder();
+        if (!manufacturer.isBlank()) {
+            builder.append(manufacturer);
+        }
+        if (!brand.isBlank() && !brand.equalsIgnoreCase(manufacturer)) {
+            if (builder.length() > 0) {
+                builder.append(" | ");
+            }
+            builder.append(brand);
+        }
+        if (!soc.isBlank()) {
+            if (builder.length() > 0) {
+                builder.append(" | ");
+            }
+            builder.append(soc);
+        }
+        return builder.isEmpty() ? Messages.text("home.summary.empty") : builder.toString();
+    }
+
+    private String normalizeDisplayValue(String value) {
+        return value == null || value.isBlank() || "-".equals(value) ? "" : value.trim();
+    }
+
+    private TitledBorder createSectionBorder(String title) {
         return BorderFactory.createTitledBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 title,
@@ -361,10 +551,50 @@ public class HomePanel extends JPanel {
                 theme.textPrimary());
     }
 
-    private void resetRamPresentation() {
-        ramUsageValueLabel.setText("-");
-        ramTotalLabel.setText(Messages.format("home.ram.total", "-"));
-        ramUsageBar.setValue(0);
-        ramUsageBar.setString(Messages.text("common.noData"));
+    private String asHtml(String text, int width) {
+        return "<html><body style='width:" + width + "px'>" + text + "</body></html>";
+    }
+
+    private final class FactCard {
+
+        private final JPanel panel = new JPanel();
+        private final JLabel titleLabel = new JLabel();
+        private final JLabel valueLabel = new JLabel("-");
+        private final boolean wide;
+
+        private FactCard(boolean wide) {
+            this.wide = wide;
+            panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+            panel.setAlignmentX(LEFT_ALIGNMENT);
+            panel.add(titleLabel);
+            panel.add(Box.createVerticalStrut(6));
+            panel.add(valueLabel);
+        }
+
+        private JPanel panel() {
+            return panel;
+        }
+
+        private void setTitle(String title) {
+            titleLabel.setText(title);
+        }
+
+        private void setValue(String value) {
+            String normalized = value == null || value.isBlank() ? "-" : value.trim();
+            if (wide && normalized.length() > 28) {
+                valueLabel.setText(asHtml(normalized, 300));
+            } else {
+                valueLabel.setText(normalized);
+            }
+            valueLabel.setToolTipText(normalized);
+        }
+
+        private void applyTheme(AppTheme theme) {
+            styleSurfaceCard(panel, false);
+            titleLabel.setForeground(theme.textSecondary());
+            titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+            valueLabel.setForeground(theme.textPrimary());
+            valueLabel.setFont(new Font(Font.SANS_SERIF, wide ? Font.PLAIN : Font.BOLD, wide ? 12 : 15));
+        }
     }
 }

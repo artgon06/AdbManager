@@ -24,7 +24,8 @@ public class DisplayInfoParser {
             Map<String, String> properties,
             String wmSizeOutput,
             String wmDensityOutput,
-            String displayOutput) {
+            String displayOutput,
+            String darkModeOutput) {
         Size physicalSize = parseSize(PHYSICAL_SIZE, wmSizeOutput);
         Size overrideSize = parseSize(OVERRIDE_SIZE, wmSizeOutput);
         if (physicalSize == null) {
@@ -43,6 +44,7 @@ public class DisplayInfoParser {
         Size effectiveSize = overrideSize != null ? overrideSize : physicalSize;
         Integer densityDpi = overrideDensity != null ? overrideDensity : physicalDensity;
         Integer smallestWidthDp = calculateSmallestWidthDp(effectiveSize, densityDpi);
+        Boolean darkModeEnabled = parseDarkModeState(darkModeOutput);
         RefreshInfo refreshInfo = parseRefreshInfo(displayOutput);
 
         return new DisplayInfo(
@@ -53,6 +55,7 @@ public class DisplayInfoParser {
                 densityDpi,
                 physicalDensity,
                 smallestWidthDp,
+                darkModeEnabled,
                 refreshInfo.currentRefreshRateHz(),
                 refreshInfo.supportedRefreshRatesHz());
     }
@@ -124,6 +127,19 @@ public class DisplayInfoParser {
         }
 
         return new RefreshInfo(currentRefreshRate, supportedRates);
+    }
+
+    private Boolean parseDarkModeState(String darkModeOutput) {
+        String rawValue = safe(darkModeOutput).trim();
+        if (rawValue.isBlank()) {
+            return null;
+        }
+
+        return switch (rawValue) {
+            case "2", "yes", "on" -> true;
+            case "1", "no", "off" -> false;
+            default -> null;
+        };
     }
 
     private Double parseDouble(Pattern pattern, String content) {

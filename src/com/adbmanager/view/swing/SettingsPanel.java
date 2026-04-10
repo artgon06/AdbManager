@@ -3,6 +3,7 @@ package com.adbmanager.view.swing;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Font;
+import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.event.ActionListener;
 
@@ -12,33 +13,41 @@ import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
-import javax.swing.JRadioButton;
+import javax.swing.JToggleButton;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
+import javax.swing.plaf.basic.BasicButtonUI;
+import javax.swing.plaf.basic.BasicToggleButtonUI;
+
 import com.adbmanager.view.Messages;
 import com.adbmanager.view.Messages.Language;
 
 public class SettingsPanel extends JPanel {
 
     private final JLabel titleLabel = new JLabel();
+    private final JLabel subtitleLabel = new JLabel();
     private final JPanel aboutPanel = new JPanel();
     private final JPanel appearancePanel = new JPanel();
-    private final JLabel appNameTitle = new JLabel();
+    private final JPanel behaviorPanel = new JPanel();
+
     private final JLabel appNameValue = new JLabel();
-    private final JLabel versionTitle = new JLabel();
-    private final JLabel versionValue = new JLabel();
-    private final JLabel repositoryTitle = new JLabel();
+    private final JLabel versionBadge = new JLabel();
     private final JButton repositoryButton = new JButton();
+
     private final JLabel themeLabel = new JLabel();
+    private final JToggleButton lightThemeButton = new JToggleButton();
+    private final JToggleButton darkThemeButton = new JToggleButton();
     private final JLabel languageLabel = new JLabel();
-    private final JRadioButton lightThemeRadio = new JRadioButton();
-    private final JRadioButton darkThemeRadio = new JRadioButton();
     private final JComboBox<Language> languageCombo = new JComboBox<>(Language.values());
     private final LanguageRenderer languageRenderer = new LanguageRenderer();
+
+    private final JCheckBox autoRefreshOnFocusCheckBox = new JCheckBox();
+    private AppTheme theme = AppTheme.LIGHT;
 
     public SettingsPanel() {
         buildPanel();
@@ -47,8 +56,8 @@ public class SettingsPanel extends JPanel {
     }
 
     public void setThemeChangeAction(ActionListener actionListener) {
-        lightThemeRadio.addActionListener(actionListener);
-        darkThemeRadio.addActionListener(actionListener);
+        lightThemeButton.addActionListener(actionListener);
+        darkThemeButton.addActionListener(actionListener);
     }
 
     public void setLanguageChangeAction(ActionListener actionListener) {
@@ -59,16 +68,21 @@ public class SettingsPanel extends JPanel {
         repositoryButton.addActionListener(actionListener);
     }
 
-    public AppTheme getSelectedTheme() {
-        return darkThemeRadio.isSelected() ? AppTheme.DARK : AppTheme.LIGHT;
+    public void setAutoRefreshOnFocusChangeAction(ActionListener actionListener) {
+        autoRefreshOnFocusCheckBox.addActionListener(actionListener);
     }
 
-    public void setSelectedTheme(AppTheme theme) {
-        if (theme == AppTheme.DARK) {
-            darkThemeRadio.setSelected(true);
+    public AppTheme getSelectedTheme() {
+        return darkThemeButton.isSelected() ? AppTheme.DARK : AppTheme.LIGHT;
+    }
+
+    public void setSelectedTheme(AppTheme selectedTheme) {
+        if (selectedTheme == AppTheme.DARK) {
+            darkThemeButton.setSelected(true);
         } else {
-            lightThemeRadio.setSelected(true);
+            lightThemeButton.setSelected(true);
         }
+        applyTheme(theme);
     }
 
     public Language getSelectedLanguage() {
@@ -80,47 +94,77 @@ public class SettingsPanel extends JPanel {
         languageCombo.setSelectedItem(language);
     }
 
+    public boolean isAutoRefreshOnFocusSelected() {
+        return autoRefreshOnFocusCheckBox.isSelected();
+    }
+
+    public void setAutoRefreshOnFocusSelected(boolean selected) {
+        autoRefreshOnFocusCheckBox.setSelected(selected);
+    }
+
     public void refreshTexts() {
         titleLabel.setText(Messages.text("settings.title"));
-        appNameTitle.setText(Messages.text("settings.application"));
+        subtitleLabel.setText(Messages.text("settings.subtitle"));
         appNameValue.setText(Messages.appName());
-        versionTitle.setText(Messages.text("settings.version"));
-        versionValue.setText(Messages.version());
-        repositoryTitle.setText(Messages.text("settings.repository"));
-        repositoryButton.setText(Messages.repositoryUrl());
+        versionBadge.setText(Messages.version());
+        repositoryButton.setText(Messages.text("settings.repository.open"));
         themeLabel.setText(Messages.text("settings.theme"));
-        lightThemeRadio.setText(Messages.text("settings.theme.light"));
-        darkThemeRadio.setText(Messages.text("settings.theme.dark"));
+        lightThemeButton.setText(Messages.text("settings.theme.light"));
+        darkThemeButton.setText(Messages.text("settings.theme.dark"));
         languageLabel.setText(Messages.text("settings.language"));
+        autoRefreshOnFocusCheckBox.setText(Messages.text("settings.behavior.autoRefreshFocus"));
         languageCombo.repaint();
     }
 
     public void applyTheme(AppTheme theme) {
+        this.theme = theme;
         setBackground(theme.background());
+
         titleLabel.setForeground(theme.textPrimary());
+        subtitleLabel.setForeground(theme.textSecondary());
 
         applySectionTheme(aboutPanel, Messages.text("settings.about.title"), theme);
         applySectionTheme(appearancePanel, Messages.text("settings.appearance.title"), theme);
+        applySectionTheme(behaviorPanel, Messages.text("settings.behavior.title"), theme);
 
-        styleInfoLabel(appNameTitle, theme, true);
-        styleInfoLabel(appNameValue, theme, false);
-        styleInfoLabel(versionTitle, theme, true);
-        styleInfoLabel(versionValue, theme, false);
-        styleInfoLabel(repositoryTitle, theme, true);
-        styleInfoLabel(themeLabel, theme, true);
-        styleInfoLabel(languageLabel, theme, true);
+        appNameValue.setForeground(theme.textPrimary());
+        appNameValue.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 26));
+
+        versionBadge.setOpaque(true);
+        versionBadge.setBackground(theme.secondarySurface());
+        versionBadge.setForeground(theme.actionBackground());
+        versionBadge.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(theme.border(), 1),
+                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+        versionBadge.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+
         styleLinkButton(theme);
-        styleRadio(lightThemeRadio, theme);
-        styleRadio(darkThemeRadio, theme);
+        styleSectionLabel(themeLabel, theme);
+        styleSectionLabel(languageLabel, theme);
+        styleThemeButton(lightThemeButton, theme);
+        styleThemeButton(darkThemeButton, theme);
         styleLanguageCombo(theme);
+
+        autoRefreshOnFocusCheckBox.setOpaque(true);
+        autoRefreshOnFocusCheckBox.setBackground(theme.surface());
+        autoRefreshOnFocusCheckBox.setForeground(theme.textPrimary());
+        autoRefreshOnFocusCheckBox.setFocusPainted(false);
+        autoRefreshOnFocusCheckBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
     }
 
     private void buildPanel() {
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(28, 28, 28, 28));
 
+        JPanel headerPanel = new JPanel();
+        headerPanel.setOpaque(false);
+        headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
         titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
-        add(titleLabel, BorderLayout.NORTH);
+        subtitleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        headerPanel.add(titleLabel);
+        headerPanel.add(Box.createVerticalStrut(6));
+        headerPanel.add(subtitleLabel);
+        add(headerPanel, BorderLayout.NORTH);
 
         JPanel content = new JPanel();
         content.setOpaque(false);
@@ -129,10 +173,13 @@ public class SettingsPanel extends JPanel {
 
         buildAboutPanel();
         buildAppearancePanel();
+        buildBehaviorPanel();
 
         content.add(aboutPanel);
         content.add(Box.createVerticalStrut(18));
         content.add(appearancePanel);
+        content.add(Box.createVerticalStrut(18));
+        content.add(behaviorPanel);
         content.add(Box.createVerticalGlue());
 
         add(content, BorderLayout.CENTER);
@@ -142,11 +189,20 @@ public class SettingsPanel extends JPanel {
         aboutPanel.setLayout(new BoxLayout(aboutPanel, BoxLayout.Y_AXIS));
         aboutPanel.setAlignmentX(LEFT_ALIGNMENT);
 
-        aboutPanel.add(createAboutRow(appNameTitle, appNameValue));
-        aboutPanel.add(Box.createVerticalStrut(12));
-        aboutPanel.add(createAboutRow(versionTitle, versionValue));
-        aboutPanel.add(Box.createVerticalStrut(12));
-        aboutPanel.add(createAboutRow(repositoryTitle, repositoryButton));
+        JPanel brandRow = new JPanel();
+        brandRow.setOpaque(false);
+        brandRow.setLayout(new BoxLayout(brandRow, BoxLayout.X_AXIS));
+        brandRow.add(appNameValue);
+        brandRow.add(Box.createHorizontalStrut(14));
+        brandRow.add(versionBadge);
+        brandRow.add(Box.createHorizontalGlue());
+
+        repositoryButton.setUI(new BasicButtonUI());
+        repositoryButton.setFocusPainted(false);
+
+        aboutPanel.add(brandRow);
+        aboutPanel.add(Box.createVerticalStrut(18));
+        aboutPanel.add(repositoryButton);
     }
 
     private void buildAppearancePanel() {
@@ -154,34 +210,37 @@ public class SettingsPanel extends JPanel {
         appearancePanel.setAlignmentX(LEFT_ALIGNMENT);
 
         ButtonGroup themeGroup = new ButtonGroup();
-        lightThemeRadio.setActionCommand(AppTheme.LIGHT.name());
-        darkThemeRadio.setActionCommand(AppTheme.DARK.name());
-        themeGroup.add(lightThemeRadio);
-        themeGroup.add(darkThemeRadio);
-        lightThemeRadio.setSelected(true);
+        themeGroup.add(lightThemeButton);
+        themeGroup.add(darkThemeButton);
+        lightThemeButton.setUI(new BasicToggleButtonUI());
+        darkThemeButton.setUI(new BasicToggleButtonUI());
+        lightThemeButton.setFocusable(false);
+        darkThemeButton.setFocusable(false);
+        lightThemeButton.setSelected(true);
 
-        JPanel themeOptionsPanel = new JPanel();
-        themeOptionsPanel.setOpaque(false);
-        themeOptionsPanel.setLayout(new BoxLayout(themeOptionsPanel, BoxLayout.Y_AXIS));
-        themeOptionsPanel.add(lightThemeRadio);
-        themeOptionsPanel.add(Box.createVerticalStrut(10));
-        themeOptionsPanel.add(darkThemeRadio);
+        JPanel themeButtonsPanel = new JPanel(new GridLayout(1, 2, 10, 0));
+        themeButtonsPanel.setOpaque(false);
+        themeButtonsPanel.add(lightThemeButton);
+        themeButtonsPanel.add(darkThemeButton);
 
         languageCombo.setRenderer(languageRenderer);
         languageCombo.setFocusable(false);
-        languageCombo.setMaximumSize(new java.awt.Dimension(220, 38));
+        languageCombo.setMaximumSize(new java.awt.Dimension(240, 40));
 
-        appearancePanel.add(createAboutRow(themeLabel, themeOptionsPanel));
+        appearancePanel.add(themeLabel);
+        appearancePanel.add(Box.createVerticalStrut(10));
+        appearancePanel.add(themeButtonsPanel);
         appearancePanel.add(Box.createVerticalStrut(18));
-        appearancePanel.add(createAboutRow(languageLabel, languageCombo));
+        appearancePanel.add(languageLabel);
+        appearancePanel.add(Box.createVerticalStrut(10));
+        appearancePanel.add(languageCombo);
     }
 
-    private JPanel createAboutRow(JLabel keyLabel, Component valueComponent) {
-        JPanel row = new JPanel(new BorderLayout(12, 0));
-        row.setOpaque(false);
-        row.add(keyLabel, BorderLayout.WEST);
-        row.add(valueComponent, BorderLayout.CENTER);
-        return row;
+    private void buildBehaviorPanel() {
+        behaviorPanel.setLayout(new BoxLayout(behaviorPanel, BoxLayout.Y_AXIS));
+        behaviorPanel.setAlignmentX(LEFT_ALIGNMENT);
+        autoRefreshOnFocusCheckBox.setSelected(true);
+        behaviorPanel.add(autoRefreshOnFocusCheckBox);
     }
 
     private void applySectionTheme(JPanel panel, String title, AppTheme theme) {
@@ -194,32 +253,39 @@ public class SettingsPanel extends JPanel {
                         TitledBorder.TOP,
                         new Font(Font.SANS_SERIF, Font.BOLD, 18),
                         theme.textPrimary()),
-                BorderFactory.createEmptyBorder(16, 18, 16, 18)));
+                BorderFactory.createEmptyBorder(18, 18, 18, 18)));
     }
 
-    private void styleInfoLabel(JLabel label, AppTheme theme, boolean muted) {
-        label.setForeground(muted ? theme.textSecondary() : theme.textPrimary());
-        label.setFont(new Font(Font.SANS_SERIF, muted ? Font.BOLD : Font.PLAIN, 16));
+    private void styleSectionLabel(JLabel label, AppTheme theme) {
+        label.setForeground(theme.textSecondary());
+        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
     }
 
     private void styleLinkButton(AppTheme theme) {
-        repositoryButton.setOpaque(false);
-        repositoryButton.setContentAreaFilled(false);
-        repositoryButton.setBorderPainted(false);
-        repositoryButton.setFocusPainted(false);
+        repositoryButton.setOpaque(true);
+        repositoryButton.setContentAreaFilled(true);
+        repositoryButton.setBorderPainted(true);
+        repositoryButton.setBackground(theme.surface());
         repositoryButton.setForeground(theme.actionBackground());
-        repositoryButton.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+        repositoryButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(theme.border(), 1),
+                BorderFactory.createEmptyBorder(10, 14, 10, 14)));
+        repositoryButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
         repositoryButton.setHorizontalAlignment(JButton.LEFT);
         repositoryButton.setMargin(new Insets(0, 0, 0, 0));
     }
 
-    private void styleRadio(JRadioButton radioButton, AppTheme theme) {
-        radioButton.setOpaque(true);
-        radioButton.setBackground(theme.surface());
-        radioButton.setForeground(theme.textPrimary());
-        radioButton.setFocusPainted(false);
-        radioButton.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 16));
-        radioButton.setMargin(new Insets(6, 2, 6, 2));
+    private void styleThemeButton(JToggleButton button, AppTheme theme) {
+        boolean selected = button.isSelected();
+        button.setOpaque(true);
+        button.setContentAreaFilled(true);
+        button.setFocusPainted(false);
+        button.setBackground(selected ? theme.secondarySurface() : theme.surface());
+        button.setForeground(selected ? theme.actionBackground() : theme.textPrimary());
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(selected ? theme.actionBackground() : theme.border(), 1),
+                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
+        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
     }
 
     private void styleLanguageCombo(AppTheme theme) {

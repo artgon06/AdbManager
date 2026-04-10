@@ -13,6 +13,7 @@ public record DisplayInfo(
         Integer densityDpi,
         Integer physicalDensityDpi,
         Integer smallestWidthDp,
+        Boolean darkModeEnabled,
         Double refreshRateHz,
         List<Double> supportedRefreshRatesHz) {
 
@@ -29,7 +30,7 @@ public record DisplayInfo(
     }
 
     public static DisplayInfo empty() {
-        return new DisplayInfo(null, null, null, null, null, null, null, null, List.of());
+        return new DisplayInfo(null, null, null, null, null, null, null, null, null, List.of());
     }
 
     public boolean hasResolution() {
@@ -54,6 +55,10 @@ public record DisplayInfo(
 
     public boolean hasRefreshRate() {
         return refreshRateHz != null;
+    }
+
+    public boolean hasDarkModeState() {
+        return darkModeEnabled != null;
     }
 
     public boolean hasSupportedRefreshRates() {
@@ -95,6 +100,44 @@ public record DisplayInfo(
                 .orElse("-");
     }
 
+    public String darkModeLabel() {
+        if (!hasDarkModeState()) {
+            return "-";
+        }
+        return Boolean.TRUE.equals(darkModeEnabled) ? "on" : "off";
+    }
+
+    public String aspectRatioLabel() {
+        return aspectRatioLabel(widthPx, heightPx);
+    }
+
+    public String physicalAspectRatioLabel() {
+        return aspectRatioLabel(physicalWidthPx, physicalHeightPx);
+    }
+
+    public int effectiveSmallestSidePx() {
+        if (!hasResolution()) {
+            return 0;
+        }
+        return Math.min(widthPx, heightPx);
+    }
+
+    public int physicalSmallestSidePx() {
+        if (!hasPhysicalResolution()) {
+            return 0;
+        }
+        return Math.min(physicalWidthPx, physicalHeightPx);
+    }
+
+    public static String aspectRatioLabel(Integer widthPx, Integer heightPx) {
+        if (widthPx == null || heightPx == null || widthPx <= 0 || heightPx <= 0) {
+            return "-";
+        }
+
+        int gcd = gcd(widthPx, heightPx);
+        return (widthPx / gcd) + ":" + (heightPx / gcd);
+    }
+
     private String formatRate(double rate) {
         double rounded = Math.rint(rate);
         if (Math.abs(rate - rounded) < 0.05d) {
@@ -105,5 +148,16 @@ public record DisplayInfo(
 
     private double normalize(double rate) {
         return Math.round(rate * 100.0d) / 100.0d;
+    }
+
+    private static int gcd(int left, int right) {
+        int a = Math.abs(left);
+        int b = Math.abs(right);
+        while (b != 0) {
+            int tmp = a % b;
+            a = b;
+            b = tmp;
+        }
+        return a == 0 ? 1 : a;
     }
 }

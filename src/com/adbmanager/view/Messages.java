@@ -1,7 +1,13 @@
 package com.adbmanager.view;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.Locale;
+import java.util.MissingResourceException;
+import java.util.PropertyResourceBundle;
 import java.util.ResourceBundle;
 
 import com.adbmanager.logic.model.DeviceType;
@@ -105,6 +111,37 @@ public final class Messages {
     }
 
     private static ResourceBundle loadBundle(Language language) {
-        return ResourceBundle.getBundle(BUNDLE_BASE_NAME, language.locale());
+        try {
+            return ResourceBundle.getBundle(BUNDLE_BASE_NAME, language.locale());
+        } catch (MissingResourceException primaryError) {
+            ResourceBundle fallbackBundle = loadBundleFromFilesystem(language);
+            if (fallbackBundle != null) {
+                return fallbackBundle;
+            }
+            throw primaryError;
+        }
+    }
+
+    private static ResourceBundle loadBundleFromFilesystem(Language language) {
+        String languageCode = language == null ? defaultLanguage().locale().getLanguage() : language.locale().getLanguage();
+        String fileName = "messages_" + languageCode + ".properties";
+        Path[] candidates = new Path[] {
+                Path.of("src", "com", "adbmanager", "view", "i18n", fileName),
+                Path.of("bin", "com", "adbmanager", "view", "i18n", fileName),
+                Path.of("com", "adbmanager", "view", "i18n", fileName)
+        };
+
+        for (Path candidate : candidates) {
+            if (!Files.isRegularFile(candidate)) {
+                continue;
+            }
+
+            try (InputStream inputStream = Files.newInputStream(candidate)) {
+                return new PropertyResourceBundle(inputStream);
+            } catch (IOException ignored) {
+            }
+        }
+
+        return null;
     }
 }

@@ -28,11 +28,22 @@ public class AdbClient {
         return new AdbResult(result.exitCode(), new String(result.output(), StandardCharsets.UTF_8));
     }
 
+    public AdbResult run(List<String> args, String standardInput) throws Exception {
+        AdbBinaryResult result = runBinary(
+                args,
+                standardInput == null ? null : standardInput.getBytes(StandardCharsets.UTF_8));
+        return new AdbResult(result.exitCode(), new String(result.output(), StandardCharsets.UTF_8));
+    }
+
     public AdbResult runForSerial(String serial, List<String> args) throws Exception {
         return run(withSerial(serial, args));
     }
 
     public AdbBinaryResult runBinary(List<String> args) throws Exception {
+        return runBinary(args, null);
+    }
+
+    public AdbBinaryResult runBinary(List<String> args, byte[] standardInput) throws Exception {
         List<String> command = new ArrayList<>();
         command.add(adbPath);
         command.addAll(args);
@@ -44,6 +55,12 @@ public class AdbClient {
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
         try {
+            if (standardInput != null && standardInput.length > 0) {
+                process.getOutputStream().write(standardInput);
+            }
+            process.getOutputStream().flush();
+            process.getOutputStream().close();
+
             Future<byte[]> outputFuture = executor.submit(() -> readOutput(process.getInputStream()));
             boolean finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
 

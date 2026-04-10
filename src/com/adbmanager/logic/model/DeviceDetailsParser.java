@@ -11,6 +11,8 @@ public class DeviceDetailsParser {
     private static final Pattern MEM_TOTAL = Pattern.compile("^MemTotal:\\s+(\\d+)\\s+kB$", Pattern.MULTILINE);
     private static final Pattern MEM_AVAILABLE = Pattern.compile("^MemAvailable:\\s+(\\d+)\\s+kB$", Pattern.MULTILINE);
     private static final Pattern MEM_FREE = Pattern.compile("^MemFree:\\s+(\\d+)\\s+kB$", Pattern.MULTILINE);
+    private static final Pattern BATTERY_LEVEL = Pattern.compile("^\\s*level:\\s*(\\d+)\\s*$", Pattern.MULTILINE);
+    private static final Pattern BATTERY_SCALE = Pattern.compile("^\\s*scale:\\s*(\\d+)\\s*$", Pattern.MULTILINE);
     private final DisplayInfoParser displayInfoParser = new DisplayInfoParser();
     private final DeviceTypeDetector deviceTypeDetector = new DeviceTypeDetector();
 
@@ -18,13 +20,23 @@ public class DeviceDetailsParser {
             Device device,
             String getpropOutput,
             String meminfoOutput,
+            String batteryOutput,
+            String storageOutput,
             String featuresOutput,
             String wmSizeOutput,
             String wmDensityOutput,
-            String displayOutput) {
+            String displayOutput,
+            String darkModeOutput) {
         Map<String, String> properties = parseProperties(getpropOutput);
         MemoryStats memoryStats = parseMemory(meminfoOutput);
-        DisplayInfo displayInfo = displayInfoParser.parse(properties, wmSizeOutput, wmDensityOutput, displayOutput);
+        int batteryLevelPercent = parseBatteryLevel(batteryOutput);
+        StorageStats storageStats = parseStorage(storageOutput);
+        DisplayInfo displayInfo = displayInfoParser.parse(
+                properties,
+                wmSizeOutput,
+                wmDensityOutput,
+                displayOutput,
+                darkModeOutput);
         DeviceType deviceType = deviceTypeDetector.detect(properties, featuresOutput, displayInfo);
 
         String manufacturer = firstNonBlank(
@@ -48,6 +60,7 @@ public class DeviceDetailsParser {
                 properties.get("ro.build.version.release_or_codename"));
         String apiLevel = properties.get("ro.build.version.sdk");
         String soc = buildSocValue(properties);
+        String architecture = buildArchitectureValue(properties);
 
         return new DeviceDetails(
                 device.serial(),
@@ -60,10 +73,14 @@ public class DeviceDetailsParser {
                 safeValue(androidVersion),
                 safeValue(apiLevel),
                 safeValue(soc),
+                safeValue(architecture),
                 deviceType,
                 displayInfo,
                 memoryStats.totalMb(),
-                memoryStats.usedMb());
+                memoryStats.usedMb(),
+                batteryLevelPercent,
+                storageStats.totalMb(),
+                storageStats.usedMb());
     }
 
     public DeviceDetails fromDevice(Device device) {
@@ -78,8 +95,12 @@ public class DeviceDetailsParser {
                 "-",
                 "-",
                 "-",
+                "-",
                 DeviceType.UNKNOWN,
                 DisplayInfo.empty(),
+                -1,
+                -1,
+                -1,
                 -1,
                 -1);
     }
@@ -126,6 +147,53 @@ public class DeviceDetailsParser {
         return Long.parseLong(matcher.group(1));
     }
 
+    private int parseBatteryLevel(String batteryOutput) {
+        long level = findLongValue(BATTERY_LEVEL, batteryOutput);
+        long scale = findLongValue(BATTERY_SCALE, batteryOutput);
+        if (level < 0 || scale <= 0) {
+            return -1;
+        }
+        return (int) Math.max(0, Math.min(100, Math.round((level * 100.0) / scale)));
+    }
+
+    private StorageStats parseStorage(String storageOutput) {
+        if (storageOutput == null || storageOutput.isBlank()) {
+            return new StorageStats(-1, -1);
+        }
+
+        StorageStats fallback = new StorageStats(-1, -1);
+        for (String rawLine : storageOutput.lines().toList()) {
+            String line = rawLine == null ? "" : rawLine.trim();
+            if (line.isBlank() || line.startsWith("Filesystem")) {
+                continue;
+            }
+
+            String[] tokens = line.split("\\s+");
+            if (tokens.length < 4) {
+                continue;
+            }
+
+            try {
+                long totalKb = Long.parseLong(tokens[1]);
+                long usedKb = Long.parseLong(tokens[2]);
+                long totalMb = Math.round(totalKb / 1024.0);
+                long usedMb = Math.round(usedKb / 1024.0);
+                fallback = new StorageStats(totalMb, usedMb);
+
+                String mountPoint = tokens[tokens.length - 1];
+                if ("/data".equals(mountPoint)
+                        || mountPoint.startsWith("/data/")
+                        || "/storage/emulated".equals(mountPoint)
+                        || mountPoint.startsWith("/storage/emulated/")) {
+                    return fallback;
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        return fallback;
+    }
+
     private String buildSocValue(Map<String, String> properties) {
         String socModel = firstNonBlank(properties.get("ro.soc.model"), properties.get("ro.board.platform"));
         String boardPlatform = properties.get("ro.board.platform");
@@ -150,6 +218,17 @@ public class DeviceDetailsParser {
         return socModel;
     }
 
+    private String buildArchitectureValue(Map<String, String> properties) {
+        String abiList = firstNonBlank(
+                properties.get("ro.product.cpu.abilist64"),
+                properties.get("ro.product.cpu.abilist"),
+                properties.get("ro.product.cpu.abi"));
+        if (isBlank(abiList)) {
+            return "-";
+        }
+        return abiList.replace(",", ", ");
+    }
+
     private String firstNonBlank(String... values) {
         for (String value : values) {
             if (!isBlank(value)) {
@@ -168,5 +247,8 @@ public class DeviceDetailsParser {
     }
 
     private record MemoryStats(long totalMb, long usedMb) {
+    }
+
+    private record StorageStats(long totalMb, long usedMb) {
     }
 }

@@ -52,6 +52,14 @@ public class ThemedComboBoxUI extends BasicComboBoxUI {
                 JScrollPane scroller = super.createScroller();
                 scroller.getViewport().setBackground(theme.surface());
                 scroller.setBorder(BorderFactory.createLineBorder(theme.border(), 1));
+                if (scroller.getVerticalScrollBar() != null) {
+                    scroller.getVerticalScrollBar().setUI(new ThemedScrollBarUI(theme));
+                    scroller.getVerticalScrollBar().setBackground(theme.surface());
+                }
+                if (scroller.getHorizontalScrollBar() != null) {
+                    scroller.getHorizontalScrollBar().setUI(new ThemedScrollBarUI(theme));
+                    scroller.getHorizontalScrollBar().setBackground(theme.surface());
+                }
                 return scroller;
             }
         };
