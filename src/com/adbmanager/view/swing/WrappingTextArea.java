@@ -2,6 +2,7 @@ package com.adbmanager.view.swing;
 
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Insets;
 
 import javax.swing.BorderFactory;
 import javax.swing.JTextArea;
@@ -41,10 +42,24 @@ public class WrappingTextArea extends JTextArea {
 
     @Override
     public Dimension getPreferredSize() {
-        if (getParent() != null && getParent().getWidth() > 0) {
-            int availableWidth = Math.max(120, getParent().getWidth());
+        int availableWidth = resolveWrapWidth();
+        if (availableWidth > 0) {
             setSize(new Dimension(availableWidth, Short.MAX_VALUE));
         }
         return super.getPreferredSize();
+    }
+
+    private int resolveWrapWidth() {
+        if (getWidth() > 0) {
+            return Math.max(120, getWidth());
+        }
+
+        if (getParent() == null || getParent().getWidth() <= 0) {
+            return -1;
+        }
+
+        Insets insets = getInsets();
+        int horizontalInsets = insets == null ? 0 : insets.left + insets.right;
+        return Math.max(120, getParent().getWidth() - horizontalInsets);
     }
 }

@@ -90,6 +90,8 @@ public class SwingController {
         view.setTheme(userConfig.theme());
         autoRefreshOnFocus = userConfig.autoRefreshOnFocus();
         view.setAutoRefreshOnFocusSelected(autoRefreshOnFocus);
+        view.setUseCustomAdbPathSelected(userConfig.useCustomAdbPath());
+        view.setCustomAdbPath(userConfig.customAdbPath());
         view.setScrcpyLaunchRequest(userConfig.scrcpyLaunchRequest());
         cleanupScrcpyLogsSafely();
 
@@ -128,6 +130,9 @@ public class SwingController {
             autoRefreshOnFocus = view.isAutoRefreshOnFocusSelected();
             saveUserConfigSafely();
         });
+        view.setUseCustomAdbPathChangeAction(event -> applyAdbPathSettings());
+        view.setCustomAdbPathCommitAction(event -> applyAdbPathSettings());
+        view.setCustomAdbPathBrowseAction(event -> browseCustomAdbPath());
         view.setRepositoryAction(event -> openRepository());
         view.setScrcpyRepositoryAction(event -> openUrl("https://github.com/Genymobile/scrcpy"));
         view.setDeviceCatalogAction(event -> openUrl("https://github.com/pbakondy/android-device-list"));
@@ -350,6 +355,21 @@ public class SwingController {
 
     private void openRepository() {
         openUrl(Messages.repositoryUrl());
+    }
+
+    private void browseCustomAdbPath() {
+        File selectedFile = view.chooseAdbExecutable();
+        if (selectedFile == null) {
+            return;
+        }
+
+        view.setCustomAdbPath(selectedFile.getAbsolutePath());
+        applyAdbPathSettings();
+    }
+
+    private void applyAdbPathSettings() {
+        saveUserConfigSafely();
+        refreshDevices();
     }
 
     private void openUrl(String url) {
@@ -1534,6 +1554,8 @@ public class SwingController {
                 view.getSelectedTheme(),
                 view.getSelectedLanguage(),
                 view.isAutoRefreshOnFocusSelected(),
+                view.isUseCustomAdbPathSelected(),
+                view.getCustomAdbPath(),
                 view.getScrcpyLaunchRequest());
     }
 

@@ -9,16 +9,19 @@ public record UserConfig(
         AppTheme theme,
         Language language,
         boolean autoRefreshOnFocus,
+        boolean useCustomAdbPath,
+        String customAdbPath,
         ScrcpyLaunchRequest scrcpyLaunchRequest) {
 
     public UserConfig {
         theme = Objects.requireNonNullElse(theme, AppTheme.LIGHT);
         language = Objects.requireNonNullElse(language, Language.ENGLISH);
+        customAdbPath = customAdbPath == null ? "" : customAdbPath.trim();
         scrcpyLaunchRequest = Objects.requireNonNullElse(scrcpyLaunchRequest, defaultScrcpyLaunchRequest());
     }
 
     public static UserConfig defaults(AppTheme theme, Language language) {
-        return new UserConfig(theme, language, true, defaultScrcpyLaunchRequest());
+        return new UserConfig(theme, language, true, false, "", defaultScrcpyLaunchRequest());
     }
 
     public static ScrcpyLaunchRequest defaultScrcpyLaunchRequest() {

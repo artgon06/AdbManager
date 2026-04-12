@@ -338,12 +338,12 @@ public class DisplayPanel extends JPanel {
 
     private void buildPanel() {
         setLayout(new BorderLayout());
-        setBorder(new EmptyBorder(28, 28, 28, 28));
+        setBorder(new EmptyBorder(18, 18, 18, 18));
         add(titleLabel, BorderLayout.NORTH);
 
         JPanel content = new JPanel(new GridBagLayout());
         content.setOpaque(false);
-        content.setBorder(new EmptyBorder(22, 0, 0, 0));
+        content.setBorder(new EmptyBorder(16, 0, 0, 0));
 
         JPanel leftColumn = new JPanel(new GridBagLayout());
         leftColumn.setOpaque(false);
@@ -357,7 +357,7 @@ public class DisplayPanel extends JPanel {
         metricsConstraints.weightx = 1.0;
         metricsConstraints.weighty = 0.42;
         metricsConstraints.fill = GridBagConstraints.BOTH;
-        metricsConstraints.insets = new Insets(0, 0, 12, 0);
+        metricsConstraints.insets = new Insets(0, 0, 8, 0);
         leftColumn.add(metricsPanel, metricsConstraints);
 
         GridBagConstraints controlsConstraints = new GridBagConstraints();
@@ -378,7 +378,7 @@ public class DisplayPanel extends JPanel {
 
     private void buildMetricsPanel() {
         metricsContent.setLayout(new BoxLayout(metricsContent, BoxLayout.Y_AXIS));
-        metricsContent.setBorder(new EmptyBorder(18, 18, 18, 18));
+        metricsContent.setBorder(new EmptyBorder(14, 14, 14, 14));
         metricsContent.add(createInfoRow(FIELD_DEVICE_TYPE));
         metricsContent.add(createInfoRow(FIELD_CURRENT_RESOLUTION));
         metricsContent.add(createInfoRow(FIELD_PHYSICAL_RESOLUTION));
@@ -393,7 +393,7 @@ public class DisplayPanel extends JPanel {
 
     private void buildControlsPanel() {
         controlsContent.setLayout(new BoxLayout(controlsContent, BoxLayout.Y_AXIS));
-        controlsContent.setBorder(new EmptyBorder(18, 18, 18, 18));
+        controlsContent.setBorder(new EmptyBorder(14, 14, 14, 14));
         controlsContent.setAlignmentX(LEFT_ALIGNMENT);
         inputTitleLabel.setAlignmentX(LEFT_ALIGNMENT);
         suggestionButtonsPanel.setAlignmentX(LEFT_ALIGNMENT);
@@ -677,7 +677,7 @@ public class DisplayPanel extends JPanel {
         constraints.weightx = 1.0;
         constraints.weighty = 1.0;
         constraints.fill = GridBagConstraints.BOTH;
-        constraints.insets = new Insets(0, 0, 0, 12);
+        constraints.insets = new Insets(0, 0, 0, 8);
         return constraints;
     }
 
@@ -688,7 +688,7 @@ public class DisplayPanel extends JPanel {
         constraints.weightx = 2.0;
         constraints.weighty = 1.0;
         constraints.fill = GridBagConstraints.BOTH;
-        constraints.insets = new Insets(0, 12, 0, 0);
+        constraints.insets = new Insets(0, 8, 0, 0);
         return constraints;
     }
 

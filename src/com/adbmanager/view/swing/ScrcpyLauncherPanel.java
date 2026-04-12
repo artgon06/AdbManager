@@ -445,7 +445,7 @@ public class ScrcpyLauncherPanel extends JPanel {
 
     private void buildStatusCard() {
         statusCard.setLayout(new BoxLayout(statusCard, BoxLayout.Y_AXIS));
-        statusCard.setBorder(new EmptyBorder(14, 14, 14, 14));
+        statusCard.setBorder(new EmptyBorder(12, 12, 12, 12));
         configureButton(prepareButton);
         statusCard.add(createKeyValueRow(availabilityLabel, availabilityValueLabel));
         statusCard.add(Box.createVerticalStrut(8));
@@ -460,15 +460,15 @@ public class ScrcpyLauncherPanel extends JPanel {
 
     private void buildSourceCard() {
         sourceCard.setLayout(new BoxLayout(sourceCard, BoxLayout.Y_AXIS));
-        sourceCard.setBorder(new EmptyBorder(14, 14, 14, 14));
-
-        JPanel targetRow = new JPanel(new BorderLayout(10, 0));
-        targetRow.setOpaque(false);
-        targetRow.add(targetLabel, BorderLayout.WEST);
-        targetRow.add(targetCombo, BorderLayout.CENTER);
+        sourceCard.setBorder(new EmptyBorder(12, 12, 12, 12));
+        targetLabel.setAlignmentX(LEFT_ALIGNMENT);
+        targetCombo.setAlignmentX(LEFT_ALIGNMENT);
+        targetCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
 
         JPanel togglesRow = new JPanel(new GridLayout(1, 2, 10, 0));
         togglesRow.setOpaque(false);
+        togglesRow.setAlignmentX(LEFT_ALIGNMENT);
+        togglesRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         togglesRow.add(fullscreenCheck);
         togglesRow.add(readOnlyCheck);
 
@@ -477,7 +477,9 @@ public class ScrcpyLauncherPanel extends JPanel {
             launchTargetChangeAction.actionPerformed(event);
         });
 
-        sourceCard.add(targetRow);
+        sourceCard.add(targetLabel);
+        sourceCard.add(Box.createVerticalStrut(6));
+        sourceCard.add(targetCombo);
         sourceCard.add(Box.createVerticalStrut(12));
         sourceCard.add(togglesRow);
         sourceCard.add(Box.createVerticalStrut(10));
@@ -486,7 +488,7 @@ public class ScrcpyLauncherPanel extends JPanel {
 
     private void buildOptionsCard() {
         optionsCard.setLayout(new BoxLayout(optionsCard, BoxLayout.Y_AXIS));
-        optionsCard.setBorder(new EmptyBorder(14, 14, 14, 14));
+        optionsCard.setBorder(new EmptyBorder(12, 12, 12, 12));
 
         JPanel videoTuningPanel = new JPanel(new GridBagLayout());
         videoTuningPanel.setOpaque(false);
@@ -530,8 +532,10 @@ public class ScrcpyLauncherPanel extends JPanel {
 
     private void buildStartAppCard() {
         startAppCard.setLayout(new BoxLayout(startAppCard, BoxLayout.Y_AXIS));
-        startAppCard.setBorder(new EmptyBorder(14, 14, 14, 14));
+        startAppCard.setBorder(new EmptyBorder(12, 12, 12, 12));
         startAppCombo.setEditable(true);
+        startAppCombo.setAlignmentX(LEFT_ALIGNMENT);
+        startAppCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         startAppCheck.addActionListener(event -> {
             updateSourceSpecificControls();
             startAppToggleAction.actionPerformed(event);
@@ -543,7 +547,7 @@ public class ScrcpyLauncherPanel extends JPanel {
 
     private void buildRecordCard() {
         recordCard.setLayout(new BoxLayout(recordCard, BoxLayout.Y_AXIS));
-        recordCard.setBorder(new EmptyBorder(14, 14, 14, 14));
+        recordCard.setBorder(new EmptyBorder(12, 12, 12, 12));
         configureButton(browseRecordButton);
 
         JPanel pathRow = new JPanel(new BorderLayout(8, 0));
@@ -573,34 +577,43 @@ public class ScrcpyLauncherPanel extends JPanel {
     }
 
     private JPanel createKeyValueRow(JLabel keyLabel, WrappingTextArea valueLabel) {
-        JPanel row = new JPanel(new BorderLayout(10, 0));
+        JPanel row = new JPanel();
         row.setOpaque(false);
-        row.add(keyLabel, BorderLayout.WEST);
-        row.add(valueLabel, BorderLayout.CENTER);
+        row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
+        keyLabel.setAlignmentX(LEFT_ALIGNMENT);
+        valueLabel.setAlignmentX(LEFT_ALIGNMENT);
+        valueLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        row.add(keyLabel);
+        row.add(Box.createVerticalStrut(4));
+        row.add(valueLabel);
         return row;
     }
 
     private void addLabelOnly(JPanel parent, JLabel label, int rowIndex) {
         GridBagConstraints constraints = new GridBagConstraints();
         constraints.gridx = 0;
-        constraints.gridy = rowIndex;
+        constraints.gridy = rowIndex * 2;
         constraints.gridwidth = 2;
         constraints.anchor = GridBagConstraints.WEST;
-        constraints.insets = new Insets(0, 0, 10, 0);
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        constraints.insets = new Insets(0, 0, 6, 0);
         parent.add(label, constraints);
     }
 
     private void addFormField(JPanel parent, JLabel label, JComponent field, int rowIndex) {
         GridBagConstraints labelConstraints = new GridBagConstraints();
         labelConstraints.gridx = 0;
-        labelConstraints.gridy = rowIndex;
+        labelConstraints.gridy = rowIndex * 2;
+        labelConstraints.gridwidth = 2;
         labelConstraints.anchor = GridBagConstraints.WEST;
-        labelConstraints.insets = new Insets(0, 0, 10, 10);
+        labelConstraints.fill = GridBagConstraints.HORIZONTAL;
+        labelConstraints.insets = new Insets(0, 0, 6, 0);
         parent.add(label, labelConstraints);
 
         GridBagConstraints fieldConstraints = new GridBagConstraints();
-        fieldConstraints.gridx = 1;
-        fieldConstraints.gridy = rowIndex;
+        fieldConstraints.gridx = 0;
+        fieldConstraints.gridy = rowIndex * 2 + 1;
+        fieldConstraints.gridwidth = 2;
         fieldConstraints.weightx = 1.0;
         fieldConstraints.fill = GridBagConstraints.HORIZONTAL;
         fieldConstraints.insets = new Insets(0, 0, 10, 0);
@@ -617,6 +630,9 @@ public class ScrcpyLauncherPanel extends JPanel {
     private void updateSourceSpecificControls() {
         boolean cameraMode = usesCameraSource();
         boolean virtualDisplayMode = getSelectedLaunchTarget() == ScrcpyLaunchRequest.LaunchTarget.VIRTUAL_DISPLAY;
+        boolean visibilityChanged = virtualDisplayTitleLabel.isVisible() != virtualDisplayMode
+                || virtualDisplayPanel.isVisible() != virtualDisplayMode
+                || cameraPanel.isVisible() != cameraMode;
 
         virtualDisplayTitleLabel.setVisible(virtualDisplayMode);
         virtualDisplayPanel.setVisible(virtualDisplayMode);
@@ -635,8 +651,10 @@ public class ScrcpyLauncherPanel extends JPanel {
         cameraHeightField.setEnabled(!busy && cameraMode);
         refreshComboEditors();
         updateHintLabel();
-        revalidate();
-        repaint();
+        if (visibilityChanged) {
+            revalidate();
+            repaint();
+        }
     }
 
     private void updateHintLabel() {
@@ -685,7 +703,7 @@ public class ScrcpyLauncherPanel extends JPanel {
         panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
-                new EmptyBorder(14, 14, 14, 14)));
+                new EmptyBorder(12, 12, 12, 12)));
     }
 
     private void styleLabel(JLabel label) {

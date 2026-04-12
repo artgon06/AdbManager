@@ -6,7 +6,10 @@ import java.awt.Cursor;
 import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -20,6 +23,7 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
@@ -38,6 +42,7 @@ public class SettingsPanel extends JPanel {
     private final JPanel aboutPanel = new JPanel();
     private final JPanel appearancePanel = new JPanel();
     private final JPanel behaviorPanel = new JPanel();
+    private final JPanel adbPanel = new JPanel();
 
     private final JLabel appNameValue = new JLabel();
     private final JLabel versionBadge = new JLabel();
@@ -57,6 +62,11 @@ public class SettingsPanel extends JPanel {
     private final LanguageRenderer languageRenderer = new LanguageRenderer();
 
     private final JCheckBox autoRefreshOnFocusCheckBox = new JCheckBox();
+    private final JCheckBox useCustomAdbPathCheckBox = new JCheckBox();
+    private final JLabel adbPathLabel = new JLabel();
+    private final JTextField adbPathField = new JTextField();
+    private final JButton adbPathBrowseButton = new JButton();
+    private final WrappingTextArea adbHintLabel = new WrappingTextArea();
     private AppTheme theme = AppTheme.LIGHT;
 
     public SettingsPanel() {
@@ -90,6 +100,25 @@ public class SettingsPanel extends JPanel {
         autoRefreshOnFocusCheckBox.addActionListener(actionListener);
     }
 
+    public void setUseCustomAdbPathChangeAction(ActionListener actionListener) {
+        useCustomAdbPathCheckBox.addActionListener(actionListener);
+    }
+
+    public void setCustomAdbPathBrowseAction(ActionListener actionListener) {
+        adbPathBrowseButton.addActionListener(actionListener);
+    }
+
+    public void setCustomAdbPathCommitAction(ActionListener actionListener) {
+        adbPathField.addActionListener(actionListener);
+        adbPathField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent event) {
+                actionListener.actionPerformed(
+                        new ActionEvent(adbPathField, ActionEvent.ACTION_PERFORMED, "adb-path-commit"));
+            }
+        });
+    }
+
     public AppTheme getSelectedTheme() {
         return darkThemeButton.isSelected() ? AppTheme.DARK : AppTheme.LIGHT;
     }
@@ -120,6 +149,23 @@ public class SettingsPanel extends JPanel {
         autoRefreshOnFocusCheckBox.setSelected(selected);
     }
 
+    public boolean isUseCustomAdbPathSelected() {
+        return useCustomAdbPathCheckBox.isSelected();
+    }
+
+    public void setUseCustomAdbPathSelected(boolean selected) {
+        useCustomAdbPathCheckBox.setSelected(selected);
+        updateAdbPathState();
+    }
+
+    public String getCustomAdbPath() {
+        return adbPathField.getText().trim();
+    }
+
+    public void setCustomAdbPath(String path) {
+        adbPathField.setText(path == null ? "" : path);
+    }
+
     public void refreshTexts() {
         titleLabel.setText(Messages.text("settings.title"));
         subtitleLabel.setText(Messages.text("settings.subtitle"));
@@ -137,6 +183,10 @@ public class SettingsPanel extends JPanel {
         darkThemeButton.setText(Messages.text("settings.theme.dark"));
         languageLabel.setText(Messages.text("settings.language"));
         autoRefreshOnFocusCheckBox.setText(Messages.text("settings.behavior.autoRefreshFocus"));
+        useCustomAdbPathCheckBox.setText(Messages.text("settings.adb.useCustom"));
+        adbPathLabel.setText(Messages.text("settings.adb.path"));
+        adbPathBrowseButton.setText(Messages.text("settings.adb.browse"));
+        adbHintLabel.setText(Messages.text("settings.adb.hint"));
         languageCombo.repaint();
     }
 
@@ -163,6 +213,7 @@ public class SettingsPanel extends JPanel {
         applySectionTheme(aboutPanel, Messages.text("settings.about.title"), theme);
         applySectionTheme(appearancePanel, Messages.text("settings.appearance.title"), theme);
         applySectionTheme(behaviorPanel, Messages.text("settings.behavior.title"), theme);
+        applySectionTheme(adbPanel, Messages.text("settings.adb.title"), theme);
 
         appNameValue.setForeground(theme.textPrimary());
         appNameValue.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 26));
@@ -185,15 +236,34 @@ public class SettingsPanel extends JPanel {
         styleLinkButton(deviceCatalogButton, theme);
         styleSectionLabel(themeLabel, theme);
         styleSectionLabel(languageLabel, theme);
+        styleSectionLabel(adbPathLabel, theme);
         styleThemeButton(lightThemeButton, theme);
         styleThemeButton(darkThemeButton, theme);
         styleLanguageCombo(theme);
+        styleSecondaryButton(adbPathBrowseButton, theme);
+
+        adbPathField.setBackground(theme.surface());
+        adbPathField.setForeground(theme.textPrimary());
+        adbPathField.setCaretColor(theme.actionBackground());
+        adbPathField.setSelectionColor(theme.selectionBackground());
+        adbPathField.setSelectedTextColor(theme.selectionForeground());
+        adbPathField.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(theme.border(), 1),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        adbPathField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        adbHintLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
 
         autoRefreshOnFocusCheckBox.setOpaque(true);
         autoRefreshOnFocusCheckBox.setBackground(theme.background());
         autoRefreshOnFocusCheckBox.setForeground(theme.textPrimary());
         autoRefreshOnFocusCheckBox.setFocusPainted(false);
         autoRefreshOnFocusCheckBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+
+        useCustomAdbPathCheckBox.setOpaque(true);
+        useCustomAdbPathCheckBox.setBackground(theme.background());
+        useCustomAdbPathCheckBox.setForeground(theme.textPrimary());
+        useCustomAdbPathCheckBox.setFocusPainted(false);
+        useCustomAdbPathCheckBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
     }
 
     private void buildPanel() {
@@ -217,12 +287,15 @@ public class SettingsPanel extends JPanel {
         buildAboutPanel();
         buildAppearancePanel();
         buildBehaviorPanel();
+        buildAdbPanel();
 
         content.add(aboutPanel);
         content.add(Box.createVerticalStrut(18));
         content.add(appearancePanel);
         content.add(Box.createVerticalStrut(18));
         content.add(behaviorPanel);
+        content.add(Box.createVerticalStrut(18));
+        content.add(adbPanel);
         content.add(Box.createVerticalGlue());
 
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -327,6 +400,38 @@ public class SettingsPanel extends JPanel {
         behaviorPanel.add(autoRefreshOnFocusCheckBox);
     }
 
+    private void buildAdbPanel() {
+        adbPanel.setLayout(new BoxLayout(adbPanel, BoxLayout.Y_AXIS));
+        adbPanel.setAlignmentX(LEFT_ALIGNMENT);
+        adbPanel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+
+        adbPathField.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, 40));
+        adbPathField.setAlignmentX(LEFT_ALIGNMENT);
+        adbPathBrowseButton.setUI(new BasicButtonUI());
+        adbPathBrowseButton.setFocusPainted(false);
+        adbPathBrowseButton.setRolloverEnabled(true);
+        adbPathBrowseButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        adbPathBrowseButton.getModel().addChangeListener(event -> styleSecondaryButton(adbPathBrowseButton, theme));
+        useCustomAdbPathCheckBox.addActionListener(event -> updateAdbPathState());
+
+        JPanel pathRow = new JPanel();
+        pathRow.setOpaque(false);
+        pathRow.setLayout(new BoxLayout(pathRow, BoxLayout.X_AXIS));
+        pathRow.add(adbPathField);
+        pathRow.add(Box.createHorizontalStrut(10));
+        pathRow.add(adbPathBrowseButton);
+
+        adbPanel.add(useCustomAdbPathCheckBox);
+        adbPanel.add(Box.createVerticalStrut(12));
+        adbPanel.add(adbPathLabel);
+        adbPanel.add(Box.createVerticalStrut(8));
+        adbPanel.add(pathRow);
+        adbPanel.add(Box.createVerticalStrut(10));
+        adbHintLabel.setAlignmentX(LEFT_ALIGNMENT);
+        adbPanel.add(adbHintLabel);
+        updateAdbPathState();
+    }
+
     private void applySectionTheme(JPanel panel, String title, AppTheme theme) {
         panel.setBackground(theme.background());
         panel.setBorder(BorderFactory.createCompoundBorder(
@@ -366,6 +471,22 @@ public class SettingsPanel extends JPanel {
         button.setMargin(new Insets(0, 0, 0, 0));
     }
 
+    private void styleSecondaryButton(JButton button, AppTheme theme) {
+        boolean hovered = button.isEnabled() && button.getModel().isRollover();
+        button.setOpaque(true);
+        button.setContentAreaFilled(true);
+        button.setBorderPainted(true);
+        button.setBackground(hovered
+                ? ThemeUtils.blend(theme.background(), theme.selectionBackground(), 0.22d)
+                : theme.secondarySurface());
+        button.setForeground(button.isEnabled() ? theme.textPrimary() : theme.textSecondary());
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(theme.border(), 1),
+                BorderFactory.createEmptyBorder(10, 14, 10, 14)));
+        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        button.setMargin(new Insets(0, 0, 0, 0));
+    }
+
     private void styleThemeButton(JToggleButton button, AppTheme theme) {
         boolean selected = button.isSelected();
         boolean hovered = button.isEnabled() && button.getModel().isRollover();
@@ -394,6 +515,13 @@ public class SettingsPanel extends JPanel {
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(4, 8, 4, 8)));
         languageCombo.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+    }
+
+    private void updateAdbPathState() {
+        boolean enabled = useCustomAdbPathCheckBox.isSelected();
+        adbPathLabel.setEnabled(enabled);
+        adbPathField.setEnabled(enabled);
+        adbPathBrowseButton.setEnabled(enabled);
     }
 
     private static final class LanguageRenderer extends DefaultListCellRenderer {

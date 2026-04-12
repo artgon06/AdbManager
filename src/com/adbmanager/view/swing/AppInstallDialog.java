@@ -7,6 +7,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
@@ -42,6 +43,8 @@ public class AppInstallDialog extends JDialog {
 
     private final JLabel titleLabel = new JLabel();
     private final WrappingTextArea subtitleLabel = new WrappingTextArea();
+    private final ScrollableContentPanel contentPanel = new ScrollableContentPanel();
+    private final JScrollPane contentScrollPane = new JScrollPane(contentPanel);
     private final JLabel filesLabel = new JLabel();
     private final JTextArea filesArea = new JTextArea();
     private final JScrollPane filesScrollPane = new JScrollPane(filesArea);
@@ -136,14 +139,14 @@ public class AppInstallDialog extends JDialog {
     public void showStatus(String message, boolean error) {
         String normalized = message == null ? "" : message.trim();
         statusLabel.putClientProperty("error", error);
-        statusLabel.setText(normalized);
-        statusLabel.setVisible(!normalized.isBlank());
-        applyTheme(theme);
+        statusLabel.setText(normalized.isBlank() ? " " : normalized);
+        styleStatusLabel();
     }
 
     public void refreshTexts() {
         setTitle(Messages.text("apps.install.title"));
         titleLabel.setText(Messages.text("apps.install.title"));
+        titleLabel.setHorizontalAlignment(SwingConstants.LEFT);
         subtitleLabel.setText(Messages.text("apps.install.subtitle"));
         filesLabel.setText(Messages.text("apps.install.files"));
         browseButton.setText(Messages.text("apps.install.browse"));
@@ -154,7 +157,7 @@ public class AppInstallDialog extends JDialog {
         bypassLowTargetSdkCheckBox.setText(Messages.text("apps.install.option.bypass"));
         optionsNoteLabel.setText(Messages.text("apps.install.note"));
         logLabel.setText(Messages.text("apps.install.log"));
-        cancelButton.setText(Messages.text("common.cancel"));
+        cancelButton.setText(Messages.text("common.close"));
         installButton.setText(Messages.text("apps.install.action"));
         if (selectedFiles.isEmpty()) {
             filesArea.setText(Messages.text("apps.install.files.empty"));
@@ -164,6 +167,19 @@ public class AppInstallDialog extends JDialog {
     public void applyTheme(AppTheme theme) {
         this.theme = theme;
         getContentPane().setBackground(theme.background());
+        contentPanel.setBackground(theme.background());
+        contentScrollPane.setBackground(theme.background());
+        contentScrollPane.getViewport().setBackground(theme.background());
+        contentScrollPane.setBorder(BorderFactory.createEmptyBorder());
+        if (contentScrollPane.getVerticalScrollBar() != null) {
+            contentScrollPane.getVerticalScrollBar().setUI(new ThemedScrollBarUI(theme));
+            contentScrollPane.getVerticalScrollBar().setUnitIncrement(24);
+            contentScrollPane.getVerticalScrollBar().setBlockIncrement(96);
+        }
+        if (contentScrollPane.getHorizontalScrollBar() != null) {
+            contentScrollPane.getHorizontalScrollBar().setUI(new ThemedScrollBarUI(theme));
+            contentScrollPane.getHorizontalScrollBar().setUnitIncrement(24);
+        }
 
         titleLabel.setForeground(theme.textPrimary());
         titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
@@ -172,7 +188,7 @@ public class AppInstallDialog extends JDialog {
             panel.setBackground(theme.background());
             panel.setBorder(BorderFactory.createCompoundBorder(
                     BorderFactory.createLineBorder(theme.border(), 1),
-                    BorderFactory.createEmptyBorder(16, 16, 16, 16)));
+                    BorderFactory.createEmptyBorder(12, 12, 12, 12)));
         }
 
         subtitleLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 14), theme.textSecondary());
@@ -196,11 +212,7 @@ public class AppInstallDialog extends JDialog {
         styleButton(browseButton, false);
         styleButton(cancelButton, false);
         styleButton(installButton, true);
-
-        statusLabel.setForeground(Boolean.TRUE.equals(statusLabel.getClientProperty("error"))
-                ? new java.awt.Color(214, 80, 80)
-                : theme.actionBackground());
-        statusLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        styleStatusLabel();
 
         repaint();
     }
@@ -210,39 +222,48 @@ public class AppInstallDialog extends JDialog {
         setMinimumSize(new Dimension(860, 680));
         setSize(new Dimension(920, 760));
 
-        JPanel content = new JPanel();
-        content.setOpaque(true);
-        content.setBackground(theme.background());
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-        content.setBorder(BorderFactory.createEmptyBorder(24, 24, 24, 24));
+        JPanel root = new JPanel(new BorderLayout(0, 12));
+        root.setOpaque(true);
+        root.setBackground(theme.background());
+        root.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+
+        contentPanel.setOpaque(false);
+        contentPanel.setLayout(new GridBagLayout());
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        contentScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        contentScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
 
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         subtitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         subtitleLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        statusLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        statusLabel.setText(" ");
+
+        addContentSection(titleLabel, 0, 0.0, new Insets(0, 0, 8, 0), GridBagConstraints.HORIZONTAL);
+        addContentSection(subtitleLabel, 1, 0.0, new Insets(0, 0, 16, 0), GridBagConstraints.HORIZONTAL);
+        addContentSection(buildFilesCard(), 2, 0.0, new Insets(0, 0, 12, 0), GridBagConstraints.HORIZONTAL);
+        addContentSection(buildOptionsCard(), 3, 0.0, new Insets(0, 0, 12, 0), GridBagConstraints.HORIZONTAL);
+        addContentSection(buildLogCard(), 4, 1.0, new Insets(0, 0, 0, 0), GridBagConstraints.BOTH);
+
+        JPanel footer = new JPanel();
+        footer.setOpaque(false);
+        footer.setLayout(new BoxLayout(footer, BoxLayout.Y_AXIS));
         statusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        statusLabel.setVisible(false);
+        footer.add(statusLabel);
+        footer.add(Box.createVerticalStrut(12));
+        footer.add(buildActionsRow());
 
-        content.add(titleLabel);
-        content.add(Box.createVerticalStrut(8));
-        content.add(subtitleLabel);
-        content.add(Box.createVerticalStrut(20));
-        content.add(buildFilesCard());
-        content.add(Box.createVerticalStrut(16));
-        content.add(buildOptionsCard());
-        content.add(Box.createVerticalStrut(16));
-        content.add(buildLogCard());
-        content.add(Box.createVerticalStrut(12));
-        content.add(statusLabel);
-        content.add(Box.createVerticalStrut(14));
-        content.add(buildActionsRow());
+        root.add(contentScrollPane, BorderLayout.CENTER);
+        root.add(footer, BorderLayout.SOUTH);
 
-        setContentPane(content);
+        setContentPane(root);
     }
 
     private JPanel buildFilesCard() {
         JPanel card = createCard();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         filesLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        filesLabel.setHorizontalAlignment(SwingConstants.LEFT);
         browseButton.setAlignmentX(Component.LEFT_ALIGNMENT);
         filesScrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
         filesScrollPane.setPreferredSize(new Dimension(0, 120));
@@ -259,6 +280,7 @@ public class AppInstallDialog extends JDialog {
         JPanel card = createCard();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         optionsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        optionsLabel.setHorizontalAlignment(SwingConstants.LEFT);
         optionsNoteLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         optionsNoteLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
@@ -281,6 +303,7 @@ public class AppInstallDialog extends JDialog {
         JPanel card = createCard();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         logLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        logLabel.setHorizontalAlignment(SwingConstants.LEFT);
         logScrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
         logScrollPane.setPreferredSize(new Dimension(0, 220));
 
@@ -291,13 +314,13 @@ public class AppInstallDialog extends JDialog {
     }
 
     private JPanel buildActionsRow() {
-        JPanel row = new JPanel(new BorderLayout(12, 0));
+        JPanel row = new JPanel(new GridLayout(1, 2, 12, 0));
         row.setOpaque(false);
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
         cancelButton.setHorizontalAlignment(SwingConstants.CENTER);
         installButton.setHorizontalAlignment(SwingConstants.CENTER);
-        row.add(cancelButton, BorderLayout.WEST);
-        row.add(installButton, BorderLayout.CENTER);
+        row.add(cancelButton);
+        row.add(installButton);
         return row;
     }
 
@@ -305,6 +328,7 @@ public class AppInstallDialog extends JDialog {
         JPanel panel = new JPanel();
         panel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.setOpaque(true);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         surfacePanels.add(panel);
         return panel;
     }
@@ -318,6 +342,23 @@ public class AppInstallDialog extends JDialog {
         constraints.fill = GridBagConstraints.HORIZONTAL;
         constraints.insets = new Insets(0, 0, row == 3 ? 0 : 8, 0);
         container.add(checkBox, constraints);
+    }
+
+    private void addContentSection(
+            Component component,
+            int row,
+            double weightY,
+            Insets insets,
+            int fill) {
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = 0;
+        constraints.gridy = row;
+        constraints.weightx = 1.0;
+        constraints.weighty = weightY;
+        constraints.fill = fill;
+        constraints.anchor = GridBagConstraints.NORTHWEST;
+        constraints.insets = insets;
+        contentPanel.add(component, constraints);
     }
 
     private void bindEvents() {
@@ -471,5 +512,12 @@ public class AppInstallDialog extends JDialog {
                     BorderFactory.createLineBorder(theme.disabledBorder(), 1),
                     BorderFactory.createEmptyBorder(8, 12, 8, 12)));
         }
+    }
+
+    private void styleStatusLabel() {
+        statusLabel.setForeground(Boolean.TRUE.equals(statusLabel.getClientProperty("error"))
+                ? new java.awt.Color(214, 80, 80)
+                : theme.actionBackground());
+        statusLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
     }
 }

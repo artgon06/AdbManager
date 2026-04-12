@@ -164,6 +164,18 @@ public class MainFrame extends JFrame {
         settingsPanel.setAutoRefreshOnFocusChangeAction(actionListener);
     }
 
+    public void setUseCustomAdbPathChangeAction(ActionListener actionListener) {
+        settingsPanel.setUseCustomAdbPathChangeAction(actionListener);
+    }
+
+    public void setCustomAdbPathBrowseAction(ActionListener actionListener) {
+        settingsPanel.setCustomAdbPathBrowseAction(actionListener);
+    }
+
+    public void setCustomAdbPathCommitAction(ActionListener actionListener) {
+        settingsPanel.setCustomAdbPathCommitAction(actionListener);
+    }
+
     public void setRepositoryAction(ActionListener actionListener) {
         settingsPanel.setRepositoryAction(actionListener);
     }
@@ -255,6 +267,22 @@ public class MainFrame extends JFrame {
 
     public void setAutoRefreshOnFocusSelected(boolean selected) {
         settingsPanel.setAutoRefreshOnFocusSelected(selected);
+    }
+
+    public boolean isUseCustomAdbPathSelected() {
+        return settingsPanel.isUseCustomAdbPathSelected();
+    }
+
+    public void setUseCustomAdbPathSelected(boolean selected) {
+        settingsPanel.setUseCustomAdbPathSelected(selected);
+    }
+
+    public String getCustomAdbPath() {
+        return settingsPanel.getCustomAdbPath();
+    }
+
+    public void setCustomAdbPath(String path) {
+        settingsPanel.setCustomAdbPath(path);
     }
 
     public void setLanguage(Language language) {
@@ -533,6 +561,20 @@ public class MainFrame extends JFrame {
         }
 
         return selectedFile;
+    }
+
+    public File chooseAdbExecutable() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle(Messages.text("filechooser.adb.title"));
+        fileChooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+        fileChooser.setAcceptAllFileFilterUsed(true);
+
+        int result = fileChooser.showOpenDialog(this);
+        if (result != JFileChooser.APPROVE_OPTION) {
+            return null;
+        }
+
+        return fileChooser.getSelectedFile();
     }
 
     public void setCaptureEnabled(boolean enabled) {

@@ -15,11 +15,15 @@ import java.util.concurrent.TimeoutException;
 
 public class AdbClient {
 
-    private final String adbPath;
+    private final AdbExecutableResolver adbExecutableResolver;
     private final Duration timeout;
 
     public AdbClient(String adbPath, Duration timeout) {
-        this.adbPath = Objects.requireNonNull(adbPath);
+        this(() -> adbPath, timeout);
+    }
+
+    public AdbClient(AdbExecutableResolver adbExecutableResolver, Duration timeout) {
+        this.adbExecutableResolver = Objects.requireNonNull(adbExecutableResolver);
         this.timeout = Objects.requireNonNull(timeout);
     }
 
@@ -45,7 +49,7 @@ public class AdbClient {
 
     public AdbBinaryResult runBinary(List<String> args, byte[] standardInput) throws Exception {
         List<String> command = new ArrayList<>();
-        command.add(adbPath);
+        command.add(resolveAdbExecutable());
         command.addAll(args);
 
         ProcessBuilder processBuilder = new ProcessBuilder(command);
@@ -90,6 +94,14 @@ public class AdbClient {
         command.add(serial);
         command.addAll(args);
         return command;
+    }
+
+    private String resolveAdbExecutable() throws Exception {
+        String adbPath = adbExecutableResolver.resolveExecutable();
+        if (adbPath == null || adbPath.isBlank()) {
+            throw new IllegalStateException("No se ha podido resolver la ruta de adb.");
+        }
+        return adbPath;
     }
 
     private byte[] readOutput(InputStream inputStream) throws Exception {

@@ -20,6 +20,8 @@ public final class UserConfigService {
     private static final String THEME_KEY = "theme";
     private static final String LANGUAGE_KEY = "language";
     private static final String AUTO_REFRESH_KEY = "auto_refresh_on_focus";
+    private static final String ADB_CUSTOM_PATH_ENABLED_KEY = "adb.custom_path_enabled";
+    private static final String ADB_CUSTOM_PATH_KEY = "adb.custom_path";
     private static final String SCRCPY_TARGET_KEY = "scrcpy.launch_target";
     private static final String SCRCPY_FULLSCREEN_KEY = "scrcpy.fullscreen";
     private static final String SCRCPY_READ_ONLY_KEY = "scrcpy.read_only";
@@ -40,6 +42,12 @@ public final class UserConfigService {
     private static final String SCRCPY_MOUSE_KEY = "scrcpy.mouse_mode";
 
     public UserConfig load() throws IOException {
+        UserConfig loaded = read();
+        save(loaded);
+        return loaded;
+    }
+
+    public UserConfig read() throws IOException {
         UserConfig defaults = UserConfig.defaults(AppTheme.LIGHT, Messages.getLanguage());
         Path file = configFile();
         Files.createDirectories(file.getParent());
@@ -51,10 +59,12 @@ public final class UserConfigService {
 
         List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
         Map<String, String> values = parse(lines);
-        UserConfig loaded = new UserConfig(
+        return new UserConfig(
                 parseTheme(values.get(THEME_KEY), defaults.theme()),
                 parseLanguage(values.get(LANGUAGE_KEY), defaults.language()),
                 parseBoolean(values.get(AUTO_REFRESH_KEY), defaults.autoRefreshOnFocus()),
+                parseBoolean(values.get(ADB_CUSTOM_PATH_ENABLED_KEY), defaults.useCustomAdbPath()),
+                valueOrBlank(values.get(ADB_CUSTOM_PATH_KEY)),
                 new ScrcpyLaunchRequest(
                         parseEnum(values.get(SCRCPY_TARGET_KEY), ScrcpyLaunchRequest.LaunchTarget.class,
                                 UserConfig.defaultScrcpyLaunchRequest().launchTarget()),
@@ -82,8 +92,6 @@ public final class UserConfigService {
                                 UserConfig.defaultScrcpyLaunchRequest().keyboardMode()),
                         parseEnum(values.get(SCRCPY_MOUSE_KEY), ScrcpyLaunchRequest.InputMode.class,
                                 UserConfig.defaultScrcpyLaunchRequest().mouseMode())));
-        save(loaded);
-        return loaded;
     }
 
     public void save(UserConfig config) throws IOException {
@@ -100,6 +108,11 @@ public final class UserConfigService {
         builder.append(System.lineSeparator());
         builder.append("# Comportamiento").append(System.lineSeparator());
         builder.append(AUTO_REFRESH_KEY).append("=").append(safeConfig.autoRefreshOnFocus()).append(System.lineSeparator());
+        builder.append(System.lineSeparator());
+        builder.append("# adb").append(System.lineSeparator());
+        builder.append("# adb.custom_path puede apuntar a adb.exe o a la carpeta platform-tools").append(System.lineSeparator());
+        builder.append(ADB_CUSTOM_PATH_ENABLED_KEY).append("=").append(safeConfig.useCustomAdbPath()).append(System.lineSeparator());
+        builder.append(ADB_CUSTOM_PATH_KEY).append("=").append(textValue(safeConfig.customAdbPath())).append(System.lineSeparator());
         builder.append(System.lineSeparator());
         builder.append("# scrcpy").append(System.lineSeparator());
         builder.append("# launch_target: device_display | virtual_display | camera").append(System.lineSeparator());
