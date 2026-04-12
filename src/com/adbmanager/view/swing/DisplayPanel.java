@@ -49,6 +49,7 @@ public class DisplayPanel extends JPanel {
     private static final String FIELD_DENSITY = "density";
     private static final String FIELD_PHYSICAL_DENSITY = "physicalDensity";
     private static final String FIELD_SMALLEST_WIDTH = "smallestWidth";
+    private static final String FIELD_SCREEN_TIMEOUT = "screenTimeout";
     private static final String FIELD_REFRESH_RATE = "refreshRate";
     private static final String FIELD_SUPPORTED_REFRESH_RATES = "supportedRefreshRates";
 
@@ -66,11 +67,13 @@ public class DisplayPanel extends JPanel {
     private final JLabel widthLabel = new JLabel();
     private final JLabel heightLabel = new JLabel();
     private final JLabel densityLabel = new JLabel();
+    private final JLabel timeoutLabel = new JLabel();
     private final JLabel darkModeTitleLabel = new JLabel();
     private final JCheckBox darkModeToggle = new JCheckBox();
     private final JTextField widthField = new JTextField();
     private final JTextField heightField = new JTextField();
     private final JTextField densityField = new JTextField();
+    private final JTextField timeoutField = new JTextField();
     private final JButton applyButton = new JButton();
     private final JButton resetButton = new JButton();
     private final JPanel suggestionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
@@ -142,6 +145,14 @@ public class DisplayPanel extends JPanel {
         return parsePositiveInteger(densityField.getText());
     }
 
+    public Integer getRequestedScreenOffTimeout() {
+        return parsePositiveInteger(timeoutField.getText());
+    }
+
+    public boolean hasRequestedScreenOffTimeout() {
+        return !timeoutField.getText().trim().isEmpty();
+    }
+
     public boolean isDeviceDarkModeSelected() {
         return darkModeToggle.isSelected();
     }
@@ -194,6 +205,7 @@ public class DisplayPanel extends JPanel {
         widthField.setEnabled(enabled);
         heightField.setEnabled(enabled);
         densityField.setEnabled(enabled);
+        timeoutField.setEnabled(enabled);
         applyButton.setEnabled(enabled);
         resetButton.setEnabled(enabled);
         darkModeToggle.setEnabled(enabled && currentDetails != null && currentDetails.displayInfo().hasDarkModeState());
@@ -215,10 +227,15 @@ public class DisplayPanel extends JPanel {
         valueLabels.get(FIELD_DENSITY).setText(displayInfo.densityLabel());
         valueLabels.get(FIELD_PHYSICAL_DENSITY).setText(displayInfo.physicalDensityLabel());
         valueLabels.get(FIELD_SMALLEST_WIDTH).setText(displayInfo.smallestWidthLabel());
+        valueLabels.get(FIELD_SCREEN_TIMEOUT).setText(displayInfo.screenOffTimeoutLabel());
         valueLabels.get(FIELD_REFRESH_RATE).setText(displayInfo.refreshRateLabel());
         valueLabels.get(FIELD_SUPPORTED_REFRESH_RATES).setText(displayInfo.supportedRefreshRatesLabel());
 
-        setRequestedDisplayValues(displayInfo.widthPx(), displayInfo.heightPx(), displayInfo.densityDpi());
+        setRequestedDisplayValues(
+                displayInfo.widthPx(),
+                displayInfo.heightPx(),
+                displayInfo.densityDpi(),
+                displayInfo.screenOffTimeoutMs());
         syncingDarkModeToggle = true;
         try {
             darkModeToggle.setSelected(Boolean.TRUE.equals(displayInfo.darkModeEnabled()));
@@ -237,7 +254,7 @@ public class DisplayPanel extends JPanel {
         for (JLabel valueLabel : valueLabels.values()) {
             valueLabel.setText("-");
         }
-        setRequestedDisplayValues(null, null, null);
+        setRequestedDisplayValues(null, null, null, null);
         syncingDarkModeToggle = true;
         try {
             darkModeToggle.setSelected(false);
@@ -260,12 +277,14 @@ public class DisplayPanel extends JPanel {
         fieldLabels.get(FIELD_DENSITY).setText(Messages.text("display.field.density"));
         fieldLabels.get(FIELD_PHYSICAL_DENSITY).setText(Messages.text("display.field.physicalDensity"));
         fieldLabels.get(FIELD_SMALLEST_WIDTH).setText(Messages.text("display.field.smallestWidth"));
+        fieldLabels.get(FIELD_SCREEN_TIMEOUT).setText(Messages.text("display.field.screenTimeout"));
         fieldLabels.get(FIELD_REFRESH_RATE).setText(Messages.text("display.field.refreshRate"));
         fieldLabels.get(FIELD_SUPPORTED_REFRESH_RATES).setText(Messages.text("display.field.supportedRefreshRates"));
         inputTitleLabel.setText(Messages.text("display.override.manual"));
         widthLabel.setText(Messages.text("display.override.width"));
         heightLabel.setText(Messages.text("display.override.height"));
         densityLabel.setText(Messages.text("display.override.density"));
+        timeoutLabel.setText(Messages.text("display.override.timeout"));
         darkModeTitleLabel.setText(Messages.text("display.deviceDarkMode.title"));
         applyButton.setText(Messages.text("display.override.apply"));
         resetButton.setText(Messages.text("display.override.reset"));
@@ -317,12 +336,14 @@ public class DisplayPanel extends JPanel {
         styleFormLabel(widthLabel);
         styleFormLabel(heightLabel);
         styleFormLabel(densityLabel);
+        styleFormLabel(timeoutLabel);
         darkModeTitleLabel.setForeground(theme.textPrimary());
         darkModeTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
         styleDarkModeToggle();
         styleInputField(widthField);
         styleInputField(heightField);
         styleInputField(densityField);
+        styleInputField(timeoutField);
         styleActionButtons();
 
         for (JButton suggestionButton : suggestionButtons) {
@@ -385,6 +406,7 @@ public class DisplayPanel extends JPanel {
         metricsContent.add(createInfoRow(FIELD_DENSITY));
         metricsContent.add(createInfoRow(FIELD_PHYSICAL_DENSITY));
         metricsContent.add(createInfoRow(FIELD_SMALLEST_WIDTH));
+        metricsContent.add(createInfoRow(FIELD_SCREEN_TIMEOUT));
         metricsContent.add(createInfoRow(FIELD_REFRESH_RATE));
         metricsContent.add(createInfoRow(FIELD_SUPPORTED_REFRESH_RATES));
         metricsContent.add(Box.createVerticalGlue());
@@ -406,6 +428,12 @@ public class DisplayPanel extends JPanel {
         addInlineFormField(formPanel, densityLabel, densityField, 2);
         formPanel.setAlignmentX(LEFT_ALIGNMENT);
         formPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+
+        JPanel timeoutPanel = new JPanel(new GridBagLayout());
+        timeoutPanel.setOpaque(false);
+        addInlineFormField(timeoutPanel, timeoutLabel, timeoutField, 0);
+        timeoutPanel.setAlignmentX(LEFT_ALIGNMENT);
+        timeoutPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
 
         ratioPanel.setOpaque(false);
         ratioPanel.setAlignmentX(LEFT_ALIGNMENT);
@@ -445,6 +473,8 @@ public class DisplayPanel extends JPanel {
         controlsContent.add(suggestionButtonsPanel);
         controlsContent.add(Box.createVerticalStrut(16));
         controlsContent.add(formPanel);
+        controlsContent.add(Box.createVerticalStrut(10));
+        controlsContent.add(timeoutPanel);
         controlsContent.add(Box.createVerticalStrut(10));
         controlsContent.add(ratioPanel);
         controlsContent.add(Box.createVerticalStrut(16));
@@ -523,7 +553,9 @@ public class DisplayPanel extends JPanel {
             JButton button = new JButton(suggestion.commandLabel());
             configureActionButton(button);
             button.addActionListener(event -> {
-                setRequestedDisplayValues(suggestion.widthPx(), suggestion.heightPx(), suggestion.densityDpi());
+                widthField.setText(String.valueOf(suggestion.widthPx()));
+                heightField.setText(String.valueOf(suggestion.heightPx()));
+                densityField.setText(String.valueOf(suggestion.densityDpi()));
                 updateAspectRatioPreview();
             });
             suggestionButtons.add(button);
@@ -584,10 +616,15 @@ public class DisplayPanel extends JPanel {
         return suggestions;
     }
 
-    private void setRequestedDisplayValues(Integer widthPx, Integer heightPx, Integer densityDpi) {
+    private void setRequestedDisplayValues(
+            Integer widthPx,
+            Integer heightPx,
+            Integer densityDpi,
+            Integer timeoutMs) {
         widthField.setText(widthPx == null || widthPx <= 0 ? "" : String.valueOf(widthPx));
         heightField.setText(heightPx == null || heightPx <= 0 ? "" : String.valueOf(heightPx));
         densityField.setText(densityDpi == null || densityDpi <= 0 ? "" : String.valueOf(densityDpi));
+        timeoutField.setText(timeoutMs == null || timeoutMs <= 0 ? "" : String.valueOf(timeoutMs));
     }
 
     private void updateAspectRatioPreview() {

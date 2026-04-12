@@ -12,6 +12,7 @@ import com.adbmanager.logic.model.AppInstallResult;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.InstalledApp;
+import com.adbmanager.logic.model.SystemState;
 
 public interface AdbModel {
     void refreshDevices() throws Exception;
@@ -34,7 +35,16 @@ public interface AdbModel {
     void clearSelectedDeviceApplicationCache(String packageName) throws Exception;
     void exportSelectedDeviceApplicationApk(String packageName, File outputFile) throws Exception;
     AppInstallResult installSelectedDevicePackages(AppInstallRequest request, Consumer<String> progressCallback) throws Exception;
+    Optional<SystemState> getSelectedDeviceSystemState() throws Exception;
+    void createSelectedDeviceUser(String name) throws Exception;
+    void removeSelectedDeviceUser(int userId) throws Exception;
+    void switchSelectedDeviceUser(int userId) throws Exception;
+    void setSelectedDeviceShowAllAppLanguages(boolean enabled) throws Exception;
+    void setSelectedDeviceGesturalNavigation(boolean enabled) throws Exception;
+    void enableSelectedDeviceKeyboard(String keyboardId) throws Exception;
+    void setSelectedDeviceKeyboard(String keyboardId) throws Exception;
     void setSelectedDeviceDisplay(int widthPx, int heightPx, int densityDpi) throws Exception;
+    void setSelectedDeviceScreenOffTimeout(int timeoutMs) throws Exception;
     void resetSelectedDeviceDisplay() throws Exception;
     void setSelectedDeviceDarkMode(boolean enabled) throws Exception;
     void pairWirelessDevice(String host, int pairingPort, String pairingCode) throws Exception;

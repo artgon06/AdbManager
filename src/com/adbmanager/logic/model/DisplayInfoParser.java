@@ -25,7 +25,8 @@ public class DisplayInfoParser {
             String wmSizeOutput,
             String wmDensityOutput,
             String displayOutput,
-            String darkModeOutput) {
+            String darkModeOutput,
+            String screenOffTimeoutOutput) {
         Size physicalSize = parseSize(PHYSICAL_SIZE, wmSizeOutput);
         Size overrideSize = parseSize(OVERRIDE_SIZE, wmSizeOutput);
         if (physicalSize == null) {
@@ -45,6 +46,7 @@ public class DisplayInfoParser {
         Integer densityDpi = overrideDensity != null ? overrideDensity : physicalDensity;
         Integer smallestWidthDp = calculateSmallestWidthDp(effectiveSize, densityDpi);
         Boolean darkModeEnabled = parseDarkModeState(darkModeOutput);
+        Integer screenOffTimeoutMs = parseScreenOffTimeout(screenOffTimeoutOutput);
         RefreshInfo refreshInfo = parseRefreshInfo(displayOutput);
 
         return new DisplayInfo(
@@ -55,6 +57,7 @@ public class DisplayInfoParser {
                 densityDpi,
                 physicalDensity,
                 smallestWidthDp,
+                screenOffTimeoutMs,
                 darkModeEnabled,
                 refreshInfo.currentRefreshRateHz(),
                 refreshInfo.supportedRefreshRatesHz());
@@ -140,6 +143,20 @@ public class DisplayInfoParser {
             case "1", "no", "off" -> false;
             default -> null;
         };
+    }
+
+    private Integer parseScreenOffTimeout(String screenOffTimeoutOutput) {
+        String rawValue = safe(screenOffTimeoutOutput).trim();
+        if (rawValue.isBlank() || "null".equalsIgnoreCase(rawValue)) {
+            return null;
+        }
+
+        try {
+            int timeoutMs = Integer.parseInt(rawValue);
+            return timeoutMs > 0 ? timeoutMs : null;
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
     private Double parseDouble(Pattern pattern, String content) {

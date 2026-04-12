@@ -13,6 +13,7 @@ public record DisplayInfo(
         Integer densityDpi,
         Integer physicalDensityDpi,
         Integer smallestWidthDp,
+        Integer screenOffTimeoutMs,
         Boolean darkModeEnabled,
         Double refreshRateHz,
         List<Double> supportedRefreshRatesHz) {
@@ -30,7 +31,7 @@ public record DisplayInfo(
     }
 
     public static DisplayInfo empty() {
-        return new DisplayInfo(null, null, null, null, null, null, null, null, null, List.of());
+        return new DisplayInfo(null, null, null, null, null, null, null, null, null, null, List.of());
     }
 
     public boolean hasResolution() {
@@ -55,6 +56,10 @@ public record DisplayInfo(
 
     public boolean hasRefreshRate() {
         return refreshRateHz != null;
+    }
+
+    public boolean hasScreenOffTimeout() {
+        return screenOffTimeoutMs != null && screenOffTimeoutMs > 0;
     }
 
     public boolean hasDarkModeState() {
@@ -87,6 +92,28 @@ public record DisplayInfo(
 
     public String refreshRateLabel() {
         return hasRefreshRate() ? formatRate(refreshRateHz) : "-";
+    }
+
+    public String screenOffTimeoutLabel() {
+        if (!hasScreenOffTimeout()) {
+            return "-";
+        }
+
+        if (screenOffTimeoutMs < 1000) {
+            return screenOffTimeoutMs + " ms";
+        }
+
+        if (screenOffTimeoutMs % 60000 == 0) {
+            long minutes = screenOffTimeoutMs / 60000L;
+            return screenOffTimeoutMs + " ms (" + minutes + " min)";
+        }
+
+        if (screenOffTimeoutMs % 1000 == 0) {
+            long seconds = screenOffTimeoutMs / 1000L;
+            return screenOffTimeoutMs + " ms (" + seconds + " s)";
+        }
+
+        return screenOffTimeoutMs + " ms";
     }
 
     public String supportedRefreshRatesLabel() {

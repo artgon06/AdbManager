@@ -27,7 +27,8 @@ public class DeviceDetailsParser {
             String wmSizeOutput,
             String wmDensityOutput,
             String displayOutput,
-            String darkModeOutput) {
+            String darkModeOutput,
+            String screenOffTimeoutOutput) {
         Map<String, String> properties = parseProperties(getpropOutput);
         MemoryStats memoryStats = parseMemory(meminfoOutput);
         int batteryLevelPercent = parseBatteryLevel(batteryOutput);
@@ -37,7 +38,8 @@ public class DeviceDetailsParser {
                 wmSizeOutput,
                 wmDensityOutput,
                 displayOutput,
-                darkModeOutput);
+                darkModeOutput,
+                screenOffTimeoutOutput);
         DeviceType deviceType = deviceTypeDetector.detect(properties, featuresOutput, displayInfo);
 
         String manufacturer = firstNonBlank(

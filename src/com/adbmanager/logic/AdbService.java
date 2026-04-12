@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -48,12 +49,15 @@ import com.adbmanager.logic.model.AppInstallRequest;
 import com.adbmanager.logic.model.AppInstallResult;
 import com.adbmanager.logic.model.AppDetailsParser;
 import com.adbmanager.logic.model.AppListParser;
+import com.adbmanager.logic.model.AndroidUser;
 import com.adbmanager.logic.model.BundletoolDeviceSpec;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DeviceDetailsParser;
 import com.adbmanager.logic.model.DeviceParser;
 import com.adbmanager.logic.model.InstalledApp;
+import com.adbmanager.logic.model.KeyboardInputMethod;
+import com.adbmanager.logic.model.SystemState;
 import com.adbmanager.view.Messages;
 
 public class AdbService implements AdbModel {
@@ -94,6 +98,11 @@ public class AdbService implements AdbModel {
     private static final Pattern INSTALL_FAILURE_CODE_PATTERN = Pattern.compile(
             "(INSTALL_(?:FAILED|PARSE_FAILED)_[A-Z0-9_]+)");
     private static final Pattern GETPROP_ENTRY_PATTERN = Pattern.compile("^\\[(.+?)\\]: \\[(.*)]$");
+    private static final Pattern USER_LIST_PATTERN = Pattern.compile(
+            "UserInfo\\{(\\d+):([^:}]+):[^}]*\\}(.*)$");
+    private static final Pattern GESTURAL_OVERLAY_PATTERN = Pattern.compile(
+            "\\[(x|X| )\\]\\s+com\\.android\\.internal\\.systemui\\.navbar\\.gestural");
+    private static final Pattern IME_VERBOSE_ID_PATTERN = Pattern.compile("^mId=([^\\s]+)\\s*$", Pattern.MULTILINE);
 
     private final AdbClient client;
     private final BundletoolService bundletoolService = new BundletoolService();
@@ -222,6 +231,15 @@ public class AdbService implements AdbModel {
                     + darkModeResult.output());
         }
 
+        AdbResult screenTimeoutResult = client.runForSerial(
+                device.serial(),
+                List.of("shell", "settings", "get", "system", "screen_off_timeout"));
+        if (!screenTimeoutResult.ok()) {
+            throw new Exception("adb -s " + device.serial()
+                    + " shell settings get system screen_off_timeout failed:\n"
+                    + screenTimeoutResult.output());
+        }
+
         return Optional.of(detailsParser.parse(
                 device,
                 propertiesResult.output(),
@@ -232,7 +250,8 @@ public class AdbService implements AdbModel {
                 sizeResult.output(),
                 densityResult.output(),
                 displayResult.output(),
-                darkModeResult.output()));
+                darkModeResult.output(),
+                screenTimeoutResult.output()));
     }
 
     @Override
@@ -732,6 +751,108 @@ public class AdbService implements AdbModel {
     }
 
     @Override
+    public Optional<SystemState> getSelectedDeviceSystemState() throws Exception {
+        Optional<Device> selectedDevice = getSelectedDevice();
+        if (selectedDevice.isEmpty() || !Messages.STATUS_CONNECTED.equals(selectedDevice.get().state())) {
+            return Optional.empty();
+        }
+
+        return Optional.of(loadSystemStateForSerial(selectedDevice.get().serial()));
+    }
+
+    @Override
+    public void createSelectedDeviceUser(String name) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.system.deviceRequired"),
+                Messages.text("error.system.deviceDisconnected"));
+        String safeName = requireNonBlank(name, Messages.text("error.system.userNameRequired"));
+        AdbResult result = client.runForSerial(device.serial(), List.of("shell", "pm", "create-user", safeName));
+        assertOk(result, "adb -s " + device.serial() + " shell pm create-user " + safeName);
+    }
+
+    @Override
+    public void removeSelectedDeviceUser(int userId) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.system.deviceRequired"),
+                Messages.text("error.system.deviceDisconnected"));
+        AdbResult result = client.runForSerial(
+                device.serial(),
+                List.of("shell", "pm", "remove-user", String.valueOf(userId)));
+        assertOk(result, "adb -s " + device.serial() + " shell pm remove-user " + userId);
+    }
+
+    @Override
+    public void switchSelectedDeviceUser(int userId) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.system.deviceRequired"),
+                Messages.text("error.system.deviceDisconnected"));
+        AdbResult result = client.runForSerial(
+                device.serial(),
+                List.of("shell", "am", "switch-user", String.valueOf(userId)));
+        assertOk(result, "adb -s " + device.serial() + " shell am switch-user " + userId);
+    }
+
+    @Override
+    public void setSelectedDeviceShowAllAppLanguages(boolean enabled) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.system.deviceRequired"),
+                Messages.text("error.system.deviceDisconnected"));
+        String rawValue = enabled ? "false" : "true";
+        AdbResult result = client.runForSerial(
+                device.serial(),
+                List.of("shell", "settings", "put", "global", "settings_app_locale_opt_in_enabled", rawValue));
+        assertOk(result,
+                "adb -s " + device.serial()
+                        + " shell settings put global settings_app_locale_opt_in_enabled " + rawValue);
+    }
+
+    @Override
+    public void setSelectedDeviceGesturalNavigation(boolean enabled) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.system.deviceRequired"),
+                Messages.text("error.system.deviceDisconnected"));
+        AdbResult result = client.runForSerial(
+                device.serial(),
+                List.of("shell", "cmd", "overlay", enabled ? "enable" : "disable",
+                        "com.android.internal.systemui.navbar.gestural"));
+        assertOk(result,
+                "adb -s " + device.serial()
+                        + " shell cmd overlay " + (enabled ? "enable" : "disable")
+                        + " com.android.internal.systemui.navbar.gestural");
+    }
+
+    @Override
+    public void enableSelectedDeviceKeyboard(String keyboardId) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.system.deviceRequired"),
+                Messages.text("error.system.deviceDisconnected"));
+        String safeKeyboardId = requireNonBlank(keyboardId, Messages.text("error.system.keyboardRequired"));
+        AdbResult result = client.runForSerial(
+                device.serial(),
+                List.of("shell", "ime", "enable", safeKeyboardId));
+        assertOk(result, "adb -s " + device.serial() + " shell ime enable " + safeKeyboardId);
+    }
+
+    @Override
+    public void setSelectedDeviceKeyboard(String keyboardId) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.system.deviceRequired"),
+                Messages.text("error.system.deviceDisconnected"));
+        String safeKeyboardId = requireNonBlank(keyboardId, Messages.text("error.system.keyboardRequired"));
+
+        AdbResult enableResult = client.runForSerial(
+                device.serial(),
+                List.of("shell", "ime", "enable", safeKeyboardId));
+        assertOk(enableResult, "adb -s " + device.serial() + " shell ime enable " + safeKeyboardId);
+
+        AdbResult setResult = client.runForSerial(
+                device.serial(),
+                List.of("shell", "settings", "put", "secure", "default_input_method", safeKeyboardId));
+        assertOk(setResult,
+                "adb -s " + device.serial() + " shell settings put secure default_input_method " + safeKeyboardId);
+    }
+
+    @Override
     public void setSelectedDeviceDisplay(int widthPx, int heightPx, int densityDpi) throws Exception {
         Device device = requireConnectedSelectedDevice(
                 Messages.text("error.display.deviceRequired"),
@@ -750,6 +871,23 @@ public class AdbService implements AdbModel {
                 device.serial(),
                 List.of("shell", "wm", "density", String.valueOf(densityDpi), "-r"));
         assertOk(densityResult, "adb -s " + device.serial() + " shell wm density " + densityDpi + " -r");
+    }
+
+    @Override
+    public void setSelectedDeviceScreenOffTimeout(int timeoutMs) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.display.deviceRequired"),
+                Messages.text("error.display.deviceDisconnected"));
+
+        if (timeoutMs <= 0) {
+            throw new IllegalArgumentException(Messages.text("error.display.invalidTimeout"));
+        }
+
+        AdbResult timeoutResult = client.runForSerial(
+                device.serial(),
+                List.of("shell", "settings", "put", "system", "screen_off_timeout", String.valueOf(timeoutMs)));
+        assertOk(timeoutResult,
+                "adb -s " + device.serial() + " shell settings put system screen_off_timeout " + timeoutMs);
     }
 
     @Override
@@ -1332,6 +1470,155 @@ public class AdbService implements AdbModel {
             });
         } catch (IOException ignored) {
         }
+    }
+
+    private SystemState loadSystemStateForSerial(String serial) throws Exception {
+        AdbResult usersResult = client.runForSerial(serial, List.of("shell", "pm", "list", "users"));
+        assertOk(usersResult, "adb -s " + serial + " shell pm list users");
+
+        AdbResult currentUserResult = client.runForSerial(serial, List.of("shell", "am", "get-current-user"));
+        assertOk(currentUserResult, "adb -s " + serial + " shell am get-current-user");
+
+        AdbResult appLocalesResult = client.runForSerial(
+                serial,
+                List.of("shell", "settings", "get", "global", "settings_app_locale_opt_in_enabled"));
+        assertOk(appLocalesResult,
+                "adb -s " + serial + " shell settings get global settings_app_locale_opt_in_enabled");
+
+        AdbResult gesturesResult = client.runForSerial(serial, List.of("shell", "cmd", "overlay", "list"));
+        assertOk(gesturesResult, "adb -s " + serial + " shell cmd overlay list");
+
+        AdbResult allImesResult = client.runForSerial(serial, List.of("shell", "ime", "list", "-a", "-s"));
+        if (!allImesResult.ok()) {
+            allImesResult = client.runForSerial(serial, List.of("shell", "ime", "list", "-a"));
+        }
+        assertOk(allImesResult, "adb -s " + serial + " shell ime list -a");
+
+        AdbResult enabledImesResult = client.runForSerial(serial, List.of("shell", "ime", "list", "-s"));
+        assertOk(enabledImesResult, "adb -s " + serial + " shell ime list -s");
+
+        AdbResult defaultImeResult = client.runForSerial(
+                serial,
+                List.of("shell", "settings", "get", "secure", "default_input_method"));
+        assertOk(defaultImeResult, "adb -s " + serial + " shell settings get secure default_input_method");
+
+        int currentUserId = parseCurrentUserId(currentUserResult.output());
+        return new SystemState(
+                parseUsers(usersResult.output(), currentUserId),
+                parseShowAllAppLanguages(appLocalesResult.output()),
+                parseGesturalNavigationEnabled(gesturesResult.output()),
+                parseKeyboards(allImesResult.output(), enabledImesResult.output(), defaultImeResult.output()));
+    }
+
+    private int parseCurrentUserId(String output) {
+        String normalized = normalizeSingleValue(output);
+        if (normalized.isBlank()) {
+            return -1;
+        }
+
+        Matcher matcher = Pattern.compile("(\\d+)").matcher(normalized);
+        return matcher.find() ? Integer.parseInt(matcher.group(1)) : -1;
+    }
+
+    private List<AndroidUser> parseUsers(String output, int currentUserId) {
+        List<AndroidUser> users = new ArrayList<>();
+        if (output == null || output.isBlank()) {
+            return users;
+        }
+
+        for (String rawLine : output.split("\\R")) {
+            String line = rawLine == null ? "" : rawLine.trim();
+            if (line.isBlank()) {
+                continue;
+            }
+
+            Matcher matcher = USER_LIST_PATTERN.matcher(line);
+            if (!matcher.find()) {
+                continue;
+            }
+
+            int userId = Integer.parseInt(matcher.group(1));
+            String name = matcher.group(2).trim();
+            String suffix = matcher.group(3) == null ? "" : matcher.group(3).trim().toLowerCase(Locale.ROOT);
+            boolean running = suffix.contains("running");
+            users.add(new AndroidUser(userId, name, userId == currentUserId, running));
+        }
+
+        users.sort(Comparator.comparingInt(AndroidUser::id));
+        return users;
+    }
+
+    private Boolean parseShowAllAppLanguages(String output) {
+        String normalized = normalizeSingleValue(output).toLowerCase(Locale.ROOT);
+        return "false".equals(normalized) || "0".equals(normalized);
+    }
+
+    private Boolean parseGesturalNavigationEnabled(String output) {
+        Matcher matcher = GESTURAL_OVERLAY_PATTERN.matcher(output == null ? "" : output);
+        if (matcher.find()) {
+            return !" ".equals(matcher.group(1));
+        }
+        return false;
+    }
+
+    private List<KeyboardInputMethod> parseKeyboards(String allImesOutput, String enabledImesOutput, String defaultImeOutput) {
+        LinkedHashSet<String> allIds = parseKeyboardIds(allImesOutput);
+        LinkedHashSet<String> enabledIds = parseKeyboardIds(enabledImesOutput);
+        String defaultId = normalizeSingleValue(defaultImeOutput);
+
+        if (allIds.isEmpty()) {
+            allIds.addAll(enabledIds);
+        }
+        if (!defaultId.isBlank()) {
+            allIds.add(defaultId);
+        }
+
+        List<KeyboardInputMethod> keyboards = new ArrayList<>();
+        for (String id : allIds) {
+            keyboards.add(new KeyboardInputMethod(id, enabledIds.contains(id), id.equals(defaultId)));
+        }
+        return keyboards;
+    }
+
+    private LinkedHashSet<String> parseKeyboardIds(String output) {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        if (output == null || output.isBlank()) {
+            return ids;
+        }
+
+        for (String rawLine : output.split("\\R")) {
+            String line = rawLine == null ? "" : rawLine.trim();
+            if (line.isBlank()) {
+                continue;
+            }
+
+            if (line.startsWith("mId=")) {
+                ids.add(line.substring("mId=".length()).trim());
+                continue;
+            }
+
+            if (line.contains("/") && !line.contains(" ")) {
+                ids.add(line);
+            }
+        }
+
+        if (!ids.isEmpty()) {
+            return ids;
+        }
+
+        Matcher matcher = IME_VERBOSE_ID_PATTERN.matcher(output);
+        while (matcher.find()) {
+            ids.add(matcher.group(1).trim());
+        }
+        return ids;
+    }
+
+    private String normalizeSingleValue(String output) {
+        String normalized = output == null ? "" : output.trim();
+        if ("null".equalsIgnoreCase(normalized)) {
+            return "";
+        }
+        return normalized;
     }
 
     private InstalledApp applyCachedSummary(InstalledApp application) {
