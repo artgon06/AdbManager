@@ -9,6 +9,7 @@ import com.adbmanager.control.Controller;
 import com.adbmanager.control.SwingController;
 import com.adbmanager.logic.AdbModel;
 import com.adbmanager.logic.AdbService;
+import com.adbmanager.logic.ScrcpyService;
 import com.adbmanager.logic.client.AdbClient;
 import com.adbmanager.view.ConsoleView;
 import com.adbmanager.view.swing.MainFrame;
@@ -33,6 +34,6 @@ public class App {
         }
 
         MainFrame frame = new MainFrame();
-        new SwingController(model, frame).start();
+        new SwingController(model, new ScrcpyService(), frame).start();
     }
 }

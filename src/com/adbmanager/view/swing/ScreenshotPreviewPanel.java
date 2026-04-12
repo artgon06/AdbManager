@@ -48,7 +48,7 @@ public class ScreenshotPreviewPanel extends JPanel {
 
     public void applyTheme(AppTheme theme) {
         this.theme = theme;
-        setBackground(theme.surface());
+        setBackground(theme.background());
         refreshTexts();
     }
 

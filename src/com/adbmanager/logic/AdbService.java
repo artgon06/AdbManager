@@ -16,13 +16,17 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.concurrent.ExecutionException;
@@ -39,8 +43,12 @@ import com.adbmanager.logic.client.AdbClient;
 import com.adbmanager.logic.client.AdbResult;
 import com.adbmanager.logic.model.AppDetails;
 import com.adbmanager.logic.model.AdbToolInfo;
+import com.adbmanager.logic.model.AppInstallItemResult;
+import com.adbmanager.logic.model.AppInstallRequest;
+import com.adbmanager.logic.model.AppInstallResult;
 import com.adbmanager.logic.model.AppDetailsParser;
 import com.adbmanager.logic.model.AppListParser;
+import com.adbmanager.logic.model.BundletoolDeviceSpec;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DeviceDetailsParser;
@@ -58,6 +66,10 @@ public class AdbService implements AdbModel {
     private static final Pattern BADGING_ICON_PATTERN = Pattern.compile("^application-icon-(\\d+):'(.*?)'$");
     private static final Pattern BADGING_FALLBACK_ICON_PATTERN = Pattern.compile("icon='(.*?)'");
     private static final Pattern RESOURCE_SPEC_PATTERN = Pattern.compile("spec resource 0x([0-9a-fA-F]+) [^:]+:([A-Za-z0-9_./-]+)");
+    private static final Pattern RESOURCE_FILE_VALUE_PATTERN = Pattern.compile(
+            "^resource 0x([0-9a-fA-F]+) [^:]+: t=0x03 .*");
+    private static final Pattern RESOURCE_STRING_VALUE_PATTERN = Pattern.compile(
+            "^\\((?:string8|string16)\\) \"(res/.*?)\"$");
     private static final Pattern RESOURCE_COLOR_VALUE_PATTERN = Pattern.compile(
             "resource 0x([0-9a-fA-F]+) [^:]+:color/[^:]+: t=0x[0-9a-fA-F]+ d=0x([0-9a-fA-F]+)");
     private static final Pattern XMLTREE_DRAWABLE_REFERENCE_PATTERN = Pattern.compile(
@@ -79,8 +91,12 @@ public class AdbService implements AdbModel {
     private static final Pattern ADB_HELP_PAIR_PATTERN = Pattern.compile("(?m)^\\s*pair\\b");
     private static final Pattern ADB_HELP_MDNS_PATTERN = Pattern.compile("(?m)^\\s*mdns\\b");
     private static final Pattern MDNS_ENDPOINT_PATTERN = Pattern.compile("((?:\\d{1,3}\\.){3}\\d{1,3}):(\\d+)");
+    private static final Pattern INSTALL_FAILURE_CODE_PATTERN = Pattern.compile(
+            "(INSTALL_(?:FAILED|PARSE_FAILED)_[A-Z0-9_]+)");
+    private static final Pattern GETPROP_ENTRY_PATTERN = Pattern.compile("^\\[(.+?)\\]: \\[(.*)]$");
 
     private final AdbClient client;
+    private final BundletoolService bundletoolService = new BundletoolService();
     private final DeviceParser parser = new DeviceParser();
     private final DeviceDetailsParser detailsParser = new DeviceDetailsParser();
     private final AppListParser appListParser = new AppListParser();
@@ -650,6 +666,72 @@ public class AdbService implements AdbModel {
     }
 
     @Override
+    public AppInstallResult installSelectedDevicePackages(
+            AppInstallRequest request,
+            Consumer<String> progressCallback) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.apps.deviceRequired"),
+                Messages.text("error.apps.deviceDisconnected"));
+
+        if (request == null || !request.hasInputs()) {
+            throw new IllegalArgumentException(Messages.text("error.apps.install.noFiles"));
+        }
+
+        BundletoolDeviceSpec deviceSpec = readBundletoolDeviceSpec(device.serial());
+        List<AppInstallItemResult> results = new ArrayList<>();
+        boolean anySuccess = false;
+        Path workRoot = Path.of(System.getProperty("user.home"), ".adbmanager", "install");
+        Files.createDirectories(workRoot);
+
+        for (Path packageFile : request.packageFiles()) {
+            String sourceLabel = packageFile == null ? "-" : packageFile.getFileName().toString();
+            Path workingDirectory = Files.createTempDirectory(workRoot, "package-");
+            try {
+                if (packageFile == null || !Files.isRegularFile(packageFile)) {
+                    throw new IllegalArgumentException(Messages.format("error.apps.install.missingFile", sourceLabel));
+                }
+
+                publishInstallLog(progressCallback, Messages.format("apps.install.progress.preparing", sourceLabel));
+                ResolvedInstallArtifact artifact = resolveInstallArtifact(
+                        device.serial(),
+                        packageFile,
+                        deviceSpec,
+                        workingDirectory,
+                        progressCallback);
+
+                publishInstallLog(progressCallback, Messages.format(
+                        "apps.install.progress.installing",
+                        sourceLabel,
+                        artifact.apkFiles().size()));
+                AdbResult installResult = installResolvedArtifact(device.serial(), artifact, request);
+                String output = normalizeOutput(installResult.output());
+                if (!installResult.ok() || !isInstallSuccessOutput(output)) {
+                    throw new Exception(output.isBlank() ? "adb install failed." : output);
+                }
+
+                anySuccess = true;
+                String successMessage = Messages.format("info.apps.install.itemSuccess", sourceLabel);
+                results.add(new AppInstallItemResult(sourceLabel, true, successMessage));
+                publishInstallLog(progressCallback, successMessage);
+            } catch (Exception exception) {
+                String friendlyMessage = humanizeInstallFailure(exception);
+                results.add(new AppInstallItemResult(sourceLabel, false, friendlyMessage));
+                publishInstallLog(progressCallback, Messages.format("apps.install.progress.failure", sourceLabel, friendlyMessage));
+            } finally {
+                deletePathRecursively(workingDirectory);
+            }
+        }
+
+        if (anySuccess) {
+            applications = List.of();
+            applicationPresentationCache.clear();
+            applicationSummaryCache.clear();
+        }
+
+        return new AppInstallResult(results);
+    }
+
+    @Override
     public void setSelectedDeviceDisplay(int widthPx, int heightPx, int densityDpi) throws Exception {
         Device device = requireConnectedSelectedDevice(
                 Messages.text("error.display.deviceRequired"),
@@ -734,6 +816,521 @@ public class AdbService implements AdbModel {
         String output = connectResult.output() == null ? "" : connectResult.output().toLowerCase(Locale.ROOT);
         if (output.contains("failed") || output.contains("unable")) {
             throw new Exception("adb connect " + endpoint + " failed:\n" + connectResult.output());
+        }
+    }
+
+    private void publishInstallLog(Consumer<String> progressCallback, String message) {
+        if (progressCallback != null && message != null && !message.isBlank()) {
+            progressCallback.accept(message.trim());
+        }
+    }
+
+    private BundletoolDeviceSpec readBundletoolDeviceSpec(String serial) throws Exception {
+        AdbResult propertiesResult = client.runForSerial(serial, List.of("shell", "getprop"));
+        assertOk(propertiesResult, "adb -s " + serial + " shell getprop");
+        Map<String, String> properties = parseGetprop(propertiesResult.output());
+
+        Optional<DeviceDetails> deviceDetails = getSelectedDeviceDetails();
+        DeviceDetails details = deviceDetails.orElse(null);
+
+        List<String> supportedAbis = parseSupportedAbis(properties, details);
+        List<String> supportedLocales = parseSupportedLocales(properties);
+        int screenDensity = details != null && details.displayInfo() != null
+                ? firstPositive(
+                        details.displayInfo().densityDpi(),
+                        details.displayInfo().physicalDensityDpi(),
+                        parseInteger(properties.get("ro.sf.lcd_density")),
+                        parseInteger(properties.get("qemu.sf.lcd_density")))
+                : firstPositive(
+                        parseInteger(properties.get("ro.sf.lcd_density")),
+                        parseInteger(properties.get("qemu.sf.lcd_density")));
+        int sdkVersion = details != null
+                ? firstPositive(parseInteger(details.apiLevel()), parseInteger(properties.get("ro.build.version.sdk")))
+                : firstPositive(parseInteger(properties.get("ro.build.version.sdk")));
+
+        return new BundletoolDeviceSpec(
+                supportedAbis,
+                supportedLocales,
+                Math.max(0, screenDensity),
+                Math.max(0, sdkVersion));
+    }
+
+    private Map<String, String> parseGetprop(String output) {
+        Map<String, String> properties = new HashMap<>();
+        if (output == null || output.isBlank()) {
+            return properties;
+        }
+
+        for (String line : output.split("\\R")) {
+            Matcher matcher = GETPROP_ENTRY_PATTERN.matcher(line == null ? "" : line.trim());
+            if (matcher.matches()) {
+                properties.put(matcher.group(1).trim(), matcher.group(2).trim());
+            }
+        }
+        return properties;
+    }
+
+    private List<String> parseSupportedAbis(Map<String, String> properties, DeviceDetails details) {
+        LinkedHashSet<String> abis = new LinkedHashSet<>();
+        addCsvValues(abis, properties.get("ro.product.cpu.abilist"));
+        addCsvValues(abis, properties.get("ro.product.cpu.abilist64"));
+        addCsvValues(abis, properties.get("ro.product.cpu.abilist32"));
+        addCsvValues(abis, properties.get("ro.product.cpu.abi"));
+        if (details != null) {
+            addCsvValues(abis, details.architecture());
+        }
+        return List.copyOf(abis);
+    }
+
+    private List<String> parseSupportedLocales(Map<String, String> properties) {
+        LinkedHashSet<String> locales = new LinkedHashSet<>();
+        addCsvValues(locales, properties.get("persist.sys.locale"));
+        addCsvValues(locales, properties.get("persist.sys.locales"));
+        addCsvValues(locales, properties.get("ro.product.locale"));
+
+        String language = normalizeLocale(properties.get("ro.product.locale.language"));
+        String region = normalizeLocale(properties.get("ro.product.locale.region"));
+        if (!language.isBlank() && !region.isBlank()) {
+            locales.add(language + "-" + region.toUpperCase(Locale.ROOT));
+        } else if (!language.isBlank()) {
+            locales.add(language);
+        }
+
+        if (locales.isEmpty()) {
+            locales.add("en");
+        }
+        return List.copyOf(locales);
+    }
+
+    private void addCsvValues(Set<String> target, String rawValue) {
+        if (rawValue == null || rawValue.isBlank()) {
+            return;
+        }
+
+        String normalizedInput = rawValue.replace(';', ',');
+        for (String token : normalizedInput.split(",")) {
+            String value = token == null ? "" : token.trim();
+            if (!value.isBlank()) {
+                target.add(value);
+            }
+        }
+    }
+
+    private String normalizeLocale(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value.trim().replace('_', '-');
+    }
+
+    private int firstPositive(Integer... values) {
+        if (values == null) {
+            return 0;
+        }
+        for (Integer value : values) {
+            if (value != null && value > 0) {
+                return value;
+            }
+        }
+        return 0;
+    }
+
+    private Integer parseInteger(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private ResolvedInstallArtifact resolveInstallArtifact(
+            String serial,
+            Path packageFile,
+            BundletoolDeviceSpec deviceSpec,
+            Path workingDirectory,
+            Consumer<String> progressCallback) throws Exception {
+        String fileName = packageFile.getFileName().toString();
+        String lowerName = fileName.toLowerCase(Locale.ROOT);
+
+        if (lowerName.endsWith(".apk")) {
+            return new ResolvedInstallArtifact(fileName, List.of(packageFile.toAbsolutePath().normalize()));
+        }
+
+        if (lowerName.endsWith(".aab")) {
+            publishInstallLog(progressCallback, Messages.format("apps.install.progress.bundletoolBuild", fileName));
+            Path apksArchive = bundletoolService.buildDeviceApksFromBundle(
+                    packageFile,
+                    deviceSpec,
+                    workingDirectory,
+                    progressCallback);
+            publishInstallLog(progressCallback, Messages.format("apps.install.progress.bundletoolExtract", apksArchive.getFileName()));
+            List<Path> apkFiles = bundletoolService.extractDeviceApks(apksArchive, deviceSpec, workingDirectory, progressCallback);
+            if (apkFiles.isEmpty()) {
+                throw new IllegalStateException(Messages.format("error.apps.install.noCompatibleSplits", fileName));
+            }
+            return new ResolvedInstallArtifact(fileName, apkFiles);
+        }
+
+        if (lowerName.endsWith(".apks")) {
+            publishInstallLog(progressCallback, Messages.format("apps.install.progress.bundletoolExtract", fileName));
+            List<Path> apkFiles = bundletoolService.extractDeviceApks(packageFile, deviceSpec, workingDirectory, progressCallback);
+            if (apkFiles.isEmpty()) {
+                throw new IllegalStateException(Messages.format("error.apps.install.noCompatibleSplits", fileName));
+            }
+            return new ResolvedInstallArtifact(fileName, apkFiles);
+        }
+
+        if (lowerName.endsWith(".apkm") || lowerName.endsWith(".xapk") || lowerName.endsWith(".zip")) {
+            return resolveArchiveInstallArtifact(serial, packageFile, deviceSpec, workingDirectory, progressCallback);
+        }
+
+        throw new IllegalArgumentException(Messages.format("error.apps.install.unsupportedFormat", fileName));
+    }
+
+    private ResolvedInstallArtifact resolveArchiveInstallArtifact(
+            String serial,
+            Path archiveFile,
+            BundletoolDeviceSpec deviceSpec,
+            Path workingDirectory,
+            Consumer<String> progressCallback) throws Exception {
+        if (isBundletoolArchive(archiveFile)) {
+            Path apksArchive = workingDirectory.resolve(stripExtension(archiveFile.getFileName().toString()) + ".apks");
+            Files.copy(archiveFile, apksArchive);
+            publishInstallLog(progressCallback, Messages.format("apps.install.progress.bundletoolExtract", archiveFile.getFileName()));
+            List<Path> apkFiles = bundletoolService.extractDeviceApks(apksArchive, deviceSpec, workingDirectory, progressCallback);
+            if (apkFiles.isEmpty()) {
+                throw new IllegalStateException(Messages.format("error.apps.install.noCompatibleSplits", archiveFile.getFileName()));
+            }
+            return new ResolvedInstallArtifact(archiveFile.getFileName().toString(), apkFiles);
+        }
+
+        ArchiveExtractionResult extraction = extractArchiveApks(archiveFile, workingDirectory);
+        if (!extraction.obbFiles().isEmpty()) {
+            publishInstallLog(progressCallback, Messages.format("apps.install.progress.obbIgnored", extraction.obbFiles().size()));
+        }
+        List<Path> selectedApks = selectCompatibleArchiveApks(extraction.apkFiles(), deviceSpec);
+        if (selectedApks.isEmpty()) {
+            throw new IllegalStateException(Messages.format("error.apps.install.noCompatibleSplits", archiveFile.getFileName()));
+        }
+
+        publishInstallLog(progressCallback, Messages.format("apps.install.progress.selectedSplits", selectedApks.size()));
+        return new ResolvedInstallArtifact(archiveFile.getFileName().toString(), selectedApks);
+    }
+
+    private boolean isBundletoolArchive(Path archiveFile) throws IOException {
+        try (ZipFile zipFile = new ZipFile(archiveFile.toFile())) {
+            return zipFile.getEntry("toc.pb") != null;
+        }
+    }
+
+    private ArchiveExtractionResult extractArchiveApks(Path archiveFile, Path workingDirectory) throws Exception {
+        Path extractionDirectory = Files.createDirectories(workingDirectory.resolve("archive"));
+        List<Path> apkFiles = new ArrayList<>();
+        List<Path> obbFiles = new ArrayList<>();
+
+        try (ZipFile zipFile = new ZipFile(archiveFile.toFile())) {
+            java.util.Enumeration<? extends ZipEntry> entries = zipFile.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (entry == null || entry.isDirectory()) {
+                    continue;
+                }
+
+                String entryName = entry.getName() == null ? "" : entry.getName().replace('\\', '/');
+                String lowerEntryName = entryName.toLowerCase(Locale.ROOT);
+                if (!lowerEntryName.endsWith(".apk") && !lowerEntryName.endsWith(".obb")) {
+                    continue;
+                }
+
+                Path targetPath = extractionDirectory.resolve(entryName).normalize();
+                if (!targetPath.startsWith(extractionDirectory)) {
+                    continue;
+                }
+                Files.createDirectories(targetPath.getParent());
+                try (InputStream inputStream = zipFile.getInputStream(entry)) {
+                    Files.copy(inputStream, targetPath);
+                }
+
+                if (lowerEntryName.endsWith(".apk")) {
+                    apkFiles.add(targetPath);
+                } else {
+                    obbFiles.add(targetPath);
+                }
+            }
+        }
+
+        return new ArchiveExtractionResult(List.copyOf(apkFiles), List.copyOf(obbFiles));
+    }
+
+    private List<Path> selectCompatibleArchiveApks(List<Path> apkFiles, BundletoolDeviceSpec deviceSpec) {
+        if (apkFiles.isEmpty()) {
+            return List.of();
+        }
+        if (apkFiles.size() == 1) {
+            return List.of(apkFiles.get(0));
+        }
+
+        List<Path> baseCandidates = new ArrayList<>();
+        List<Path> moduleCandidates = new ArrayList<>();
+        for (Path apkFile : apkFiles) {
+            String name = apkFile.getFileName().toString().toLowerCase(Locale.ROOT);
+            if (looksLikeBaseApk(name)) {
+                baseCandidates.add(apkFile);
+            } else if (!isConfigSplitName(name)) {
+                moduleCandidates.add(apkFile);
+            }
+        }
+
+        LinkedHashSet<Path> selected = new LinkedHashSet<>();
+        if (!baseCandidates.isEmpty()) {
+            selected.addAll(baseCandidates);
+        } else if (!moduleCandidates.isEmpty()) {
+            selected.addAll(moduleCandidates);
+        }
+
+        for (Path apkFile : apkFiles) {
+            String name = apkFile.getFileName().toString().toLowerCase(Locale.ROOT);
+            if (selected.contains(apkFile)) {
+                continue;
+            }
+            if (!isConfigSplitName(name)) {
+                selected.add(apkFile);
+                continue;
+            }
+            if (matchesSplitForDevice(name, deviceSpec)) {
+                selected.add(apkFile);
+            }
+        }
+
+        return List.copyOf(selected);
+    }
+
+    private boolean looksLikeBaseApk(String fileName) {
+        return fileName.equals("base.apk")
+                || fileName.equals("base-master.apk")
+                || fileName.startsWith("base-")
+                || fileName.startsWith("base_");
+    }
+
+    private boolean isConfigSplitName(String fileName) {
+        return fileName.contains("config.");
+    }
+
+    private boolean matchesSplitForDevice(String fileName, BundletoolDeviceSpec deviceSpec) {
+        String qualifier = extractConfigQualifier(fileName);
+        if (qualifier.isBlank()) {
+            return true;
+        }
+
+        String normalizedQualifier = qualifier.toLowerCase(Locale.ROOT)
+                .replace('-', '_')
+                .replace('.', '_');
+        if (matchesAbiQualifier(normalizedQualifier, deviceSpec.supportedAbis())) {
+            return true;
+        }
+        if (isAbiQualifier(normalizedQualifier)) {
+            return false;
+        }
+
+        if (matchesDensityQualifier(normalizedQualifier, deviceSpec.screenDensity())) {
+            return true;
+        }
+        if (isDensityQualifier(normalizedQualifier)) {
+            return false;
+        }
+
+        if (matchesLocaleQualifier(normalizedQualifier, deviceSpec.supportedLocales())) {
+            return true;
+        }
+        if (isLocaleQualifier(normalizedQualifier)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private String extractConfigQualifier(String fileName) {
+        String normalized = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
+        int configIndex = normalized.indexOf("config.");
+        if (configIndex < 0) {
+            return "";
+        }
+
+        String qualifier = normalized.substring(configIndex + "config.".length());
+        if (qualifier.endsWith(".apk")) {
+            qualifier = qualifier.substring(0, qualifier.length() - 4);
+        }
+        return qualifier.trim();
+    }
+
+    private boolean matchesAbiQualifier(String qualifier, List<String> supportedAbis) {
+        for (String abi : supportedAbis) {
+            String normalizedAbi = abi.toLowerCase(Locale.ROOT).replace('-', '_');
+            if (qualifier.contains(normalizedAbi)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isAbiQualifier(String qualifier) {
+        return qualifier.contains("arm64")
+                || qualifier.contains("armeabi")
+                || qualifier.contains("x86_64")
+                || qualifier.equals("x86")
+                || qualifier.contains("riscv64");
+    }
+
+    private boolean matchesDensityQualifier(String qualifier, int density) {
+        Set<String> accepted = acceptedDensityQualifiers(density);
+        for (String acceptedQualifier : accepted) {
+            if (qualifier.contains(acceptedQualifier)) {
+                return true;
+            }
+        }
+        return qualifier.contains("nodpi") || qualifier.contains("anydpi");
+    }
+
+    private boolean isDensityQualifier(String qualifier) {
+        return qualifier.contains("ldpi")
+                || qualifier.contains("mdpi")
+                || qualifier.contains("tvdpi")
+                || qualifier.contains("hdpi")
+                || qualifier.contains("xhdpi")
+                || qualifier.contains("xxhdpi")
+                || qualifier.contains("xxxhdpi")
+                || qualifier.endsWith("dpi");
+    }
+
+    private Set<String> acceptedDensityQualifiers(int density) {
+        LinkedHashSet<String> qualifiers = new LinkedHashSet<>();
+        if (density <= 0) {
+            qualifiers.add("xhdpi");
+            return qualifiers;
+        }
+        qualifiers.add(density + "dpi");
+        if (density <= 140) {
+            qualifiers.add("ldpi");
+        } else if (density <= 180) {
+            qualifiers.add("mdpi");
+        } else if (density <= 220) {
+            qualifiers.add("tvdpi");
+        } else if (density <= 280) {
+            qualifiers.add("hdpi");
+        } else if (density <= 400) {
+            qualifiers.add("xhdpi");
+        } else if (density <= 560) {
+            qualifiers.add("xxhdpi");
+        } else {
+            qualifiers.add("xxxhdpi");
+        }
+        return qualifiers;
+    }
+
+    private boolean matchesLocaleQualifier(String qualifier, List<String> supportedLocales) {
+        Set<String> localeTokens = buildLocaleTokens(supportedLocales);
+        return localeTokens.stream().anyMatch(qualifier::contains);
+    }
+
+    private boolean isLocaleQualifier(String qualifier) {
+        return qualifier.matches("^[a-z]{2,3}(?:_[a-z]{2}|_r[a-z]{2})?$");
+    }
+
+    private Set<String> buildLocaleTokens(List<String> supportedLocales) {
+        LinkedHashSet<String> tokens = new LinkedHashSet<>();
+        for (String locale : supportedLocales) {
+            String normalized = normalizeLocale(locale).toLowerCase(Locale.ROOT);
+            if (normalized.isBlank()) {
+                continue;
+            }
+            String underscore = normalized.replace('-', '_');
+            tokens.add(underscore);
+            tokens.add(underscore.replace("_", "_r"));
+            int separator = underscore.indexOf('_');
+            if (separator > 0) {
+                tokens.add(underscore.substring(0, separator));
+            } else {
+                tokens.add(underscore);
+            }
+        }
+        return tokens;
+    }
+
+    private AdbResult installResolvedArtifact(String serial, ResolvedInstallArtifact artifact, AppInstallRequest request)
+            throws Exception {
+        List<String> command = new ArrayList<>();
+        command.add(artifact.apkFiles().size() > 1 ? "install-multiple" : "install");
+        if (request.replaceExisting()) {
+            command.add("-r");
+        }
+        if (request.allowTestPackages()) {
+            command.add("-t");
+        }
+        if (request.grantRuntimePermissions()) {
+            command.add("-g");
+        }
+        if (request.bypassLowTargetSdkBlock()) {
+            command.add("--bypass-low-target-sdk-block");
+        }
+        for (Path apkFile : artifact.apkFiles()) {
+            command.add(apkFile.toAbsolutePath().normalize().toString());
+        }
+        return client.runForSerial(serial, command);
+    }
+
+    private boolean isInstallSuccessOutput(String output) {
+        String normalized = normalizeOutput(output).toLowerCase(Locale.ROOT);
+        return normalized.contains("success") && !normalized.contains("failure");
+    }
+
+    private String normalizeOutput(String output) {
+        return output == null ? "" : output.trim();
+    }
+
+    private String humanizeInstallFailure(Exception exception) {
+        String message = exception == null ? "" : normalizeOutput(exception.getMessage());
+        Matcher matcher = INSTALL_FAILURE_CODE_PATTERN.matcher(message);
+        String code = matcher.find() ? matcher.group(1) : "";
+        if (!code.isBlank()) {
+            return switch (code) {
+                case "INSTALL_FAILED_INSUFFICIENT_STORAGE" -> Messages.format("error.apps.install.reason", code,
+                        Messages.text("error.apps.install.insufficientStorage"));
+                case "INSTALL_FAILED_NO_MATCHING_ABIS" -> Messages.format("error.apps.install.reason", code,
+                        Messages.text("error.apps.install.noMatchingAbis"));
+                case "INSTALL_FAILED_MISSING_SPLIT" -> Messages.format("error.apps.install.reason", code,
+                        Messages.text("error.apps.install.missingSplit"));
+                case "INSTALL_FAILED_UPDATE_INCOMPATIBLE" -> Messages.format("error.apps.install.reason", code,
+                        Messages.text("error.apps.install.updateIncompatible"));
+                case "INSTALL_FAILED_VERSION_DOWNGRADE" -> Messages.format("error.apps.install.reason", code,
+                        Messages.text("error.apps.install.versionDowngrade"));
+                case "INSTALL_PARSE_FAILED_NO_CERTIFICATES" -> Messages.format("error.apps.install.reason", code,
+                        Messages.text("error.apps.install.noCertificates"));
+                default -> Messages.format("error.apps.install.reason", code, message.isBlank() ? code : message);
+            };
+        }
+        return message.isBlank() ? Messages.text("error.apps.install.unknown") : message;
+    }
+
+    private String stripExtension(String fileName) {
+        int separatorIndex = fileName.lastIndexOf('.');
+        return separatorIndex <= 0 ? fileName : fileName.substring(0, separatorIndex);
+    }
+
+    private void deletePathRecursively(Path path) {
+        if (path == null || !Files.exists(path)) {
+            return;
+        }
+        try (Stream<Path> paths = Files.walk(path)) {
+            paths.sorted(Comparator.reverseOrder()).forEach(candidate -> {
+                try {
+                    Files.deleteIfExists(candidate);
+                } catch (IOException ignored) {
+                }
+            });
+        } catch (IOException ignored) {
         }
     }
 
@@ -1056,17 +1653,40 @@ public class AdbService implements AdbModel {
     }
 
     private ResourceTable loadResourceTable(Path aaptExecutable, Path apkPath) throws Exception {
-        String resourcesOutput = runLocalTool(aaptExecutable, List.of("dump", "resources", apkPath.toString()));
+        String resourcesOutput = runLocalTool(aaptExecutable, List.of("dump", "--values", "resources", apkPath.toString()));
         Map<String, String> resourceNamesById = new HashMap<>();
+        Map<String, String> resourcePathsById = new HashMap<>();
         Map<String, Integer> colorValuesById = new HashMap<>();
+        String pendingPathResourceId = null;
 
         for (String line : resourcesOutput.split("\\R")) {
-            Matcher specMatcher = RESOURCE_SPEC_PATTERN.matcher(line.trim());
+            String trimmedLine = line.trim();
+
+            Matcher specMatcher = RESOURCE_SPEC_PATTERN.matcher(trimmedLine);
             if (specMatcher.find()) {
                 resourceNamesById.put(normalizeResourceId(specMatcher.group(1)), specMatcher.group(2).trim());
             }
 
-            Matcher colorMatcher = RESOURCE_COLOR_VALUE_PATTERN.matcher(line.trim());
+            Matcher fileValueMatcher = RESOURCE_FILE_VALUE_PATTERN.matcher(trimmedLine);
+            if (fileValueMatcher.find()) {
+                pendingPathResourceId = normalizeResourceId(fileValueMatcher.group(1));
+                continue;
+            }
+
+            if (pendingPathResourceId != null) {
+                Matcher stringValueMatcher = RESOURCE_STRING_VALUE_PATTERN.matcher(trimmedLine);
+                if (stringValueMatcher.find()) {
+                    String candidatePath = stringValueMatcher.group(1).trim();
+                    String currentPath = resourcePathsById.get(pendingPathResourceId);
+                    if (currentPath == null
+                            || resourceDensityRank(candidatePath) > resourceDensityRank(currentPath)) {
+                        resourcePathsById.put(pendingPathResourceId, candidatePath);
+                    }
+                }
+                pendingPathResourceId = null;
+            }
+
+            Matcher colorMatcher = RESOURCE_COLOR_VALUE_PATTERN.matcher(trimmedLine);
             if (colorMatcher.find()) {
                 colorValuesById.put(
                         normalizeResourceId(colorMatcher.group(1)),
@@ -1074,7 +1694,7 @@ public class AdbService implements AdbModel {
             }
         }
 
-        return new ResourceTable(resourceNamesById, colorValuesById);
+        return new ResourceTable(resourceNamesById, resourcePathsById, colorValuesById);
     }
 
     private BufferedImage renderAdaptiveIcon(
@@ -1131,12 +1751,16 @@ public class AdbService implements AdbModel {
             Path apkPath,
             String resourceId,
             ResourceTable resourceTable) throws Exception {
-        String resourceName = resourceTable.resourceNamesById().get(normalizeResourceId(resourceId));
+        String normalizedResourceId = normalizeResourceId(resourceId);
+        String resourceName = resourceTable.resourceNamesById().get(normalizedResourceId);
         if (resourceName == null || resourceName.isBlank()) {
             return null;
         }
 
-        String resourcePath = findResourcePath(apkPath, resourceName);
+        String resourcePath = resourceTable.resourcePathsById().get(normalizedResourceId);
+        if (resourcePath == null || resourcePath.isBlank()) {
+            resourcePath = findResourcePath(apkPath, resourceName);
+        }
         if (resourcePath == null || resourcePath.isBlank()) {
             return null;
         }
@@ -1597,7 +2221,10 @@ public class AdbService implements AdbModel {
         return packagePaths;
     }
 
-    private record ResourceTable(Map<String, String> resourceNamesById, Map<String, Integer> colorValuesById) {
+    private record ResourceTable(
+            Map<String, String> resourceNamesById,
+            Map<String, String> resourcePathsById,
+            Map<String, Integer> colorValuesById) {
     }
 
     private record VectorPathSpec(String pathData, Color fillColor) {
@@ -1790,6 +2417,12 @@ public class AdbService implements AdbModel {
         private static double nextNumber(List<String> tokens, int index) {
             return Double.parseDouble(tokens.get(index));
         }
+    }
+
+    private record ResolvedInstallArtifact(String sourceLabel, List<Path> apkFiles) {
+    }
+
+    private record ArchiveExtractionResult(List<Path> apkFiles, List<Path> obbFiles) {
     }
 
     private record PackagePath(String packageName, String apkPath) {

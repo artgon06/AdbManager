@@ -4,6 +4,7 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Cursor;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -31,6 +32,9 @@ import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.AppDetails;
 import com.adbmanager.logic.model.InstalledApp;
+import com.adbmanager.logic.model.ScrcpyCamera;
+import com.adbmanager.logic.model.ScrcpyLaunchRequest;
+import com.adbmanager.logic.model.ScrcpyStatus;
 import com.adbmanager.view.Messages;
 import com.adbmanager.view.Messages.Language;
 
@@ -62,6 +66,7 @@ public class MainFrame extends JFrame {
     private final AppsPanel appsPanel = new AppsPanel();
     private final SettingsPanel settingsPanel = new SettingsPanel();
     private final WirelessConnectionDialog wirelessDialog = new WirelessConnectionDialog(this);
+    private final AppInstallDialog appInstallDialog = new AppInstallDialog(this);
     private AppTheme currentTheme = AppTheme.LIGHT;
 
     public MainFrame() {
@@ -111,6 +116,30 @@ public class MainFrame extends JFrame {
         displayPanel.setDeviceDarkModeAction(actionListener);
     }
 
+    public void setPrepareScrcpyAction(ActionListener actionListener) {
+        displayPanel.setPrepareScrcpyAction(actionListener);
+    }
+
+    public void setLaunchScrcpyAction(ActionListener actionListener) {
+        displayPanel.setLaunchScrcpyAction(actionListener);
+    }
+
+    public void setBrowseScrcpyRecordPathAction(ActionListener actionListener) {
+        displayPanel.setBrowseScrcpyRecordPathAction(actionListener);
+    }
+
+    public void setRefreshScrcpyCamerasAction(ActionListener actionListener) {
+        displayPanel.setRefreshScrcpyCamerasAction(actionListener);
+    }
+
+    public void setScrcpyLaunchTargetChangeAction(ActionListener actionListener) {
+        displayPanel.setScrcpyLaunchTargetChangeAction(actionListener);
+    }
+
+    public void setScrcpyStartAppToggleAction(ActionListener actionListener) {
+        displayPanel.setScrcpyStartAppToggleAction(actionListener);
+    }
+
     public void setAppsAction(ActionListener actionListener) {
         appsButton.addActionListener(actionListener);
     }
@@ -139,8 +168,20 @@ public class MainFrame extends JFrame {
         settingsPanel.setRepositoryAction(actionListener);
     }
 
+    public void setScrcpyRepositoryAction(ActionListener actionListener) {
+        settingsPanel.setScrcpyRepositoryAction(actionListener);
+    }
+
+    public void setDeviceCatalogAction(ActionListener actionListener) {
+        settingsPanel.setDeviceCatalogAction(actionListener);
+    }
+
     public WirelessConnectionDialog getWirelessConnectionDialog() {
         return wirelessDialog;
+    }
+
+    public AppInstallDialog getAppInstallDialog() {
+        return appInstallDialog;
     }
 
     public void setApplicationSelectionAction(Runnable action) {
@@ -181,6 +222,10 @@ public class MainFrame extends JFrame {
 
     public void setExportApplicationApkAction(ActionListener actionListener) {
         appsPanel.setExportApkAction(actionListener);
+    }
+
+    public void setInstallApplicationsAction(ActionListener actionListener) {
+        appsPanel.setInstallAction(actionListener);
     }
 
     public String getSelectedDeviceSerial() {
@@ -231,6 +276,7 @@ public class MainFrame extends JFrame {
         appsPanel.refreshTexts();
         settingsPanel.refreshTexts();
         wirelessDialog.refreshTexts();
+        appInstallDialog.refreshTexts();
         setTheme(currentTheme);
     }
 
@@ -359,6 +405,50 @@ public class MainFrame extends JFrame {
         return displayPanel.isDeviceDarkModeSelected();
     }
 
+    public ScrcpyLaunchRequest getScrcpyLaunchRequest() {
+        return displayPanel.getScrcpyLaunchRequest();
+    }
+
+    public boolean shouldLoadScrcpyApplications() {
+        return displayPanel.shouldLoadScrcpyApplications();
+    }
+
+    public boolean usesScrcpyCameraSource() {
+        return displayPanel.usesScrcpyCameraSource();
+    }
+
+    public void setScrcpyStatus(ScrcpyStatus status) {
+        displayPanel.setScrcpyStatus(status);
+    }
+
+    public void setScrcpyFeedback(String message, boolean error) {
+        displayPanel.setScrcpyFeedback(message, error);
+    }
+
+    public void setScrcpyBusy(boolean busy) {
+        displayPanel.setScrcpyBusy(busy);
+    }
+
+    public void setScrcpyDeviceAvailable(boolean available) {
+        displayPanel.setScrcpyDeviceAvailable(available);
+    }
+
+    public void setScrcpyRecordPath(String path) {
+        displayPanel.setScrcpyRecordPath(path);
+    }
+
+    public void setScrcpyLaunchRequest(ScrcpyLaunchRequest request) {
+        displayPanel.setScrcpyLaunchRequest(request);
+    }
+
+    public void setScrcpyAvailableApps(List<InstalledApp> applications) {
+        displayPanel.setScrcpyAvailableApps(applications);
+    }
+
+    public void setScrcpyAvailableCameras(List<ScrcpyCamera> cameras) {
+        displayPanel.setScrcpyAvailableCameras(cameras);
+    }
+
     public void setScreenshot(BufferedImage image) {
         homePanel.setScreenshot(image);
     }
@@ -414,6 +504,32 @@ public class MainFrame extends JFrame {
             selectedFile = parentDirectory == null
                     ? new File(selectedFile.getName() + ".apk")
                     : new File(parentDirectory, selectedFile.getName() + ".apk");
+        }
+
+        return selectedFile;
+    }
+
+    public File chooseScrcpyRecordingDestination() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle(Messages.text("filechooser.saveRecording.title"));
+        fileChooser.setFileFilter(new FileNameExtensionFilter(
+                Messages.text("filechooser.saveRecording.filter"),
+                "mp4",
+                "mkv"));
+        fileChooser.setSelectedFile(new File(defaultRecordingName()));
+
+        int result = fileChooser.showSaveDialog(this);
+        if (result != JFileChooser.APPROVE_OPTION) {
+            return null;
+        }
+
+        File selectedFile = fileChooser.getSelectedFile();
+        String lowerName = selectedFile.getName().toLowerCase();
+        if (!lowerName.endsWith(".mp4") && !lowerName.endsWith(".mkv")) {
+            File parentDirectory = selectedFile.getParentFile();
+            selectedFile = parentDirectory == null
+                    ? new File(selectedFile.getName() + ".mp4")
+                    : new File(parentDirectory, selectedFile.getName() + ".mp4");
         }
 
         return selectedFile;
@@ -477,6 +593,7 @@ public class MainFrame extends JFrame {
         appsPanel.applyTheme(theme);
         settingsPanel.applyTheme(theme);
         wirelessDialog.applyTheme(theme);
+        appInstallDialog.applyTheme(theme);
         styleNavigationButton(homeButton);
         styleNavigationButton(displayButton);
         styleNavigationButton(appsButton);
@@ -515,6 +632,10 @@ public class MainFrame extends JFrame {
 
     public boolean isAppsScreenVisible() {
         return appsButton.isSelected();
+    }
+
+    public boolean isDisplayScreenVisible() {
+        return displayButton.isSelected();
     }
 
     private void buildFrame() {
@@ -570,6 +691,8 @@ public class MainFrame extends JFrame {
         button.setUI(new BasicToggleButtonUI());
         button.setFocusable(false);
         button.setFocusPainted(false);
+        button.setRolloverEnabled(true);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.setHorizontalAlignment(SwingConstants.CENTER);
         button.setMargin(new java.awt.Insets(0, 0, 0, 0));
         button.setPreferredSize(new Dimension(TOP_BAR_HEIGHT, TOP_BAR_HEIGHT));
@@ -581,8 +704,11 @@ public class MainFrame extends JFrame {
         refreshButton.setUI(new BasicButtonUI());
         refreshButton.setFocusable(false);
         refreshButton.setFocusPainted(false);
+        refreshButton.setRolloverEnabled(true);
+        refreshButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         refreshButton.setPreferredSize(new Dimension(TOP_BAR_HEIGHT, TOP_BAR_HEIGHT));
         refreshButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
+        refreshButton.getModel().addChangeListener(event -> styleRefreshButton());
 
         deviceSelector.setFocusable(false);
         deviceSelector.setMaximumRowCount(12);
@@ -592,9 +718,12 @@ public class MainFrame extends JFrame {
         wirelessButton.setUI(new BasicButtonUI());
         wirelessButton.setFocusable(false);
         wirelessButton.setFocusPainted(false);
+        wirelessButton.setRolloverEnabled(true);
+        wirelessButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         wirelessButton.setPreferredSize(new Dimension(TOP_BAR_HEIGHT, TOP_BAR_HEIGHT));
         wirelessButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
         wirelessButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 24));
+        wirelessButton.getModel().addChangeListener(event -> styleWirelessButton());
     }
 
     private void updateNavigationStyles() {
@@ -606,16 +735,20 @@ public class MainFrame extends JFrame {
 
     private void styleNavigationButton(JToggleButton button) {
         boolean selected = button.isSelected();
+        boolean hovered = button.getModel().isRollover() && button.isEnabled();
+        java.awt.Color baseBackground = selected ? currentTheme.secondarySurface() : currentTheme.surface();
         button.setOpaque(true);
         button.setContentAreaFilled(true);
-        button.setBackground(selected ? currentTheme.secondarySurface() : currentTheme.surface());
+        button.setBackground(hovered && !selected
+                ? ThemeUtils.blend(baseBackground, currentTheme.selectionBackground(), 0.22d)
+                : baseBackground);
         button.setForeground(selected ? currentTheme.actionBackground() : currentTheme.textSecondary());
         button.setBorder(BorderFactory.createMatteBorder(
                 0,
                 0,
                 3,
                 0,
-                selected ? currentTheme.actionBackground() : currentTheme.surface()));
+                selected ? currentTheme.actionBackground() : button.getBackground()));
         button.setIcon(new ToolbarIcon(
                 (ToolbarIcon.Type) button.getClientProperty("iconType"),
                 20,
@@ -623,24 +756,30 @@ public class MainFrame extends JFrame {
     }
 
     private void styleRefreshButton() {
+        boolean hovered = refreshButton.getModel().isRollover() && refreshButton.isEnabled();
         refreshButton.setOpaque(true);
         refreshButton.setContentAreaFilled(true);
-        refreshButton.setBackground(currentTheme.surface());
+        refreshButton.setBackground(hovered
+                ? ThemeUtils.blend(currentTheme.surface(), currentTheme.selectionBackground(), 0.24d)
+                : currentTheme.surface());
         refreshButton.setForeground(refreshButton.isEnabled()
                 ? currentTheme.actionBackground()
                 : currentTheme.textSecondary());
-        refreshButton.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        refreshButton.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, refreshButton.getBackground()));
         refreshButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.REFRESH, 20, refreshButton.getForeground()));
     }
 
     private void styleWirelessButton() {
+        boolean hovered = wirelessButton.getModel().isRollover() && wirelessButton.isEnabled();
         wirelessButton.setOpaque(true);
         wirelessButton.setContentAreaFilled(true);
-        wirelessButton.setBackground(currentTheme.surface());
+        wirelessButton.setBackground(hovered
+                ? ThemeUtils.blend(currentTheme.surface(), currentTheme.selectionBackground(), 0.24d)
+                : currentTheme.surface());
         wirelessButton.setForeground(wirelessButton.isEnabled()
                 ? currentTheme.actionBackground()
                 : currentTheme.textSecondary());
-        wirelessButton.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        wirelessButton.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, wirelessButton.getBackground()));
         wirelessButton.setText("+");
     }
 
@@ -649,5 +788,12 @@ public class MainFrame extends JFrame {
                 + "-"
                 + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
                 + ".png";
+    }
+
+    private String defaultRecordingName() {
+        return Messages.text("filechooser.recording.prefix")
+                + "-"
+                + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+                + ".mp4";
     }
 }

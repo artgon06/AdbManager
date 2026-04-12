@@ -3,9 +3,12 @@ package com.adbmanager.logic;
 import java.io.File;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import com.adbmanager.logic.model.AppDetails;
 import com.adbmanager.logic.model.AdbToolInfo;
+import com.adbmanager.logic.model.AppInstallRequest;
+import com.adbmanager.logic.model.AppInstallResult;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.InstalledApp;
@@ -30,6 +33,7 @@ public interface AdbModel {
     void clearSelectedDeviceApplicationData(String packageName) throws Exception;
     void clearSelectedDeviceApplicationCache(String packageName) throws Exception;
     void exportSelectedDeviceApplicationApk(String packageName, File outputFile) throws Exception;
+    AppInstallResult installSelectedDevicePackages(AppInstallRequest request, Consumer<String> progressCallback) throws Exception;
     void setSelectedDeviceDisplay(int widthPx, int heightPx, int densityDpi) throws Exception;
     void resetSelectedDeviceDisplay() throws Exception;
     void setSelectedDeviceDarkMode(boolean enabled) throws Exception;

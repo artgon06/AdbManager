@@ -33,7 +33,8 @@ public class ToolbarIcon implements Icon {
         DISABLE("M7 7h10v10H7z M4.22 4.22l15.56 15.56-1.41 1.41L2.81 5.63z"),
         CLEAR_DATA("M7 5h10l1 2H6l1-2z M6 8h12l-1 12H7L6 8z"),
         CLEAR_CACHE("M4 14h16v2H4z M7 10h10v2H7z M10 4h4v4h-4z"),
-        EXPORT("M5 20h14v-2H5v2z M12 2l5.5 5.5h-4v7h-3v-7h-4L12 2z");
+        EXPORT("M5 20h14v-2H5v2z M12 2l5.5 5.5h-4v7h-3v-7h-4L12 2z"),
+        ADD("M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z");
 
         private final Shape shape;
 

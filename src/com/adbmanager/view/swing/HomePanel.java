@@ -1,6 +1,7 @@
 package com.adbmanager.view.swing;
 
 import java.awt.BorderLayout;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -35,12 +36,13 @@ public class HomePanel extends JPanel {
     private static final String FIELD_TYPE = "type";
     private static final String FIELD_MANUFACTURER = "manufacturer";
     private static final String FIELD_BRAND = "brand";
+    private static final String FIELD_MODEL = "model";
     private static final String FIELD_PRODUCT = "product";
     private static final String FIELD_CODENAME = "codename";
     private static final String FIELD_ARCHITECTURE = "architecture";
     private static final String FIELD_BATTERY = "battery";
     private static final String FIELD_SERIAL = "serial";
-    private static final String FIELD_SOC = "soc";
+    private static final int SUMMARY_COLUMNS = 3;
 
     private final JButton captureButton = new JButton();
     private final JButton saveScreenshotButton = new JButton();
@@ -48,16 +50,14 @@ public class HomePanel extends JPanel {
 
     private final JPanel summaryPanel = new JPanel(new BorderLayout());
     private final JPanel capturePanel = new JPanel(new BorderLayout(0, 18));
-    private final JPanel summaryContent = new JPanel();
+    private final JPanel summaryContent = new JPanel(new GridBagLayout());
     private final JPanel heroPanel = new JPanel(new BorderLayout(16, 0));
-    private final JLabel heroIconLabel = new JLabel();
     private final JPanel heroTextPanel = new JPanel();
     private final JLabel heroTitleLabel = new JLabel("-");
     private final JLabel heroSubtitleLabel = new JLabel("-");
     private final JPanel chipPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
     private final JLabel stateChipLabel = createChipLabel();
     private final JLabel platformChipLabel = createChipLabel();
-    private final JLabel batteryChipLabel = createChipLabel();
 
     private final JPanel factsPanel = new JPanel(new GridBagLayout());
     private final Map<String, FactCard> factCards = new LinkedHashMap<>();
@@ -95,17 +95,16 @@ public class HomePanel extends JPanel {
         currentDetails = details;
 
         heroTitleLabel.setText(primaryDeviceTitle(details));
-        heroSubtitleLabel.setText(asHtml(secondaryDeviceTitle(details), 290));
-        heroIconLabel.setIcon(createHeroIcon());
+        heroSubtitleLabel.setText(asLeftHtml(secondaryDeviceTitle(details), 420));
 
         stateChipLabel.setText(Messages.stateLabel(details.state()));
         platformChipLabel.setText(details.apiLevel().equals("-")
                 ? "Android " + details.androidVersion()
                 : "Android " + details.androidVersion() + " / API " + details.apiLevel());
-        batteryChipLabel.setText(Messages.text("home.field.battery") + ": " + details.batteryLabel());
 
         setFactValue(FIELD_STATE, Messages.stateLabel(details.state()));
         setFactValue(FIELD_TYPE, Messages.deviceTypeLabel(details.deviceType()));
+        setFactValue(FIELD_MODEL, details.model());
         setFactValue(FIELD_MANUFACTURER, details.manufacturer());
         setFactValue(FIELD_BRAND, details.brand());
         setFactValue(FIELD_PRODUCT, details.productName());
@@ -113,7 +112,6 @@ public class HomePanel extends JPanel {
         setFactValue(FIELD_ARCHITECTURE, details.architecture());
         setFactValue(FIELD_BATTERY, details.batteryLabel());
         setFactValue(FIELD_SERIAL, details.serial());
-        setFactValue(FIELD_SOC, details.soc());
 
         if (details.hasRamInfo()) {
             ramValueLabel.setText(details.usedRamLabel());
@@ -137,12 +135,10 @@ public class HomePanel extends JPanel {
     public void clearDeviceDetails() {
         currentDetails = null;
         heroTitleLabel.setText(Messages.appName());
-        heroSubtitleLabel.setText(asHtml(Messages.text("home.summary.empty"), 290));
-        heroIconLabel.setIcon(createHeroIcon());
+        heroSubtitleLabel.setText(asLeftHtml(Messages.text("home.summary.empty"), 420));
 
         stateChipLabel.setText(Messages.text("common.noData"));
         platformChipLabel.setText(Messages.text("common.noData"));
-        batteryChipLabel.setText(Messages.text("home.field.battery") + ": -");
 
         for (FactCard factCard : factCards.values()) {
             factCard.setValue("-");
@@ -192,6 +188,7 @@ public class HomePanel extends JPanel {
 
         factCards.get(FIELD_STATE).setTitle(Messages.text("home.field.state"));
         factCards.get(FIELD_TYPE).setTitle(Messages.text("home.field.deviceType"));
+        factCards.get(FIELD_MODEL).setTitle(Messages.text("home.field.model"));
         factCards.get(FIELD_MANUFACTURER).setTitle(Messages.text("home.field.manufacturer"));
         factCards.get(FIELD_BRAND).setTitle(Messages.text("home.field.brand"));
         factCards.get(FIELD_PRODUCT).setTitle(Messages.text("home.field.product"));
@@ -199,7 +196,6 @@ public class HomePanel extends JPanel {
         factCards.get(FIELD_ARCHITECTURE).setTitle(Messages.text("home.field.architecture"));
         factCards.get(FIELD_BATTERY).setTitle(Messages.text("home.field.battery"));
         factCards.get(FIELD_SERIAL).setTitle(Messages.text("home.field.serial"));
-        factCards.get(FIELD_SOC).setTitle(Messages.text("home.field.soc"));
 
         ramTitleLabel.setText(Messages.text("home.ram.inUse"));
         storageTitleLabel.setText(Messages.text("home.storage.inUse"));
@@ -218,25 +214,23 @@ public class HomePanel extends JPanel {
         this.theme = theme;
         setBackground(theme.background());
 
-        summaryPanel.setBackground(theme.surface());
-        summaryContent.setBackground(theme.surface());
+        summaryPanel.setBackground(theme.background());
+        summaryContent.setBackground(theme.background());
         capturePanel.setBackground(theme.background());
-        chipPanel.setBackground(theme.surface());
-        factsPanel.setBackground(theme.surface());
-        metricsPanel.setBackground(theme.surface());
+        chipPanel.setBackground(theme.background());
+        factsPanel.setBackground(theme.background());
+        metricsPanel.setBackground(theme.background());
 
         styleSurfaceCard(heroPanel, true);
-        styleHeroIcon(theme);
 
         heroTextPanel.setOpaque(false);
         heroTitleLabel.setForeground(theme.textPrimary());
-        heroTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 30));
+        heroTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
         heroSubtitleLabel.setForeground(theme.textSecondary());
         heroSubtitleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
 
         styleChip(stateChipLabel);
         styleChip(platformChipLabel);
-        styleChip(batteryChipLabel);
 
         for (FactCard factCard : factCards.values()) {
             factCard.applyTheme(theme);
@@ -252,59 +246,67 @@ public class HomePanel extends JPanel {
     }
 
     private void buildSummaryPanel() {
-        summaryPanel.setPreferredSize(new Dimension(430, 0));
-        summaryContent.setLayout(new BoxLayout(summaryContent, BoxLayout.Y_AXIS));
-        summaryContent.setBorder(new EmptyBorder(18, 18, 18, 18));
-
-        summaryContent.add(buildHeroPanel());
-        summaryContent.add(Box.createVerticalStrut(14));
-        summaryContent.add(buildFactsPanel());
-        summaryContent.add(Box.createVerticalStrut(14));
-        summaryContent.add(buildMetricsPanel());
-        summaryContent.add(Box.createVerticalGlue());
+        summaryPanel.setPreferredSize(new Dimension(620, 0));
+        summaryContent.setBorder(new EmptyBorder(16, 16, 16, 16));
+        addSummarySection(buildHeroPanel(), 0, 0.0, new Insets(0, 0, 10, 0), GridBagConstraints.HORIZONTAL);
+        addSummarySection(buildFactsPanel(), 1, 0.58, new Insets(0, 0, 10, 0), GridBagConstraints.BOTH);
+        addSummarySection(buildMetricsPanel(), 2, 0.42, new Insets(0, 0, 0, 0), GridBagConstraints.BOTH);
 
         summaryPanel.add(summaryContent, BorderLayout.CENTER);
     }
 
-    private JPanel buildHeroPanel() {
-        heroPanel.setAlignmentX(LEFT_ALIGNMENT);
+    private void addSummarySection(JPanel panel, int row, double weightY, Insets insets, int fill) {
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = 0;
+        constraints.gridy = row;
+        constraints.weightx = 1.0;
+        constraints.weighty = weightY;
+        constraints.fill = fill;
+        constraints.anchor = GridBagConstraints.NORTHWEST;
+        constraints.insets = insets;
+        summaryContent.add(panel, constraints);
+    }
 
-        heroIconLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        heroIconLabel.setVerticalAlignment(SwingConstants.CENTER);
-        heroIconLabel.setPreferredSize(new Dimension(72, 72));
+    private JPanel buildHeroPanel() {
+        heroPanel.setPreferredSize(new Dimension(0, 132));
 
         heroTextPanel.setLayout(new BoxLayout(heroTextPanel, BoxLayout.Y_AXIS));
-        heroTextPanel.add(Box.createVerticalStrut(2));
+        heroTitleLabel.setAlignmentX(LEFT_ALIGNMENT);
+        heroTitleLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        heroSubtitleLabel.setAlignmentX(LEFT_ALIGNMENT);
+        heroSubtitleLabel.setHorizontalAlignment(SwingConstants.LEFT);
         heroTextPanel.add(heroTitleLabel);
         heroTextPanel.add(Box.createVerticalStrut(6));
         heroTextPanel.add(heroSubtitleLabel);
         heroTextPanel.add(Box.createVerticalStrut(12));
 
+        ((FlowLayout) chipPanel.getLayout()).setAlignment(FlowLayout.LEFT);
         chipPanel.add(stateChipLabel);
         chipPanel.add(platformChipLabel);
-        chipPanel.add(batteryChipLabel);
+        chipPanel.setAlignmentX(LEFT_ALIGNMENT);
         heroTextPanel.add(chipPanel);
 
-        heroPanel.add(heroIconLabel, BorderLayout.WEST);
         heroPanel.add(heroTextPanel, BorderLayout.CENTER);
         return heroPanel;
     }
 
     private JPanel buildFactsPanel() {
+        factsPanel.removeAll();
         addFactCard(FIELD_STATE, false, 0, 0, 1);
         addFactCard(FIELD_TYPE, false, 1, 0, 1);
-        addFactCard(FIELD_MANUFACTURER, false, 0, 1, 1);
-        addFactCard(FIELD_BRAND, false, 1, 1, 1);
-        addFactCard(FIELD_PRODUCT, false, 0, 2, 1);
-        addFactCard(FIELD_CODENAME, false, 1, 2, 1);
-        addFactCard(FIELD_ARCHITECTURE, false, 0, 3, 1);
-        addFactCard(FIELD_BATTERY, false, 1, 3, 1);
-        addFactCard(FIELD_SERIAL, true, 0, 4, 2);
-        addFactCard(FIELD_SOC, true, 0, 5, 2);
+        addFactCard(FIELD_BATTERY, false, 2, 0, 1);
+        addFactCard(FIELD_MODEL, false, 0, 1, 1);
+        addFactCard(FIELD_MANUFACTURER, false, 1, 1, 1);
+        addFactCard(FIELD_BRAND, false, 2, 1, 1);
+        addFactCard(FIELD_ARCHITECTURE, false, 0, 2, 1);
+        addFactCard(FIELD_PRODUCT, false, 1, 2, 1);
+        addFactCard(FIELD_CODENAME, false, 2, 2, 1);
+        addFactCard(FIELD_SERIAL, true, 0, 3, 3);
         return factsPanel;
     }
 
     private JPanel buildMetricsPanel() {
+        metricsPanel.removeAll();
         metricsPanel.add(createMetricPanel(ramPanel, ramTitleLabel, ramValueLabel, ramProgressBar, ramFooterLabel));
         metricsPanel.add(createMetricPanel(
                 storagePanel,
@@ -323,7 +325,7 @@ public class HomePanel extends JPanel {
             JLabel footerLabel) {
         container.setLayout(new BoxLayout(container, BoxLayout.Y_AXIS));
         container.setAlignmentX(LEFT_ALIGNMENT);
-        container.setBorder(new EmptyBorder(14, 14, 14, 14));
+        container.setBorder(new EmptyBorder(12, 12, 12, 12));
 
         JPanel headerPanel = new JPanel(new BorderLayout(8, 0));
         headerPanel.setOpaque(false);
@@ -351,12 +353,11 @@ public class HomePanel extends JPanel {
         constraints.gridx = gridX;
         constraints.gridy = gridY;
         constraints.gridwidth = gridWidth;
-        constraints.weightx = gridWidth == 2 ? 1.0 : 0.5;
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        constraints.insets = new Insets(0, 0, 10, gridX == 0 && gridWidth == 1 ? 10 : 0);
-        if (gridWidth == 2) {
-            constraints.insets = new Insets(0, 0, 10, 0);
-        }
+        constraints.weightx = gridWidth;
+        constraints.weighty = wide ? 0.9 : 1.0;
+        constraints.fill = GridBagConstraints.BOTH;
+        int rightInset = gridX + gridWidth < SUMMARY_COLUMNS ? 10 : 0;
+        constraints.insets = new Insets(0, 0, 10, rightInset);
         factsPanel.add(factCard.panel(), constraints);
     }
 
@@ -366,6 +367,9 @@ public class HomePanel extends JPanel {
 
         captureButton.setUI(new BasicButtonUI());
         captureButton.setFocusPainted(false);
+        captureButton.setRolloverEnabled(true);
+        captureButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        captureButton.getModel().addChangeListener(event -> styleActionButton(captureButton, true));
         captureButton.setPreferredSize(new Dimension(180, 42));
         topActionsPanel.add(captureButton);
 
@@ -374,6 +378,9 @@ public class HomePanel extends JPanel {
 
         saveScreenshotButton.setUI(new BasicButtonUI());
         saveScreenshotButton.setFocusPainted(false);
+        saveScreenshotButton.setRolloverEnabled(true);
+        saveScreenshotButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        saveScreenshotButton.getModel().addChangeListener(event -> styleActionButton(saveScreenshotButton, false));
         saveScreenshotButton.setPreferredSize(new Dimension(180, 42));
         bottomActionsPanel.add(saveScreenshotButton);
 
@@ -386,7 +393,7 @@ public class HomePanel extends JPanel {
         GridBagConstraints constraints = new GridBagConstraints();
         constraints.gridx = 0;
         constraints.gridy = 0;
-        constraints.weightx = 0.37;
+        constraints.weightx = 0.46;
         constraints.weighty = 1.0;
         constraints.fill = GridBagConstraints.BOTH;
         constraints.insets = new Insets(24, 24, 24, 18);
@@ -397,7 +404,7 @@ public class HomePanel extends JPanel {
         GridBagConstraints constraints = new GridBagConstraints();
         constraints.gridx = 1;
         constraints.gridy = 0;
-        constraints.weightx = 0.63;
+        constraints.weightx = 0.54;
         constraints.weighty = 1.0;
         constraints.fill = GridBagConstraints.BOTH;
         constraints.insets = new Insets(24, 18, 24, 24);
@@ -411,16 +418,23 @@ public class HomePanel extends JPanel {
 
     private void styleActionButton(JButton button, boolean primary) {
         boolean enabled = button.isEnabled();
+        boolean hovered = enabled && button.getModel().isRollover();
         button.setOpaque(true);
         button.setContentAreaFilled(true);
         button.setBorderPainted(true);
         button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 15));
 
         if (enabled) {
-            button.setBackground(primary ? theme.actionBackground() : theme.surface());
+            java.awt.Color background = primary
+                    ? theme.actionBackground()
+                    : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.82d);
+            if (hovered) {
+                background = ThemeUtils.blend(background, theme.selectionBackground(), primary ? 0.18d : 0.26d);
+            }
+            button.setBackground(background);
             button.setForeground(primary ? theme.actionForeground() : theme.textPrimary());
             button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(primary ? theme.actionBackground() : theme.border(), 1),
+                    BorderFactory.createLineBorder(primary ? background : theme.border(), 1),
                     BorderFactory.createEmptyBorder(8, 18, 8, 18)));
             return;
         }
@@ -432,18 +446,9 @@ public class HomePanel extends JPanel {
                 BorderFactory.createEmptyBorder(8, 18, 8, 18)));
     }
 
-    private void styleHeroIcon(AppTheme theme) {
-        heroIconLabel.setOpaque(true);
-        heroIconLabel.setBackground(theme.secondarySurface());
-        heroIconLabel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(theme.border(), 1),
-                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
-        heroIconLabel.setIcon(createHeroIcon());
-    }
-
     private void styleChip(JLabel label) {
         label.setOpaque(true);
-        label.setBackground(theme.surface());
+        label.setBackground(ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.88d));
         label.setForeground(theme.textPrimary());
         label.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
@@ -453,10 +458,10 @@ public class HomePanel extends JPanel {
 
     private void styleSurfaceCard(JPanel panel, boolean elevated) {
         panel.setOpaque(true);
-        panel.setBackground(elevated ? theme.secondarySurface() : theme.surface());
+        panel.setBackground(theme.background());
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
-                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
+                BorderFactory.createEmptyBorder(elevated ? 14 : 12, elevated ? 14 : 12, elevated ? 14 : 12, elevated ? 14 : 12)));
     }
 
     private void styleMetricCard(
@@ -476,7 +481,7 @@ public class HomePanel extends JPanel {
         footerLabel.setForeground(theme.textSecondary());
         footerLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
 
-        progressBar.setBackground(theme.background());
+        progressBar.setBackground(ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.72d));
         progressBar.setForeground(theme.actionBackground());
         progressBar.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
@@ -503,11 +508,11 @@ public class HomePanel extends JPanel {
         return new JLabel("-");
     }
 
-    private Icon createHeroIcon() {
-        return new ToolbarIcon(ToolbarIcon.Type.DISPLAY, 24, theme.actionBackground());
-    }
-
     private String primaryDeviceTitle(DeviceDetails details) {
+        String marketingName = details.marketingName();
+        if (marketingName != null && !marketingName.isBlank() && !"-".equals(marketingName)) {
+            return marketingName;
+        }
         return details.model() == null || details.model().isBlank() || "-".equals(details.model())
                 ? details.serial()
                 : details.model();
@@ -515,24 +520,24 @@ public class HomePanel extends JPanel {
 
     private String secondaryDeviceTitle(DeviceDetails details) {
         String manufacturer = normalizeDisplayValue(details.manufacturer());
-        String brand = normalizeDisplayValue(details.brand());
         String soc = normalizeDisplayValue(details.soc());
+        String model = normalizeDisplayValue(details.model());
 
         StringBuilder builder = new StringBuilder();
         if (!manufacturer.isBlank()) {
             builder.append(manufacturer);
-        }
-        if (!brand.isBlank() && !brand.equalsIgnoreCase(manufacturer)) {
-            if (builder.length() > 0) {
-                builder.append(" | ");
-            }
-            builder.append(brand);
         }
         if (!soc.isBlank()) {
             if (builder.length() > 0) {
                 builder.append(" | ");
             }
             builder.append(soc);
+        }
+        if (!model.isBlank()) {
+            if (builder.length() > 0) {
+                builder.append(" | ");
+            }
+            builder.append(model);
         }
         return builder.isEmpty() ? Messages.text("home.summary.empty") : builder.toString();
     }
@@ -553,6 +558,10 @@ public class HomePanel extends JPanel {
 
     private String asHtml(String text, int width) {
         return "<html><body style='width:" + width + "px'>" + text + "</body></html>";
+    }
+
+    private String asLeftHtml(String text, int width) {
+        return "<html><div style='width:" + width + "px; text-align:left'>" + text + "</div></html>";
     }
 
     private final class FactCard {
@@ -594,7 +603,7 @@ public class HomePanel extends JPanel {
             titleLabel.setForeground(theme.textSecondary());
             titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
             valueLabel.setForeground(theme.textPrimary());
-            valueLabel.setFont(new Font(Font.SANS_SERIF, wide ? Font.PLAIN : Font.BOLD, wide ? 12 : 15));
+            valueLabel.setFont(new Font(Font.SANS_SERIF, wide ? Font.PLAIN : Font.BOLD, wide ? 13 : 15));
         }
     }
 }

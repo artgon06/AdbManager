@@ -22,7 +22,7 @@ public class ThemedScrollBarUI extends BasicScrollBarUI {
     @Override
     protected void configureScrollBarColors() {
         thumbColor = theme.secondarySurface();
-        trackColor = theme.surface();
+        trackColor = theme.background();
     }
 
     @Override
@@ -39,7 +39,7 @@ public class ThemedScrollBarUI extends BasicScrollBarUI {
     protected void paintTrack(Graphics graphics, JComponent component, Rectangle trackBounds) {
         Graphics2D g2d = (Graphics2D) graphics.create();
         try {
-            g2d.setColor(theme.surface());
+            g2d.setColor(theme.background());
             g2d.fillRect(trackBounds.x, trackBounds.y, trackBounds.width, trackBounds.height);
         } finally {
             g2d.dispose();

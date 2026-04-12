@@ -2,6 +2,7 @@ package com.adbmanager.view.swing;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.Insets;
@@ -18,6 +19,7 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JToggleButton;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
@@ -31,13 +33,21 @@ public class SettingsPanel extends JPanel {
 
     private final JLabel titleLabel = new JLabel();
     private final JLabel subtitleLabel = new JLabel();
+    private final ScrollableContentPanel content = new ScrollableContentPanel();
+    private final JScrollPane scrollPane = new JScrollPane(content);
     private final JPanel aboutPanel = new JPanel();
     private final JPanel appearancePanel = new JPanel();
     private final JPanel behaviorPanel = new JPanel();
 
     private final JLabel appNameValue = new JLabel();
     private final JLabel versionBadge = new JLabel();
+    private final WrappingTextArea aboutSummaryLabel = new WrappingTextArea();
+    private final JLabel creditsTitleLabel = new JLabel();
+    private final WrappingTextArea scrcpyCreditLabel = new WrappingTextArea();
+    private final WrappingTextArea deviceCatalogCreditLabel = new WrappingTextArea();
     private final JButton repositoryButton = new JButton();
+    private final JButton scrcpyRepositoryButton = new JButton();
+    private final JButton deviceCatalogButton = new JButton();
 
     private final JLabel themeLabel = new JLabel();
     private final JToggleButton lightThemeButton = new JToggleButton();
@@ -66,6 +76,14 @@ public class SettingsPanel extends JPanel {
 
     public void setRepositoryAction(ActionListener actionListener) {
         repositoryButton.addActionListener(actionListener);
+    }
+
+    public void setScrcpyRepositoryAction(ActionListener actionListener) {
+        scrcpyRepositoryButton.addActionListener(actionListener);
+    }
+
+    public void setDeviceCatalogAction(ActionListener actionListener) {
+        deviceCatalogButton.addActionListener(actionListener);
     }
 
     public void setAutoRefreshOnFocusChangeAction(ActionListener actionListener) {
@@ -107,7 +125,13 @@ public class SettingsPanel extends JPanel {
         subtitleLabel.setText(Messages.text("settings.subtitle"));
         appNameValue.setText(Messages.appName());
         versionBadge.setText(Messages.version());
+        aboutSummaryLabel.setText(Messages.text("settings.about.summary"));
+        creditsTitleLabel.setText(Messages.text("settings.about.credits"));
+        scrcpyCreditLabel.setText(Messages.text("settings.about.scrcpy"));
+        deviceCatalogCreditLabel.setText(Messages.text("settings.about.deviceCatalog"));
         repositoryButton.setText(Messages.text("settings.repository.open"));
+        scrcpyRepositoryButton.setText(Messages.text("settings.about.scrcpy.link"));
+        deviceCatalogButton.setText(Messages.text("settings.about.deviceCatalog.link"));
         themeLabel.setText(Messages.text("settings.theme"));
         lightThemeButton.setText(Messages.text("settings.theme.light"));
         darkThemeButton.setText(Messages.text("settings.theme.dark"));
@@ -119,6 +143,19 @@ public class SettingsPanel extends JPanel {
     public void applyTheme(AppTheme theme) {
         this.theme = theme;
         setBackground(theme.background());
+        content.setBackground(theme.background());
+        scrollPane.setBackground(theme.background());
+        scrollPane.getViewport().setBackground(theme.background());
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        if (scrollPane.getVerticalScrollBar() != null) {
+            scrollPane.getVerticalScrollBar().setUI(new ThemedScrollBarUI(theme));
+            scrollPane.getVerticalScrollBar().setUnitIncrement(24);
+            scrollPane.getVerticalScrollBar().setBlockIncrement(96);
+        }
+        if (scrollPane.getHorizontalScrollBar() != null) {
+            scrollPane.getHorizontalScrollBar().setUI(new ThemedScrollBarUI(theme));
+            scrollPane.getHorizontalScrollBar().setUnitIncrement(24);
+        }
 
         titleLabel.setForeground(theme.textPrimary());
         subtitleLabel.setForeground(theme.textSecondary());
@@ -129,9 +166,14 @@ public class SettingsPanel extends JPanel {
 
         appNameValue.setForeground(theme.textPrimary());
         appNameValue.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 26));
+        aboutSummaryLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 14), theme.textSecondary());
+        creditsTitleLabel.setForeground(theme.textPrimary());
+        creditsTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 15));
+        scrcpyCreditLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
+        deviceCatalogCreditLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
 
         versionBadge.setOpaque(true);
-        versionBadge.setBackground(theme.secondarySurface());
+        versionBadge.setBackground(ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.88d));
         versionBadge.setForeground(theme.actionBackground());
         versionBadge.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
@@ -139,6 +181,8 @@ public class SettingsPanel extends JPanel {
         versionBadge.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
 
         styleLinkButton(theme);
+        styleLinkButton(scrcpyRepositoryButton, theme);
+        styleLinkButton(deviceCatalogButton, theme);
         styleSectionLabel(themeLabel, theme);
         styleSectionLabel(languageLabel, theme);
         styleThemeButton(lightThemeButton, theme);
@@ -146,7 +190,7 @@ public class SettingsPanel extends JPanel {
         styleLanguageCombo(theme);
 
         autoRefreshOnFocusCheckBox.setOpaque(true);
-        autoRefreshOnFocusCheckBox.setBackground(theme.surface());
+        autoRefreshOnFocusCheckBox.setBackground(theme.background());
         autoRefreshOnFocusCheckBox.setForeground(theme.textPrimary());
         autoRefreshOnFocusCheckBox.setFocusPainted(false);
         autoRefreshOnFocusCheckBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
@@ -166,7 +210,6 @@ public class SettingsPanel extends JPanel {
         headerPanel.add(subtitleLabel);
         add(headerPanel, BorderLayout.NORTH);
 
-        JPanel content = new JPanel();
         content.setOpaque(false);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setBorder(new EmptyBorder(22, 0, 0, 0));
@@ -182,12 +225,14 @@ public class SettingsPanel extends JPanel {
         content.add(behaviorPanel);
         content.add(Box.createVerticalGlue());
 
-        add(content, BorderLayout.CENTER);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        add(scrollPane, BorderLayout.CENTER);
     }
 
     private void buildAboutPanel() {
         aboutPanel.setLayout(new BoxLayout(aboutPanel, BoxLayout.Y_AXIS));
         aboutPanel.setAlignmentX(LEFT_ALIGNMENT);
+        aboutPanel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
         JPanel brandRow = new JPanel();
         brandRow.setOpaque(false);
@@ -199,15 +244,47 @@ public class SettingsPanel extends JPanel {
 
         repositoryButton.setUI(new BasicButtonUI());
         repositoryButton.setFocusPainted(false);
+        repositoryButton.setRolloverEnabled(true);
+        repositoryButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        repositoryButton.getModel().addChangeListener(event -> styleLinkButton(theme));
+        scrcpyRepositoryButton.setUI(new BasicButtonUI());
+        scrcpyRepositoryButton.setFocusPainted(false);
+        scrcpyRepositoryButton.setRolloverEnabled(true);
+        scrcpyRepositoryButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        scrcpyRepositoryButton.getModel().addChangeListener(event -> styleLinkButton(scrcpyRepositoryButton, theme));
+        deviceCatalogButton.setUI(new BasicButtonUI());
+        deviceCatalogButton.setFocusPainted(false);
+        deviceCatalogButton.setRolloverEnabled(true);
+        deviceCatalogButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        deviceCatalogButton.getModel().addChangeListener(event -> styleLinkButton(deviceCatalogButton, theme));
+
+        JPanel linksPanel = new JPanel(new GridLayout(1, 3, 10, 0));
+        linksPanel.setOpaque(false);
+        linksPanel.add(repositoryButton);
+        linksPanel.add(scrcpyRepositoryButton);
+        linksPanel.add(deviceCatalogButton);
 
         aboutPanel.add(brandRow);
+        aboutPanel.add(Box.createVerticalStrut(12));
+        aboutSummaryLabel.setAlignmentX(LEFT_ALIGNMENT);
+        scrcpyCreditLabel.setAlignmentX(LEFT_ALIGNMENT);
+        deviceCatalogCreditLabel.setAlignmentX(LEFT_ALIGNMENT);
+
+        aboutPanel.add(aboutSummaryLabel);
         aboutPanel.add(Box.createVerticalStrut(18));
-        aboutPanel.add(repositoryButton);
+        aboutPanel.add(creditsTitleLabel);
+        aboutPanel.add(Box.createVerticalStrut(10));
+        aboutPanel.add(scrcpyCreditLabel);
+        aboutPanel.add(Box.createVerticalStrut(8));
+        aboutPanel.add(deviceCatalogCreditLabel);
+        aboutPanel.add(Box.createVerticalStrut(14));
+        aboutPanel.add(linksPanel);
     }
 
     private void buildAppearancePanel() {
         appearancePanel.setLayout(new BoxLayout(appearancePanel, BoxLayout.Y_AXIS));
         appearancePanel.setAlignmentX(LEFT_ALIGNMENT);
+        appearancePanel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
         ButtonGroup themeGroup = new ButtonGroup();
         themeGroup.add(lightThemeButton);
@@ -216,6 +293,12 @@ public class SettingsPanel extends JPanel {
         darkThemeButton.setUI(new BasicToggleButtonUI());
         lightThemeButton.setFocusable(false);
         darkThemeButton.setFocusable(false);
+        lightThemeButton.setRolloverEnabled(true);
+        darkThemeButton.setRolloverEnabled(true);
+        lightThemeButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        darkThemeButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        lightThemeButton.getModel().addChangeListener(event -> styleThemeButton(lightThemeButton, theme));
+        darkThemeButton.getModel().addChangeListener(event -> styleThemeButton(darkThemeButton, theme));
         lightThemeButton.setSelected(true);
 
         JPanel themeButtonsPanel = new JPanel(new GridLayout(1, 2, 10, 0));
@@ -239,12 +322,13 @@ public class SettingsPanel extends JPanel {
     private void buildBehaviorPanel() {
         behaviorPanel.setLayout(new BoxLayout(behaviorPanel, BoxLayout.Y_AXIS));
         behaviorPanel.setAlignmentX(LEFT_ALIGNMENT);
+        behaviorPanel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         autoRefreshOnFocusCheckBox.setSelected(true);
         behaviorPanel.add(autoRefreshOnFocusCheckBox);
     }
 
     private void applySectionTheme(JPanel panel, String title, AppTheme theme) {
-        panel.setBackground(theme.surface());
+        panel.setBackground(theme.background());
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createTitledBorder(
                         BorderFactory.createLineBorder(theme.border(), 1),
@@ -262,25 +346,39 @@ public class SettingsPanel extends JPanel {
     }
 
     private void styleLinkButton(AppTheme theme) {
-        repositoryButton.setOpaque(true);
-        repositoryButton.setContentAreaFilled(true);
-        repositoryButton.setBorderPainted(true);
-        repositoryButton.setBackground(theme.surface());
-        repositoryButton.setForeground(theme.actionBackground());
-        repositoryButton.setBorder(BorderFactory.createCompoundBorder(
+        styleLinkButton(repositoryButton, theme);
+    }
+
+    private void styleLinkButton(JButton button, AppTheme theme) {
+        boolean hovered = button.isEnabled() && button.getModel().isRollover();
+        button.setOpaque(true);
+        button.setContentAreaFilled(true);
+        button.setBorderPainted(true);
+        button.setBackground(hovered
+                ? ThemeUtils.blend(theme.background(), theme.selectionBackground(), 0.22d)
+                : theme.background());
+        button.setForeground(theme.actionBackground());
+        button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(10, 14, 10, 14)));
-        repositoryButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
-        repositoryButton.setHorizontalAlignment(JButton.LEFT);
-        repositoryButton.setMargin(new Insets(0, 0, 0, 0));
+        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+        button.setHorizontalAlignment(JButton.LEFT);
+        button.setMargin(new Insets(0, 0, 0, 0));
     }
 
     private void styleThemeButton(JToggleButton button, AppTheme theme) {
         boolean selected = button.isSelected();
+        boolean hovered = button.isEnabled() && button.getModel().isRollover();
         button.setOpaque(true);
         button.setContentAreaFilled(true);
         button.setFocusPainted(false);
-        button.setBackground(selected ? theme.secondarySurface() : theme.surface());
+        java.awt.Color background = selected
+                ? ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.94d)
+                : theme.background();
+        if (hovered && !selected) {
+            background = ThemeUtils.blend(background, theme.selectionBackground(), 0.22d);
+        }
+        button.setBackground(background);
         button.setForeground(selected ? theme.actionBackground() : theme.textPrimary());
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(selected ? theme.actionBackground() : theme.border(), 1),

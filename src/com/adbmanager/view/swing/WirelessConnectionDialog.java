@@ -3,6 +3,7 @@ package com.adbmanager.view.swing;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
@@ -58,7 +59,7 @@ public class WirelessConnectionDialog extends JDialog {
     private final JLabel adbVersionTitleLabel = new JLabel();
     private final JLabel adbVersionValueLabel = new JLabel("-");
     private final JLabel adbLocationTitleLabel = new JLabel();
-    private final JLabel adbLocationValueLabel = new JLabel("-");
+    private final WrappingTextArea adbLocationValueLabel = new WrappingTextArea("-");
     private final JLabel pairSupportTitleLabel = new JLabel();
     private final JLabel pairSupportValueLabel = new JLabel("-");
     private final JLabel qrSupportTitleLabel = new JLabel();
@@ -75,7 +76,7 @@ public class WirelessConnectionDialog extends JDialog {
     private final JPanel connectCard = new JPanel();
     private final JTextField connectHostField = new JTextField();
     private final JTextField connectPortField = new JTextField();
-    private final JLabel connectNoteLabel = new JLabel();
+    private final WrappingTextArea connectNoteLabel = new WrappingTextArea();
     private final JButton connectButton = new JButton();
 
     private final JPanel pairCard = new JPanel();
@@ -83,11 +84,11 @@ public class WirelessConnectionDialog extends JDialog {
     private final JTextField pairHostField = new JTextField();
     private final JTextField pairPortField = new JTextField();
     private final JTextField pairCodeField = new JTextField();
-    private final JLabel pairCodeNoteLabel = new JLabel();
+    private final WrappingTextArea pairCodeNoteLabel = new WrappingTextArea();
     private final JButton pairButton = new JButton();
 
     private final JPanel pairQrPanel = new JPanel(new BorderLayout(18, 0));
-    private final JLabel qrInfoLabel = new JLabel();
+    private final WrappingTextArea qrInfoLabel = new WrappingTextArea();
     private final JTextField qrServiceField = new JTextField();
     private final JTextField qrPasswordField = new JTextField();
     private final JButton generateQrButton = new JButton();
@@ -98,6 +99,7 @@ public class WirelessConnectionDialog extends JDialog {
     private final List<JPanel> surfacePanels = new ArrayList<>();
     private final List<JLabel> secondaryLabels = new ArrayList<>();
     private final List<JLabel> primaryLabels = new ArrayList<>();
+    private final List<WrappingTextArea> wrappingTextAreas = new ArrayList<>();
 
     private AppTheme theme = AppTheme.LIGHT;
     private boolean pairSupported;
@@ -149,7 +151,7 @@ public class WirelessConnectionDialog extends JDialog {
     public void setToolInfo(AdbToolInfo toolInfo) {
         adbVersionValueLabel.setText(toolInfo == null ? "-" : toolInfo.version());
         String location = toolInfo == null ? "-" : toolInfo.installedAs();
-        adbLocationValueLabel.setText("-".equals(location) ? "-" : asHtml(location, 500));
+        adbLocationValueLabel.setText(location);
         adbLocationValueLabel.setToolTipText(location);
 
         pairSupported = toolInfo != null && toolInfo.supportsPair();
@@ -222,9 +224,9 @@ public class WirelessConnectionDialog extends JDialog {
         generateQrButton.setText(Messages.text("wireless.qr.generate"));
         pairQrButton.setText(Messages.text("wireless.qr.pair"));
 
-        connectNoteLabel.setText(asHtml(Messages.text("wireless.connect.note"), 520));
-        pairCodeNoteLabel.setText(asHtml(Messages.text("wireless.code.note"), 520));
-        qrInfoLabel.setText(asHtml(Messages.text("wireless.qr.note"), 320));
+        connectNoteLabel.setText(Messages.text("wireless.connect.note"));
+        pairCodeNoteLabel.setText(Messages.text("wireless.code.note"));
+        qrInfoLabel.setText(Messages.text("wireless.qr.note"));
 
         if (qrPreviewLabel.getIcon() == null) {
             qrPreviewLabel.setText(Messages.text("wireless.qr.empty"));
@@ -235,11 +237,11 @@ public class WirelessConnectionDialog extends JDialog {
         this.theme = theme;
         getContentPane().setBackground(theme.background());
         rootContent.setBackground(theme.background());
-        pairContent.setBackground(theme.surface());
-        pairCodePanel.setBackground(theme.surface());
-        pairQrPanel.setBackground(theme.surface());
+        pairContent.setBackground(theme.background());
+        pairCodePanel.setBackground(theme.background());
+        pairQrPanel.setBackground(theme.background());
         primaryTabsPanel.setBackground(theme.background());
-        secondaryTabsPanel.setBackground(theme.surface());
+        secondaryTabsPanel.setBackground(theme.background());
 
         titleLabel.setForeground(theme.textPrimary());
         titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
@@ -248,7 +250,7 @@ public class WirelessConnectionDialog extends JDialog {
 
         for (JPanel panel : surfacePanels) {
             panel.setOpaque(true);
-            panel.setBackground(theme.surface());
+            panel.setBackground(theme.background());
             panel.setBorder(BorderFactory.createCompoundBorder(
                     BorderFactory.createLineBorder(theme.border(), 1),
                     BorderFactory.createEmptyBorder(18, 18, 18, 18)));
@@ -268,12 +270,10 @@ public class WirelessConnectionDialog extends JDialog {
             label.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
         }
 
-        connectNoteLabel.setForeground(theme.textSecondary());
-        connectNoteLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
-        pairCodeNoteLabel.setForeground(theme.textSecondary());
-        pairCodeNoteLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
-        qrInfoLabel.setForeground(theme.textSecondary());
-        qrInfoLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        for (WrappingTextArea wrappingTextArea : wrappingTextAreas) {
+            wrappingTextArea.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
+        }
+        adbLocationValueLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 14), theme.textPrimary());
 
         stylePrimaryTabButton(connectTabButton);
         stylePrimaryTabButton(pairTabButton);
@@ -294,10 +294,10 @@ public class WirelessConnectionDialog extends JDialog {
         styleActionButton(pairQrButton, true);
 
         qrPreviewOuterPanel.setOpaque(true);
-        qrPreviewOuterPanel.setBackground(theme.secondarySurface());
+        qrPreviewOuterPanel.setBackground(theme.background());
         qrPreviewOuterPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
-                BorderFactory.createEmptyBorder(14, 14, 14, 14)));
+                BorderFactory.createEmptyBorder(10, 10, 10, 10)));
 
         qrPreviewLabel.setOpaque(true);
         qrPreviewLabel.setBackground(java.awt.Color.WHITE);
@@ -307,7 +307,7 @@ public class WirelessConnectionDialog extends JDialog {
         qrPreviewLabel.setVerticalAlignment(SwingConstants.CENTER);
         qrPreviewLabel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
-                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
+                BorderFactory.createEmptyBorder(6, 6, 6, 6)));
 
         statusLabel.setForeground(Boolean.TRUE.equals(statusLabel.getClientProperty("error"))
                 ? new java.awt.Color(214, 80, 80)
@@ -389,6 +389,26 @@ public class WirelessConnectionDialog extends JDialog {
         capabilityCard.add(value, constraints);
     }
 
+    private void addCapabilityRow(int row, JLabel title, WrappingTextArea value) {
+        secondaryLabels.add(title);
+        wrappingTextAreas.add(value);
+
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = 0;
+        constraints.gridy = row;
+        constraints.anchor = GridBagConstraints.WEST;
+        constraints.insets = new Insets(0, 0, 10, 12);
+        capabilityCard.add(title, constraints);
+
+        constraints = new GridBagConstraints();
+        constraints.gridx = 1;
+        constraints.gridy = row;
+        constraints.weightx = 1.0;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        constraints.insets = new Insets(0, 0, 10, 0);
+        capabilityCard.add(value, constraints);
+    }
+
     private JPanel buildPrimaryTabs() {
         primaryTabsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         ButtonGroup group = new ButtonGroup();
@@ -415,6 +435,7 @@ public class WirelessConnectionDialog extends JDialog {
         surfacePanels.add(connectCard);
         connectCard.setLayout(new BoxLayout(connectCard, BoxLayout.Y_AXIS));
         connectCard.setAlignmentX(Component.LEFT_ALIGNMENT);
+        wrappingTextAreas.add(connectNoteLabel);
 
         connectCard.add(buildFieldRow(Messages.text("wireless.connect.host"), connectHostField));
         connectCard.add(Box.createVerticalStrut(12));
@@ -468,6 +489,7 @@ public class WirelessConnectionDialog extends JDialog {
     private JPanel buildPairCodePanel() {
         pairCodePanel.setOpaque(true);
         pairCodePanel.setLayout(new BoxLayout(pairCodePanel, BoxLayout.Y_AXIS));
+        wrappingTextAreas.add(pairCodeNoteLabel);
         pairCodePanel.add(buildFieldRow(Messages.text("wireless.code.host"), pairHostField));
         pairCodePanel.add(Box.createVerticalStrut(12));
         pairCodePanel.add(buildFieldRow(Messages.text("wireless.code.pairPort"), pairPortField));
@@ -491,6 +513,7 @@ public class WirelessConnectionDialog extends JDialog {
         JPanel leftColumn = new JPanel();
         leftColumn.setOpaque(false);
         leftColumn.setLayout(new BoxLayout(leftColumn, BoxLayout.Y_AXIS));
+        wrappingTextAreas.add(qrInfoLabel);
         leftColumn.add(qrInfoLabel);
         leftColumn.add(Box.createVerticalStrut(16));
         leftColumn.add(buildFieldRow(Messages.text("wireless.qr.service"), qrServiceField));
@@ -508,7 +531,7 @@ public class WirelessConnectionDialog extends JDialog {
         leftColumn.add(actionsPanel);
         leftColumn.add(Box.createVerticalGlue());
 
-        qrPreviewOuterPanel.setPreferredSize(new Dimension(270, 270));
+        qrPreviewOuterPanel.setPreferredSize(new Dimension(360, 360));
         qrPreviewLabel.setText(Messages.text("wireless.qr.empty"));
         qrPreviewOuterPanel.add(qrPreviewLabel, BorderLayout.CENTER);
 
@@ -537,17 +560,27 @@ public class WirelessConnectionDialog extends JDialog {
         button.setUI(new BasicToggleButtonUI());
         button.setFocusable(false);
         button.setFocusPainted(false);
+        button.setRolloverEnabled(true);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.addActionListener(event -> {
             layout.show(targetPanel, cardKey);
             applyTheme(theme);
         });
+        button.getModel().addChangeListener(event -> applyTheme(theme));
     }
 
     private void stylePrimaryTabButton(JToggleButton button) {
         boolean selected = button.isSelected();
+        boolean hovered = button.isEnabled() && button.getModel().isRollover();
         button.setOpaque(true);
         button.setContentAreaFilled(true);
-        button.setBackground(selected ? theme.secondarySurface() : theme.surface());
+        java.awt.Color background = selected
+                ? ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.92d)
+                : theme.background();
+        if (hovered && !selected) {
+            background = ThemeUtils.blend(background, theme.selectionBackground(), 0.2d);
+        }
+        button.setBackground(background);
         button.setForeground(selected ? theme.actionBackground() : theme.textSecondary());
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(selected ? theme.actionBackground() : theme.border(), 1),
@@ -557,9 +590,16 @@ public class WirelessConnectionDialog extends JDialog {
 
     private void styleSecondaryTabButton(JToggleButton button) {
         boolean selected = button.isSelected();
+        boolean hovered = button.isEnabled() && button.getModel().isRollover();
         button.setOpaque(true);
         button.setContentAreaFilled(true);
-        button.setBackground(selected ? theme.selectionBackground() : theme.secondarySurface());
+        java.awt.Color background = selected
+                ? theme.selectionBackground()
+                : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.84d);
+        if (hovered && !selected) {
+            background = ThemeUtils.blend(background, theme.selectionBackground(), 0.18d);
+        }
+        button.setBackground(background);
         button.setForeground(selected ? theme.selectionForeground() : theme.textSecondary());
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(selected ? theme.actionBackground() : theme.border(), 1),
@@ -584,14 +624,27 @@ public class WirelessConnectionDialog extends JDialog {
         button.setFocusable(false);
         button.setOpaque(true);
         button.setContentAreaFilled(true);
+        button.setRolloverEnabled(true);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
         button.setMargin(new Insets(0, 0, 0, 0));
+        if (!Boolean.TRUE.equals(button.getClientProperty("hoverListenerInstalled"))) {
+            button.putClientProperty("hoverListenerInstalled", Boolean.TRUE);
+            button.getModel().addChangeListener(event -> styleActionButton(button, primary));
+        }
 
         if (button.isEnabled()) {
-            button.setBackground(primary ? theme.actionBackground() : theme.surface());
+            boolean hovered = button.getModel().isRollover();
+            java.awt.Color background = primary
+                    ? theme.actionBackground()
+                    : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.84d);
+            if (hovered) {
+                background = ThemeUtils.blend(background, theme.selectionBackground(), primary ? 0.16d : 0.24d);
+            }
+            button.setBackground(background);
             button.setForeground(primary ? theme.actionForeground() : theme.textPrimary());
             button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(primary ? theme.actionBackground() : theme.border(), 1),
+                    BorderFactory.createLineBorder(primary ? background : theme.border(), 1),
                     BorderFactory.createEmptyBorder(10, 14, 10, 14)));
             return;
         }
@@ -629,7 +682,4 @@ public class WirelessConnectionDialog extends JDialog {
         }
     }
 
-    private String asHtml(String text, int width) {
-        return "<html><body style='width:" + width + "px'>" + text + "</body></html>";
-    }
 }

@@ -9,6 +9,7 @@ public record DeviceDetails(
         String manufacturer,
         String brand,
         String model,
+        String marketingName,
         String codename,
         String productName,
         String androidVersion,

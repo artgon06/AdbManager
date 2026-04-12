@@ -15,6 +15,7 @@ public class DeviceDetailsParser {
     private static final Pattern BATTERY_SCALE = Pattern.compile("^\\s*scale:\\s*(\\d+)\\s*$", Pattern.MULTILINE);
     private final DisplayInfoParser displayInfoParser = new DisplayInfoParser();
     private final DeviceTypeDetector deviceTypeDetector = new DeviceTypeDetector();
+    private final DeviceMarketingNameResolver marketingNameResolver = new DeviceMarketingNameResolver();
 
     public DeviceDetails parse(
             Device device,
@@ -46,7 +47,6 @@ public class DeviceDetailsParser {
                 properties.get("ro.product.brand"),
                 manufacturer);
         String model = firstNonBlank(
-                properties.get("ro.product.marketname"),
                 properties.get("ro.product.model"),
                 device.model());
         String codename = firstNonBlank(
@@ -55,6 +55,7 @@ public class DeviceDetailsParser {
         String productName = firstNonBlank(
                 properties.get("ro.product.name"),
                 device.product());
+        String marketingName = buildMarketingNameValue(properties, manufacturer, brand, model, codename);
         String androidVersion = firstNonBlank(
                 properties.get("ro.build.version.release"),
                 properties.get("ro.build.version.release_or_codename"));
@@ -68,6 +69,7 @@ public class DeviceDetailsParser {
                 safeValue(manufacturer),
                 safeValue(brand),
                 safeValue(model),
+                safeValue(marketingName),
                 safeValue(codename),
                 safeValue(productName),
                 safeValue(androidVersion),
@@ -90,6 +92,7 @@ public class DeviceDetailsParser {
                 "-",
                 "-",
                 safeValue(device.model()),
+                safeValue(resolveFallbackMarketingName(device.model(), device.device())),
                 safeValue(device.device()),
                 safeValue(device.product()),
                 "-",
@@ -103,6 +106,41 @@ public class DeviceDetailsParser {
                 -1,
                 -1,
                 -1);
+    }
+
+    private String buildMarketingNameValue(
+            Map<String, String> properties,
+            String manufacturer,
+            String brand,
+            String model,
+            String codename) {
+        String propertyMarketName = firstNonBlank(
+                properties.get("ro.product.marketname"),
+                properties.get("ro.vendor.product.display"),
+                properties.get("ro.product.vendor.marketname"),
+                properties.get("ro.config.marketing_name"));
+        if (!isBlank(propertyMarketName)) {
+            return propertyMarketName;
+        }
+
+        DeviceMarketingNameResolver.Resolution resolved = marketingNameResolver.resolve(model, codename);
+        if (!isBlank(resolved.marketingName())) {
+            return resolved.marketingName();
+        }
+
+        if (looksLikeMarketingName(model, manufacturer, brand)) {
+            return model;
+        }
+
+        return model;
+    }
+
+    private String resolveFallbackMarketingName(String model, String codename) {
+        DeviceMarketingNameResolver.Resolution resolved = marketingNameResolver.resolve(model, codename);
+        if (!isBlank(resolved.marketingName())) {
+            return resolved.marketingName();
+        }
+        return model;
     }
 
     private Map<String, String> parseProperties(String output) {
@@ -227,6 +265,29 @@ public class DeviceDetailsParser {
             return "-";
         }
         return abiList.replace(",", ", ");
+    }
+
+    private boolean looksLikeMarketingName(String model, String manufacturer, String brand) {
+        if (isBlank(model)) {
+            return false;
+        }
+
+        String normalized = model.trim();
+        if (normalized.length() <= 2) {
+            return false;
+        }
+
+        if (normalized.matches(".*\\s+.*")) {
+            return true;
+        }
+
+        String normalizedManufacturer = firstNonBlank(manufacturer, brand);
+        if (!isBlank(normalizedManufacturer) && normalized.regionMatches(true, 0, normalizedManufacturer, 0,
+                Math.min(normalized.length(), normalizedManufacturer.length()))) {
+            return true;
+        }
+
+        return !normalized.matches("^[A-Z]{1,5}[-_ ]?[A-Z0-9]{2,}.*$");
     }
 
     private String firstNonBlank(String... values) {

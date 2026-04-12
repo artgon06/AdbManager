@@ -7,12 +7,16 @@ import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.beans.PropertyChangeListener;
 
 import javax.swing.BorderFactory;
 import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JComboBox;
 import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.plaf.basic.BasicComboBoxUI;
 import javax.swing.plaf.basic.BasicComboPopup;
 import javax.swing.plaf.basic.ComboPopup;
@@ -20,6 +24,8 @@ import javax.swing.plaf.basic.ComboPopup;
 public class ThemedComboBoxUI extends BasicComboBoxUI {
 
     private final AppTheme theme;
+    private JButton arrowButtonRef;
+    private PropertyChangeListener comboStateListener;
 
     public ThemedComboBoxUI(AppTheme theme) {
         this.theme = theme;
@@ -28,19 +34,45 @@ public class ThemedComboBoxUI extends BasicComboBoxUI {
     @Override
     protected JButton createArrowButton() {
         JButton button = new JButton(new ArrowIcon(theme.textSecondary()));
+        button.setUI(new BasicButtonUI());
         button.setOpaque(true);
         button.setContentAreaFilled(true);
-        button.setBackground(theme.secondarySurface());
+        button.setBackground(resolveSurfaceColor());
         button.setForeground(theme.textSecondary());
-        button.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, theme.border()));
+        button.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, resolveBorderColor()));
         button.setFocusPainted(false);
         button.setFocusable(false);
+        arrowButtonRef = button;
         return button;
     }
 
     @Override
+    protected void installListeners() {
+        super.installListeners();
+        comboStateListener = event -> {
+            String propertyName = event.getPropertyName();
+            if ("enabled".equals(propertyName)
+                    || "editable".equals(propertyName)
+                    || "renderer".equals(propertyName)) {
+                updateStateColors();
+            }
+        };
+        comboBox.addPropertyChangeListener(comboStateListener);
+        updateStateColors();
+    }
+
+    @Override
+    protected void uninstallListeners() {
+        if (comboStateListener != null && comboBox != null) {
+            comboBox.removePropertyChangeListener(comboStateListener);
+            comboStateListener = null;
+        }
+        super.uninstallListeners();
+    }
+
+    @Override
     public void paintCurrentValueBackground(Graphics graphics, Rectangle bounds, boolean hasFocus) {
-        graphics.setColor(comboBox.isEnabled() ? theme.secondarySurface() : theme.surface());
+        graphics.setColor(resolveSurfaceColor());
         graphics.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
     }
 
@@ -76,6 +108,52 @@ public class ThemedComboBoxUI extends BasicComboBoxUI {
         comboBox.setBackground(theme.secondarySurface());
         comboBox.setForeground(theme.textPrimary());
         comboBox.setOpaque(true);
+        if (comboBox instanceof JComboBox<?> combo) {
+            styleEditableEditor(combo, theme);
+        }
+    }
+
+    public static void styleEditableEditor(JComboBox<?> comboBox, AppTheme theme) {
+        if (!comboBox.isEditable() || !(comboBox.getEditor().getEditorComponent() instanceof JTextField editorField)) {
+            return;
+        }
+
+        boolean enabled = comboBox.isEnabled();
+        editorField.setOpaque(true);
+        editorField.setEnabled(enabled);
+        editorField.setEditable(enabled);
+        editorField.setBackground(enabled ? theme.secondarySurface() : theme.surface());
+        editorField.setForeground(enabled ? theme.textPrimary() : theme.textSecondary());
+        editorField.setDisabledTextColor(theme.textSecondary());
+        editorField.setCaretColor(theme.textPrimary());
+        editorField.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 2));
+        editorField.setSelectionColor(theme.selectionBackground());
+        editorField.setSelectedTextColor(theme.selectionForeground());
+    }
+
+    private void updateStateColors() {
+        if (comboBox == null) {
+            return;
+        }
+
+        comboBox.setBackground(resolveSurfaceColor());
+        comboBox.setForeground(comboBox.isEnabled() ? theme.textPrimary() : theme.textSecondary());
+        if (arrowButtonRef != null) {
+            arrowButtonRef.setBackground(resolveSurfaceColor());
+            arrowButtonRef.setForeground(theme.textSecondary());
+            arrowButtonRef.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, resolveBorderColor()));
+            arrowButtonRef.setIcon(new ArrowIcon(theme.textSecondary()));
+        }
+        styleEditableEditor(comboBox, theme);
+        comboBox.repaint();
+    }
+
+    private Color resolveSurfaceColor() {
+        return comboBox != null && comboBox.isEnabled() ? theme.secondarySurface() : theme.surface();
+    }
+
+    private Color resolveBorderColor() {
+        return comboBox != null && comboBox.isEnabled() ? theme.border() : theme.disabledBorder();
     }
 
     private static final class ArrowIcon implements Icon {

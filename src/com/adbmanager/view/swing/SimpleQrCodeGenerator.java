@@ -240,7 +240,7 @@ public final class SimpleQrCodeGenerator {
 
     private static BufferedImage renderImage(boolean[][] modules, int scale, int marginModules) {
         int imageSize = (VERSION_4_SIZE + (marginModules * 2)) * scale;
-        BufferedImage image = new BufferedImage(imageSize, imageSize, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage image = new BufferedImage(imageSize, imageSize, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics = image.createGraphics();
         try {
             graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);

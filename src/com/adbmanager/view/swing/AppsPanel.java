@@ -81,7 +81,6 @@ public class AppsPanel extends JPanel {
     private static final String FIELD_CODE = "code";
     private static final String FIELD_DATA = "data";
     private static final String FIELD_CACHE = "cache";
-    private static final String FIELD_APK = "apk";
 
     private final java.awt.CardLayout detailsCardLayout = new java.awt.CardLayout();
     private final JLabel titleLabel = new JLabel();
@@ -96,6 +95,7 @@ public class AppsPanel extends JPanel {
     private final JLabel visibleCountLabel = new JLabel();
     private final JTextField searchField = new JTextField();
     private final JButton clearSearchButton = new JButton("x");
+    private final JButton installButton = new JButton();
     private final JCheckBox userAppsFilter = new JCheckBox();
     private final JCheckBox systemAppsFilter = new JCheckBox();
     private final JCheckBox disabledAppsFilter = new JCheckBox();
@@ -106,10 +106,10 @@ public class AppsPanel extends JPanel {
 
     private final JPanel detailsEmptyPanel = new JPanel();
     private final JLabel detailsEmptyTitleLabel = new JLabel();
-    private final JLabel detailsEmptySubtitleLabel = new JLabel();
+    private final WrappingTextArea detailsEmptySubtitleLabel = new WrappingTextArea();
     private final JPanel detailsLoadingPanel = new JPanel();
     private final JLabel detailsLoadingTitleLabel = new JLabel();
-    private final JLabel detailsLoadingSubtitleLabel = new JLabel();
+    private final WrappingTextArea detailsLoadingSubtitleLabel = new WrappingTextArea();
 
     private final JPanel detailsContentPanel = new JPanel(new BorderLayout(0, 18));
     private final JPanel headerAndActionsPanel = new JPanel();
@@ -204,6 +204,10 @@ public class AppsPanel extends JPanel {
         exportApkButton.addActionListener(actionListener);
     }
 
+    public void setInstallAction(ActionListener actionListener) {
+        installButton.addActionListener(actionListener);
+    }
+
     public void setApplications(List<InstalledApp> applications, String selectedPackageName) {
         syncingSelection = true;
         try {
@@ -289,9 +293,8 @@ public class AppsPanel extends JPanel {
     public void showApplicationDetailsLoading(String packageName) {
         currentDetails = null;
         detailsLoadingTitleLabel.setText(Messages.text("apps.loading.details"));
-        detailsLoadingSubtitleLabel.setText(asHtml(
-                Messages.format("apps.loading.details.subtitle", packageName == null || packageName.isBlank() ? "-" : packageName),
-                320));
+        detailsLoadingSubtitleLabel.setText(
+                Messages.format("apps.loading.details.subtitle", packageName == null || packageName.isBlank() ? "-" : packageName));
         setApplicationActionsEnabled(false);
         detailsCardLayout.show(detailsPanel, DETAILS_LOADING_KEY);
     }
@@ -320,7 +323,6 @@ public class AppsPanel extends JPanel {
         setValueText(FIELD_CODE, details.codeSizeLabel());
         setValueText(FIELD_DATA, details.dataSizeLabel());
         setValueText(FIELD_CACHE, details.cacheSizeLabel());
-        setValueText(FIELD_APK, details.sourceDir());
 
         rebuildPermissions(details.permissions());
         updateToggleButtonText(details.app().disabled());
@@ -348,9 +350,11 @@ public class AppsPanel extends JPanel {
         appsTable.setEnabled(enabled);
         searchField.setEnabled(enabled);
         clearSearchButton.setEnabled(enabled && !searchField.getText().isBlank());
+        installButton.setEnabled(enabled);
         for (JCheckBox filterCheckBox : filterCheckBoxes) {
             filterCheckBox.setEnabled(enabled);
         }
+        styleInstallButton();
     }
 
     public void setApplicationActionsEnabled(boolean enabled) {
@@ -379,6 +383,7 @@ public class AppsPanel extends JPanel {
         titleLabel.setText(Messages.text("apps.title"));
         searchLabel.setText(Messages.text("apps.search.label"));
         searchField.setToolTipText(Messages.text("apps.search.placeholder"));
+        installButton.setToolTipText(Messages.text("apps.install.open"));
         userAppsFilter.setText(Messages.text("apps.filter.user"));
         systemAppsFilter.setText(Messages.text("apps.filter.system"));
         disabledAppsFilter.setText(Messages.text("apps.filter.disabled"));
@@ -401,9 +406,9 @@ public class AppsPanel extends JPanel {
                 BorderFactory.createEmptyBorder(12, 14, 14, 14)));
 
         detailsEmptyTitleLabel.setText(Messages.text("apps.details.empty.title"));
-        detailsEmptySubtitleLabel.setText(asHtml(Messages.text("apps.details.empty.subtitle"), 320));
+        detailsEmptySubtitleLabel.setText(Messages.text("apps.details.empty.subtitle"));
         detailsLoadingTitleLabel.setText(Messages.text("apps.loading.details"));
-        detailsLoadingSubtitleLabel.setText(asHtml(Messages.text("apps.loading.details.subtitle"), 320));
+        detailsLoadingSubtitleLabel.setText(Messages.text("apps.loading.details.subtitle"));
 
         fieldLabels.get(FIELD_NAME).setText(Messages.text("apps.field.name"));
         fieldLabels.get(FIELD_PACKAGE).setText(Messages.text("apps.field.package"));
@@ -417,7 +422,6 @@ public class AppsPanel extends JPanel {
         fieldLabels.get(FIELD_CODE).setText(Messages.text("apps.field.code"));
         fieldLabels.get(FIELD_DATA).setText(Messages.text("apps.field.data"));
         fieldLabels.get(FIELD_CACHE).setText(Messages.text("apps.field.cache"));
-        fieldLabels.get(FIELD_APK).setText(Messages.text("apps.field.apk"));
 
         openButton.setText(Messages.text("apps.action.open"));
         stopButton.setText(Messages.text("apps.action.stop"));
@@ -442,23 +446,23 @@ public class AppsPanel extends JPanel {
         titleLabel.setForeground(theme.textPrimary());
         titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
 
-        listPanel.setBackground(theme.surface());
-        listHeaderPanel.setBackground(theme.surface());
-        filtersPanel.setBackground(theme.surface());
+        listPanel.setBackground(theme.background());
+        listHeaderPanel.setBackground(theme.background());
+        filtersPanel.setBackground(theme.background());
         searchFieldPanel.setBackground(theme.secondarySurface());
-        detailsPanel.setBackground(theme.surface());
-        detailsEmptyPanel.setBackground(theme.surface());
-        detailsLoadingPanel.setBackground(theme.surface());
-        detailsContentPanel.setBackground(theme.surface());
-        headerAndActionsPanel.setBackground(theme.surface());
-        appHeaderPanel.setBackground(theme.surface());
-        appHeaderTextPanel.setBackground(theme.surface());
-        actionsCard.setBackground(theme.surface());
-        actionButtonsPanel.setBackground(theme.surface());
-        infoAndPermissionsPanel.setBackground(theme.surface());
-        infoPanel.setBackground(theme.surface());
-        permissionsCard.setBackground(theme.surface());
-        permissionsPanel.setBackground(theme.surface());
+        detailsPanel.setBackground(theme.background());
+        detailsEmptyPanel.setBackground(theme.background());
+        detailsLoadingPanel.setBackground(theme.background());
+        detailsContentPanel.setBackground(theme.background());
+        headerAndActionsPanel.setBackground(theme.background());
+        appHeaderPanel.setBackground(theme.background());
+        appHeaderTextPanel.setBackground(theme.background());
+        actionsCard.setBackground(theme.background());
+        actionButtonsPanel.setBackground(theme.background());
+        infoAndPermissionsPanel.setBackground(theme.background());
+        infoPanel.setBackground(theme.background());
+        permissionsCard.setBackground(theme.background());
+        permissionsPanel.setBackground(theme.background());
 
         searchLabel.setForeground(theme.textSecondary());
         searchLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
@@ -468,6 +472,7 @@ public class AppsPanel extends JPanel {
         styleStatusLabel();
 
         styleSearchField();
+        styleInstallButton();
         styleFilterCheckBox(userAppsFilter);
         styleFilterCheckBox(systemAppsFilter);
         styleFilterCheckBox(disabledAppsFilter);
@@ -483,12 +488,10 @@ public class AppsPanel extends JPanel {
 
         detailsEmptyTitleLabel.setForeground(theme.textPrimary());
         detailsEmptyTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
-        detailsEmptySubtitleLabel.setForeground(theme.textSecondary());
-        detailsEmptySubtitleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+        detailsEmptySubtitleLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 15), theme.textSecondary());
         detailsLoadingTitleLabel.setForeground(theme.textPrimary());
         detailsLoadingTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
-        detailsLoadingSubtitleLabel.setForeground(theme.textSecondary());
-        detailsLoadingSubtitleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+        detailsLoadingSubtitleLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 15), theme.textSecondary());
 
         appNameTitleLabel.setForeground(theme.textPrimary());
         appNameTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
@@ -555,14 +558,27 @@ public class AppsPanel extends JPanel {
         clearSearchButton.setUI(new BasicButtonUI());
         clearSearchButton.setFocusable(false);
         clearSearchButton.setFocusPainted(false);
+        clearSearchButton.setRolloverEnabled(true);
+        clearSearchButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        clearSearchButton.getModel().addChangeListener(event -> styleSearchField());
         clearSearchButton.setPreferredSize(new Dimension(28, 28));
         clearSearchButton.addActionListener(event -> clearSearchField());
+
+        installButton.setUI(new BasicButtonUI());
+        installButton.setFocusable(false);
+        installButton.setFocusPainted(false);
+        installButton.setRolloverEnabled(true);
+        installButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        installButton.setPreferredSize(new Dimension(40, 40));
+        installButton.setText("");
+        installButton.getModel().addChangeListener(event -> styleInstallButton());
 
         searchFieldPanel.add(searchField, BorderLayout.CENTER);
         searchFieldPanel.add(clearSearchButton, BorderLayout.EAST);
 
         searchRow.add(searchLabel, BorderLayout.WEST);
         searchRow.add(searchFieldPanel, BorderLayout.CENTER);
+        searchRow.add(installButton, BorderLayout.EAST);
 
         userAppsFilter.setSelected(true);
         systemAppsFilter.setSelected(false);
@@ -723,7 +739,6 @@ public class AppsPanel extends JPanel {
         infoPanel.add(createInfoRow(FIELD_CODE));
         infoPanel.add(createInfoRow(FIELD_DATA));
         infoPanel.add(createInfoRow(FIELD_CACHE));
-        infoPanel.add(createInfoRow(FIELD_APK));
         return infoPanel;
     }
 
@@ -914,9 +929,25 @@ public class AppsPanel extends JPanel {
         searchField.setCaretColor(theme.textPrimary());
         clearSearchButton.setOpaque(true);
         clearSearchButton.setContentAreaFilled(true);
-        clearSearchButton.setBackground(theme.secondarySurface());
+        clearSearchButton.setBackground(clearSearchButton.getModel().isRollover()
+                ? ThemeUtils.blend(theme.secondarySurface(), theme.selectionBackground(), 0.2d)
+                : theme.secondarySurface());
         clearSearchButton.setForeground(theme.textSecondary());
         clearSearchButton.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+    }
+
+    private void styleInstallButton() {
+        boolean hovered = installButton.getModel().isRollover() && installButton.isEnabled();
+        installButton.setOpaque(true);
+        installButton.setContentAreaFilled(true);
+        installButton.setBackground(hovered
+                ? ThemeUtils.blend(theme.secondarySurface(), theme.selectionBackground(), 0.24d)
+                : theme.secondarySurface());
+        installButton.setForeground(installButton.isEnabled() ? theme.actionBackground() : theme.textSecondary());
+        installButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(installButton.isEnabled() ? theme.border() : theme.disabledBorder(), 1),
+                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
+        installButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.ADD, 16, installButton.getForeground()));
     }
 
     private void styleStatusLabel() {
@@ -932,14 +963,14 @@ public class AppsPanel extends JPanel {
 
     private void styleFilterCheckBox(JCheckBox checkBox) {
         checkBox.setOpaque(true);
-        checkBox.setBackground(theme.surface());
+        checkBox.setBackground(theme.background());
         checkBox.setForeground(theme.textPrimary());
         checkBox.setFocusPainted(false);
         checkBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
     }
 
     private void stylePermissionCheckBox(JCheckBox checkBox) {
-        checkBox.setBackground(theme.surface());
+        checkBox.setBackground(theme.background());
         checkBox.setForeground(checkBox.isEnabled() ? theme.textPrimary() : theme.textSecondary());
         checkBox.setFocusPainted(false);
         checkBox.setBorder(BorderFactory.createEmptyBorder(4, 0, 4, 0));
@@ -947,7 +978,7 @@ public class AppsPanel extends JPanel {
     }
 
     private void styleTable() {
-        appsTable.setBackground(theme.surface());
+        appsTable.setBackground(theme.background());
         appsTable.setForeground(theme.textPrimary());
         appsTable.setSelectionBackground(theme.selectionBackground());
         appsTable.setSelectionForeground(theme.selectionForeground());
@@ -966,7 +997,7 @@ public class AppsPanel extends JPanel {
     private void styleScrollPane(JScrollPane scrollPane) {
         scrollPane.setBorder(BorderFactory.createLineBorder(theme.border(), 1));
         JViewport viewport = scrollPane.getViewport();
-        viewport.setBackground(theme.surface());
+        viewport.setBackground(theme.background());
         scrollPane.getVerticalScrollBar().setUI(new ThemedScrollBarUI(theme));
         scrollPane.getHorizontalScrollBar().setUI(new ThemedScrollBarUI(theme));
         scrollPane.getVerticalScrollBar().setUnitIncrement(24);
@@ -985,6 +1016,9 @@ public class AppsPanel extends JPanel {
         button.setFocusPainted(false);
         button.setHorizontalAlignment(SwingConstants.LEFT);
         button.setIconTextGap(8);
+        button.setRolloverEnabled(true);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        button.getModel().addChangeListener(event -> styleActionButton(button, button.isEnabled()));
         button.setPreferredSize(new Dimension(0, 36));
         button.setMargin(new Insets(0, 0, 0, 0));
     }
@@ -1011,16 +1045,23 @@ public class AppsPanel extends JPanel {
 
     private void styleActionButton(JButton button, boolean enabled) {
         boolean primary = Boolean.TRUE.equals(button.getClientProperty("primary"));
+        boolean hovered = enabled && button.getModel().isRollover();
         button.setOpaque(true);
         button.setContentAreaFilled(true);
         button.setBorderPainted(true);
         button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
 
         if (enabled) {
-            button.setBackground(primary ? theme.actionBackground() : theme.surface());
+            Color background = primary
+                    ? theme.actionBackground()
+                    : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.84d);
+            if (hovered) {
+                background = ThemeUtils.blend(background, theme.selectionBackground(), primary ? 0.16d : 0.24d);
+            }
+            button.setBackground(background);
             button.setForeground(primary ? theme.actionForeground() : theme.textPrimary());
             button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(primary ? theme.actionBackground() : theme.border(), 1),
+                    BorderFactory.createLineBorder(primary ? background : theme.border(), 1),
                     BorderFactory.createEmptyBorder(6, 10, 6, 10)));
         } else {
             button.setBackground(theme.secondarySurface());
@@ -1162,10 +1203,6 @@ public class AppsPanel extends JPanel {
                 theme.textPrimary());
     }
 
-    private String asHtml(String text, int width) {
-        return "<html><body style='width: " + width + "px'>" + text + "</body></html>";
-    }
-
     private class AppsTableCellRenderer extends DefaultTableCellRenderer {
         @Override
         public Component getTableCellRendererComponent(
@@ -1178,7 +1215,7 @@ public class AppsPanel extends JPanel {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             setOpaque(true);
             setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 10));
-            setBackground(isSelected ? theme.selectionBackground() : theme.surface());
+            setBackground(isSelected ? theme.selectionBackground() : theme.background());
             setForeground(isSelected ? theme.selectionForeground() : theme.textPrimary());
             setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
             return this;
