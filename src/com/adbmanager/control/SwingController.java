@@ -21,6 +21,7 @@ import javax.swing.SwingWorker;
 import com.adbmanager.logic.AdbModel;
 import com.adbmanager.logic.ScrcpyService;
 import com.adbmanager.logic.UserConfigService;
+import com.adbmanager.logic.model.AppBackgroundMode;
 import com.adbmanager.logic.model.AppDetails;
 import com.adbmanager.logic.model.AdbToolInfo;
 import com.adbmanager.logic.model.AppInstallRequest;
@@ -146,6 +147,7 @@ public class SwingController {
         view.setDeviceCatalogAction(event -> openUrl("https://github.com/pbakondy/android-device-list"));
         view.setApplicationSelectionAction(this::onApplicationSelected);
         view.setApplicationPermissionToggleHandler(this::toggleApplicationPermission);
+        view.setApplicationBackgroundModeChangeHandler(this::changeApplicationBackgroundMode);
         view.setOpenApplicationAction(event -> openSelectedApplication());
         view.setStopApplicationAction(event -> stopSelectedApplication());
         view.setUninstallApplicationAction(event -> uninstallSelectedApplication());
@@ -673,6 +675,13 @@ public class SwingController {
                 () -> model.setSelectedDeviceApplicationPermission(packageName, permission, granted));
     }
 
+    private void changeApplicationBackgroundMode(String packageName, AppBackgroundMode mode) {
+        runApplicationCommandAndReloadDetails(
+                packageName,
+                Messages.text("error.apps.backgroundMode"),
+                () -> model.setSelectedDeviceApplicationBackgroundMode(packageName, mode));
+    }
+
     private void openSelectedApplication() {
         String packageName = selectedApplicationPackage();
         if (packageName == null) {
@@ -935,6 +944,44 @@ public class SwingController {
         }.execute();
     }
 
+    private void runApplicationCommandAndReloadDetails(
+            String packageName,
+            String errorMessage,
+            ApplicationTask task) {
+        if (packageName == null || packageName.isBlank()) {
+            view.showError(Messages.text("error.apps.noSelection"));
+            return;
+        }
+
+        String requestedSerial = currentSelectedSerial;
+        view.setApplicationActionsEnabled(false);
+        view.setApplicationsEnabled(false);
+
+        new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                task.run();
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    get();
+                    if (!Objects.equals(requestedSerial, currentSelectedSerial)) {
+                        return;
+                    }
+                    view.setApplicationsEnabled(true);
+                    loadApplicationDetails(packageName);
+                } catch (Exception e) {
+                    handleError(errorMessage, e);
+                    view.setApplicationsEnabled(true);
+                    view.setApplicationActionsEnabled(view.getCurrentApplicationDetails() != null);
+                }
+            }
+        }.execute();
+    }
+
     private String selectedApplicationPackage() {
         String packageName = view.getSelectedApplicationPackage();
         if (packageName == null || packageName.isBlank()) {
@@ -1078,10 +1125,12 @@ public class SwingController {
             return;
         }
 
+        boolean enabled = view.isSelectedSystemKeyboardEnabled();
+
         runSystemCommand(
-                Messages.text("error.system.keyboardEnable"),
-                Messages.format("info.system.keyboardEnabled", keyboardId),
-                () -> model.enableSelectedDeviceKeyboard(keyboardId));
+                Messages.text(enabled ? "error.system.keyboardDisable" : "error.system.keyboardEnable"),
+                Messages.format(enabled ? "info.system.keyboardDisabled" : "info.system.keyboardEnabled", keyboardId),
+                () -> model.setSelectedDeviceKeyboardEnabled(keyboardId, !enabled));
     }
 
     private void setSystemKeyboard() {
@@ -1421,6 +1470,7 @@ public class SwingController {
         Integer height = view.getRequestedDisplayHeight();
         Integer density = view.getRequestedDisplayDensity();
         Integer timeout = view.getRequestedDisplayScreenOffTimeout();
+        String timeoutLabel = view.getRequestedDisplayScreenOffTimeoutLabel();
         boolean hasTimeoutInput = view.hasRequestedDisplayScreenOffTimeout();
 
         if (width == null || height == null || density == null) {
@@ -1436,7 +1486,7 @@ public class SwingController {
         runDisplayCommand(
                 Messages.text("error.display.apply"),
                 hasTimeoutInput
-                        ? Messages.format("info.display.updatedWithTimeout", width + "x" + height, density, timeout)
+                        ? Messages.format("info.display.updatedWithTimeout", width + "x" + height, density, timeoutLabel)
                         : Messages.format("info.display.updated", width + "x" + height, density),
                 () -> {
                     model.setSelectedDeviceDisplay(width, height, density);

@@ -11,10 +11,13 @@ import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.Cursor;
 import java.awt.event.ActionListener;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -146,7 +149,11 @@ public class DisplayPanel extends JPanel {
     }
 
     public Integer getRequestedScreenOffTimeout() {
-        return parsePositiveInteger(timeoutField.getText());
+        return parsePositiveTimeoutMillis(timeoutField.getText());
+    }
+
+    public String getRequestedScreenOffTimeoutLabel() {
+        return formatTimeoutSeconds(timeoutField.getText());
     }
 
     public boolean hasRequestedScreenOffTimeout() {
@@ -624,7 +631,7 @@ public class DisplayPanel extends JPanel {
         widthField.setText(widthPx == null || widthPx <= 0 ? "" : String.valueOf(widthPx));
         heightField.setText(heightPx == null || heightPx <= 0 ? "" : String.valueOf(heightPx));
         densityField.setText(densityDpi == null || densityDpi <= 0 ? "" : String.valueOf(densityDpi));
-        timeoutField.setText(timeoutMs == null || timeoutMs <= 0 ? "" : String.valueOf(timeoutMs));
+        timeoutField.setText(formatTimeoutSeconds(timeoutMs));
     }
 
     private void updateAspectRatioPreview() {
@@ -749,6 +756,36 @@ public class DisplayPanel extends JPanel {
         } catch (NumberFormatException exception) {
             return null;
         }
+    }
+
+    private Integer parsePositiveTimeoutMillis(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            double seconds = Double.parseDouble(value.trim().replace(',', '.'));
+            if (seconds <= 0d) {
+                return null;
+            }
+            long millis = Math.round(seconds * 1000d);
+            return millis > 0L && millis <= Integer.MAX_VALUE ? (int) millis : null;
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private String formatTimeoutSeconds(String rawValue) {
+        Integer millis = parsePositiveTimeoutMillis(rawValue);
+        return millis == null ? "" : formatTimeoutSeconds(millis);
+    }
+
+    private String formatTimeoutSeconds(Integer timeoutMs) {
+        if (timeoutMs == null || timeoutMs <= 0) {
+            return "";
+        }
+        DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(Locale.getDefault());
+        DecimalFormat format = new DecimalFormat("0.###", symbols);
+        return format.format(timeoutMs / 1000d);
     }
 
     private int gcd(int left, int right) {

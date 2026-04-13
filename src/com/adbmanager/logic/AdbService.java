@@ -43,6 +43,7 @@ import com.adbmanager.logic.client.AdbBinaryResult;
 import com.adbmanager.logic.client.AdbClient;
 import com.adbmanager.logic.client.AdbResult;
 import com.adbmanager.logic.model.AppDetails;
+import com.adbmanager.logic.model.AppBackgroundMode;
 import com.adbmanager.logic.model.AdbToolInfo;
 import com.adbmanager.logic.model.AppInstallItemResult;
 import com.adbmanager.logic.model.AppInstallRequest;
@@ -474,6 +475,7 @@ public class AdbService implements AdbModel {
                     details.dataSizeBytes(),
                     details.cacheSizeBytes(),
                     details.debuggable(),
+                    details.backgroundMode(),
                     details.permissions(),
                     details.iconImage());
         }
@@ -515,6 +517,19 @@ public class AdbService implements AdbModel {
                 granted ? "allow" : "default");
         AdbResult appOpsResult = client.runForSerial(device.serial(), appOpsCommand);
         assertOk(appOpsResult, "adb -s " + device.serial() + " " + String.join(" ", appOpsCommand));
+    }
+
+    @Override
+    public void setSelectedDeviceApplicationBackgroundMode(String packageName, AppBackgroundMode mode) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.apps.deviceRequired"),
+                Messages.text("error.apps.deviceDisconnected"));
+
+        String targetPackage = requirePackageName(packageName);
+        AppBackgroundMode safeMode = mode == null ? AppBackgroundMode.OPTIMIZED : mode;
+
+        setApplicationAppOp(device.serial(), targetPackage, "RUN_ANY_IN_BACKGROUND", safeMode.runAnyMode());
+        setApplicationAppOp(device.serial(), targetPackage, "RUN_IN_BACKGROUND", safeMode.runMode());
     }
 
     @Override
@@ -823,14 +838,20 @@ public class AdbService implements AdbModel {
 
     @Override
     public void enableSelectedDeviceKeyboard(String keyboardId) throws Exception {
+        setSelectedDeviceKeyboardEnabled(keyboardId, true);
+    }
+
+    @Override
+    public void setSelectedDeviceKeyboardEnabled(String keyboardId, boolean enabled) throws Exception {
         Device device = requireConnectedSelectedDevice(
                 Messages.text("error.system.deviceRequired"),
                 Messages.text("error.system.deviceDisconnected"));
         String safeKeyboardId = requireNonBlank(keyboardId, Messages.text("error.system.keyboardRequired"));
         AdbResult result = client.runForSerial(
                 device.serial(),
-                List.of("shell", "ime", "enable", safeKeyboardId));
-        assertOk(result, "adb -s " + device.serial() + " shell ime enable " + safeKeyboardId);
+                List.of("shell", "ime", enabled ? "enable" : "disable", safeKeyboardId));
+        assertOk(result,
+                "adb -s " + device.serial() + " shell ime " + (enabled ? "enable " : "disable ") + safeKeyboardId);
     }
 
     @Override
@@ -1664,6 +1685,21 @@ public class AdbService implements AdbModel {
         }
 
         return appOpsByName;
+    }
+
+    private void setApplicationAppOp(String serial, String packageName, String appOp, String mode) throws Exception {
+        List<String> command = List.of(
+                "shell",
+                "cmd",
+                "appops",
+                "set",
+                "--user",
+                PRIMARY_USER_ID,
+                packageName,
+                appOp,
+                mode);
+        AdbResult result = client.runForSerial(serial, command);
+        assertOk(result, "adb -s " + serial + " " + String.join(" ", command));
     }
 
     private String permissionToAppOp(String permissionName) {

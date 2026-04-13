@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 import com.adbmanager.logic.model.AppDetails;
+import com.adbmanager.logic.model.AppBackgroundMode;
 import com.adbmanager.logic.model.AdbToolInfo;
 import com.adbmanager.logic.model.AppInstallRequest;
 import com.adbmanager.logic.model.AppInstallResult;
@@ -27,6 +28,7 @@ public interface AdbModel {
     InstalledApp getSelectedDeviceApplicationSummary(String packageName) throws Exception;
     AppDetails getSelectedDeviceApplicationDetails(String packageName) throws Exception;
     void setSelectedDeviceApplicationPermission(String packageName, String permission, boolean granted) throws Exception;
+    void setSelectedDeviceApplicationBackgroundMode(String packageName, AppBackgroundMode mode) throws Exception;
     void openSelectedDeviceApplication(String packageName) throws Exception;
     void stopSelectedDeviceApplication(String packageName) throws Exception;
     void uninstallSelectedDeviceApplication(String packageName) throws Exception;
@@ -42,6 +44,7 @@ public interface AdbModel {
     void setSelectedDeviceShowAllAppLanguages(boolean enabled) throws Exception;
     void setSelectedDeviceGesturalNavigation(boolean enabled) throws Exception;
     void enableSelectedDeviceKeyboard(String keyboardId) throws Exception;
+    void setSelectedDeviceKeyboardEnabled(String keyboardId, boolean enabled) throws Exception;
     void setSelectedDeviceKeyboard(String keyboardId) throws Exception;
     void setSelectedDeviceDisplay(int widthPx, int heightPx, int densityDpi) throws Exception;
     void setSelectedDeviceScreenOffTimeout(int timeoutMs) throws Exception;

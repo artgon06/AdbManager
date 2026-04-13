@@ -7,8 +7,6 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics2D;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Image;
 import java.awt.Insets;
@@ -28,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -38,6 +37,8 @@ import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JSlider;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.JViewport;
@@ -55,6 +56,7 @@ import javax.swing.table.JTableHeader;
 import javax.swing.table.TableRowSorter;
 
 import com.adbmanager.logic.model.AppDetails;
+import com.adbmanager.logic.model.AppBackgroundMode;
 import com.adbmanager.logic.model.AppPermission;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.view.Messages;
@@ -63,6 +65,10 @@ public class AppsPanel extends JPanel {
 
     public interface PermissionToggleHandler {
         void onToggle(String packageName, String permission, boolean granted);
+    }
+
+    public interface BackgroundModeChangeHandler {
+        void onChange(String packageName, AppBackgroundMode mode);
     }
 
     private static final String DETAILS_EMPTY_KEY = "empty";
@@ -103,6 +109,7 @@ public class AppsPanel extends JPanel {
     private final JTable appsTable = new JTable(tableModel);
     private final TableRowSorter<InstalledAppsTableModel> rowSorter = new TableRowSorter<>(tableModel);
     private final JScrollPane tableScrollPane = new JScrollPane(appsTable);
+    private final JSplitPane contentSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 
     private final JPanel detailsEmptyPanel = new JPanel();
     private final JLabel detailsEmptyTitleLabel = new JLabel();
@@ -120,6 +127,15 @@ public class AppsPanel extends JPanel {
     private final JLabel appPackageTitleLabel = new JLabel("-");
     private final JPanel actionsCard = new JPanel(new BorderLayout(0, 12));
     private final JPanel actionButtonsPanel = new JPanel(new GridLayout(0, 4, 8, 8));
+    private final JPanel backgroundModeCard = new JPanel(new BorderLayout(0, 10));
+    private final JPanel backgroundModeHeaderPanel = new JPanel(new BorderLayout(10, 0));
+    private final JLabel backgroundModeTitleLabel = new JLabel();
+    private final JLabel backgroundModeValueLabel = new JLabel("-");
+    private final JSlider backgroundModeSlider = new JSlider(0, 2, 1);
+    private final JPanel backgroundModeLegendPanel = new JPanel(new GridLayout(1, 3, 8, 0));
+    private final JLabel backgroundUnrestrictedLabel = new JLabel();
+    private final JLabel backgroundOptimizedLabel = new JLabel();
+    private final JLabel backgroundRestrictedLabel = new JLabel();
     private final JPanel infoAndPermissionsPanel = new JPanel();
     private final JPanel infoPanel = new JPanel();
     private final JPanel permissionsCard = new JPanel(new BorderLayout(0, 14));
@@ -145,11 +161,15 @@ public class AppsPanel extends JPanel {
     private AppDetails currentDetails;
     private boolean syncingSelection;
     private boolean syncingPermissions;
+    private boolean syncingBackgroundMode;
+    private int savedDividerLocation = -1;
     private Runnable selectionAction = () -> {
     };
     private Runnable visibleApplicationsChangedAction = () -> {
     };
     private PermissionToggleHandler permissionToggleHandler = (packageName, permission, granted) -> {
+    };
+    private BackgroundModeChangeHandler backgroundModeChangeHandler = (packageName, mode) -> {
     };
 
     public AppsPanel() {
@@ -168,6 +188,11 @@ public class AppsPanel extends JPanel {
 
     public void setPermissionToggleHandler(PermissionToggleHandler handler) {
         permissionToggleHandler = handler == null ? (packageName, permission, granted) -> {
+        } : handler;
+    }
+
+    public void setBackgroundModeChangeHandler(BackgroundModeChangeHandler handler) {
+        backgroundModeChangeHandler = handler == null ? (packageName, mode) -> {
         } : handler;
     }
 
@@ -217,6 +242,7 @@ public class AppsPanel extends JPanel {
         } finally {
             syncingSelection = false;
         }
+        restoreSplitPaneLocation();
         SwingUtilities.invokeLater(visibleApplicationsChangedAction);
     }
 
@@ -230,6 +256,7 @@ public class AppsPanel extends JPanel {
         } finally {
             syncingSelection = false;
         }
+        restoreSplitPaneLocation();
         SwingUtilities.invokeLater(visibleApplicationsChangedAction);
     }
 
@@ -295,8 +322,10 @@ public class AppsPanel extends JPanel {
         detailsLoadingTitleLabel.setText(Messages.text("apps.loading.details"));
         detailsLoadingSubtitleLabel.setText(
                 Messages.format("apps.loading.details.subtitle", packageName == null || packageName.isBlank() ? "-" : packageName));
+        updateBackgroundModePresentation(null);
         setApplicationActionsEnabled(false);
         detailsCardLayout.show(detailsPanel, DETAILS_LOADING_KEY);
+        restoreSplitPaneLocation();
     }
 
     public void setApplicationDetails(AppDetails details) {
@@ -324,10 +353,12 @@ public class AppsPanel extends JPanel {
         setValueText(FIELD_DATA, details.dataSizeLabel());
         setValueText(FIELD_CACHE, details.cacheSizeLabel());
 
+        updateBackgroundModePresentation(details.backgroundMode());
         rebuildPermissions(details.permissions());
         updateToggleButtonText(details.app().disabled());
         setApplicationActionsEnabled(true);
         detailsCardLayout.show(detailsPanel, DETAILS_CONTENT_KEY);
+        restoreSplitPaneLocation();
     }
 
     public void clearApplicationDetails() {
@@ -340,10 +371,12 @@ public class AppsPanel extends JPanel {
         for (String fieldKey : valueLabels.keySet()) {
             setValueText(fieldKey, "-");
         }
+        updateBackgroundModePresentation(null);
         rebuildPermissions(List.of());
         updateToggleButtonText(false);
         setApplicationActionsEnabled(false);
         detailsCardLayout.show(detailsPanel, DETAILS_EMPTY_KEY);
+        restoreSplitPaneLocation();
     }
 
     public void setApplicationsEnabled(boolean enabled) {
@@ -377,6 +410,10 @@ public class AppsPanel extends JPanel {
                     && Boolean.TRUE.equals(permissionCheckBox.getClientProperty("changeable")));
             stylePermissionCheckBox(permissionCheckBox);
         }
+
+        backgroundModeSlider.setEnabled(enabled && hasDetails);
+        styleBackgroundModeSlider();
+        updateBackgroundModePresentation(hasDetails ? currentDetails.backgroundMode() : null);
     }
 
     public void refreshTexts() {
@@ -404,6 +441,9 @@ public class AppsPanel extends JPanel {
         actionsCard.setBorder(BorderFactory.createCompoundBorder(
                 createSectionBorder(Messages.text("apps.actions.title")),
                 BorderFactory.createEmptyBorder(12, 14, 14, 14)));
+        backgroundModeCard.setBorder(BorderFactory.createCompoundBorder(
+                createSectionBorder(Messages.text("apps.energy.title")),
+                BorderFactory.createEmptyBorder(12, 14, 14, 14)));
 
         detailsEmptyTitleLabel.setText(Messages.text("apps.details.empty.title"));
         detailsEmptySubtitleLabel.setText(Messages.text("apps.details.empty.subtitle"));
@@ -430,6 +470,10 @@ public class AppsPanel extends JPanel {
         clearCacheButton.setText(Messages.text("apps.action.clearCache"));
         exportApkButton.setText(Messages.text("apps.action.exportApk"));
         updateToggleButtonText(currentDetails != null && currentDetails.app().disabled());
+        backgroundModeTitleLabel.setText(Messages.text("apps.energy.title"));
+        backgroundUnrestrictedLabel.setText(Messages.text("apps.energy.unrestricted"));
+        backgroundOptimizedLabel.setText(Messages.text("apps.energy.optimized"));
+        backgroundRestrictedLabel.setText(Messages.text("apps.energy.restricted"));
 
         updateActionButtonIcons();
 
@@ -459,6 +503,9 @@ public class AppsPanel extends JPanel {
         appHeaderTextPanel.setBackground(theme.background());
         actionsCard.setBackground(theme.background());
         actionButtonsPanel.setBackground(theme.background());
+        backgroundModeCard.setBackground(theme.background());
+        backgroundModeHeaderPanel.setBackground(theme.background());
+        backgroundModeLegendPanel.setBackground(theme.background());
         infoAndPermissionsPanel.setBackground(theme.background());
         infoPanel.setBackground(theme.background());
         permissionsCard.setBackground(theme.background());
@@ -485,6 +532,9 @@ public class AppsPanel extends JPanel {
         actionsCard.setBorder(BorderFactory.createCompoundBorder(
                 createSectionBorder(Messages.text("apps.actions.title")),
                 BorderFactory.createEmptyBorder(12, 14, 14, 14)));
+        backgroundModeCard.setBorder(BorderFactory.createCompoundBorder(
+                createSectionBorder(Messages.text("apps.energy.title")),
+                BorderFactory.createEmptyBorder(12, 14, 14, 14)));
 
         detailsEmptyTitleLabel.setForeground(theme.textPrimary());
         detailsEmptyTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
@@ -497,6 +547,10 @@ public class AppsPanel extends JPanel {
         appNameTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
         appPackageTitleLabel.setForeground(theme.textSecondary());
         appPackageTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        backgroundModeTitleLabel.setForeground(theme.textSecondary());
+        backgroundModeTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        backgroundModeValueLabel.setForeground(theme.textPrimary());
+        backgroundModeValueLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
 
         for (JLabel fieldLabel : fieldLabels.values()) {
             fieldLabel.setForeground(theme.textSecondary());
@@ -510,8 +564,12 @@ public class AppsPanel extends JPanel {
 
         styleTable();
         styleScrollPane(tableScrollPane);
-        styleScrollPane(detailsScrollPane);
+        styleScrollPane(detailsScrollPane, false);
         styleScrollPane(permissionsScrollPane);
+        contentSplitPane.setUI(new ThemedSplitPaneUI(theme));
+        contentSplitPane.setBackground(theme.background());
+        contentSplitPane.setBorder(new EmptyBorder(22, 0, 0, 0));
+        styleBackgroundModeSlider();
 
         for (JCheckBox permissionCheckBox : permissionCheckBoxes) {
             stylePermissionCheckBox(permissionCheckBox);
@@ -528,13 +586,24 @@ public class AppsPanel extends JPanel {
 
         add(titleLabel, BorderLayout.NORTH);
 
-        JPanel content = new JPanel(new GridBagLayout());
-        content.setOpaque(false);
-        content.setBorder(new EmptyBorder(22, 0, 0, 0));
-        content.add(buildListPanel(), buildListConstraints());
-        content.add(buildDetailsPanel(), buildDetailsConstraints());
-
-        add(content, BorderLayout.CENTER);
+        contentSplitPane.setLeftComponent(buildListPanel());
+        contentSplitPane.setRightComponent(buildDetailsPanel());
+        contentSplitPane.setOpaque(false);
+        contentSplitPane.setBorder(new EmptyBorder(22, 0, 0, 0));
+        contentSplitPane.setResizeWeight(0.46d);
+        contentSplitPane.setContinuousLayout(true);
+        contentSplitPane.setDividerSize(10);
+        contentSplitPane.setOneTouchExpandable(false);
+        contentSplitPane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, event -> {
+            int dividerLocation = contentSplitPane.getDividerLocation();
+            if (dividerLocation > 0) {
+                savedDividerLocation = dividerLocation;
+            }
+        });
+        listPanel.setMinimumSize(new Dimension(420, 240));
+        detailsPanel.setMinimumSize(new Dimension(520, 240));
+        add(contentSplitPane, BorderLayout.CENTER);
+        restoreSplitPaneLocation();
     }
 
     private JPanel buildListPanel() {
@@ -548,7 +617,7 @@ public class AppsPanel extends JPanel {
         searchField.setOpaque(false);
         searchField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
         searchField.getInputMap().put(javax.swing.KeyStroke.getKeyStroke("ESCAPE"), "clear-search");
-        searchField.getActionMap().put("clear-search", new javax.swing.AbstractAction() {
+        searchField.getActionMap().put("clear-search", new AbstractAction() {
             @Override
             public void actionPerformed(java.awt.event.ActionEvent event) {
                 clearSearchField();
@@ -714,6 +783,8 @@ public class AppsPanel extends JPanel {
         headerAndActionsPanel.add(appHeaderPanel);
         headerAndActionsPanel.add(Box.createVerticalStrut(18));
         headerAndActionsPanel.add(actionsCard);
+        headerAndActionsPanel.add(Box.createVerticalStrut(18));
+        headerAndActionsPanel.add(buildBackgroundModeCard());
 
         infoAndPermissionsPanel.setLayout(new BoxLayout(infoAndPermissionsPanel, BoxLayout.Y_AXIS));
         infoAndPermissionsPanel.add(buildInfoPanel());
@@ -740,6 +811,46 @@ public class AppsPanel extends JPanel {
         infoPanel.add(createInfoRow(FIELD_DATA));
         infoPanel.add(createInfoRow(FIELD_CACHE));
         return infoPanel;
+    }
+
+    private JPanel buildBackgroundModeCard() {
+        backgroundModeHeaderPanel.add(backgroundModeTitleLabel, BorderLayout.WEST);
+        backgroundModeHeaderPanel.add(backgroundModeValueLabel, BorderLayout.EAST);
+
+        backgroundModeSlider.setOpaque(false);
+        backgroundModeSlider.setMinimum(0);
+        backgroundModeSlider.setMaximum(2);
+        backgroundModeSlider.setValue(AppBackgroundMode.OPTIMIZED.sliderValue());
+        backgroundModeSlider.setSnapToTicks(true);
+        backgroundModeSlider.setPaintTicks(true);
+        backgroundModeSlider.setMajorTickSpacing(1);
+        backgroundModeSlider.setMinorTickSpacing(1);
+        backgroundModeSlider.setFocusable(false);
+        backgroundModeSlider.addChangeListener(event -> {
+            if (syncingBackgroundMode || currentDetails == null || backgroundModeSlider.getValueIsAdjusting()) {
+                return;
+            }
+            AppBackgroundMode selectedMode = AppBackgroundMode.fromSliderValue(backgroundModeSlider.getValue());
+            if (selectedMode != currentDetails.backgroundMode()) {
+                backgroundModeChangeHandler.onChange(currentDetails.app().packageName(), selectedMode);
+            }
+        });
+
+        backgroundUnrestrictedLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        backgroundOptimizedLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        backgroundRestrictedLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+        backgroundModeLegendPanel.add(backgroundUnrestrictedLabel);
+        backgroundModeLegendPanel.add(backgroundOptimizedLabel);
+        backgroundModeLegendPanel.add(backgroundRestrictedLabel);
+
+        JPanel centerPanel = new JPanel(new BorderLayout(0, 8));
+        centerPanel.setOpaque(false);
+        centerPanel.add(backgroundModeSlider, BorderLayout.CENTER);
+        centerPanel.add(backgroundModeLegendPanel, BorderLayout.SOUTH);
+
+        backgroundModeCard.add(backgroundModeHeaderPanel, BorderLayout.NORTH);
+        backgroundModeCard.add(centerPanel, BorderLayout.CENTER);
+        return backgroundModeCard;
     }
 
     private JPanel buildPermissionsCard() {
@@ -995,7 +1106,11 @@ public class AppsPanel extends JPanel {
     }
 
     private void styleScrollPane(JScrollPane scrollPane) {
-        scrollPane.setBorder(BorderFactory.createLineBorder(theme.border(), 1));
+        styleScrollPane(scrollPane, true);
+    }
+
+    private void styleScrollPane(JScrollPane scrollPane, boolean bordered) {
+        scrollPane.setBorder(bordered ? BorderFactory.createLineBorder(theme.border(), 1) : BorderFactory.createEmptyBorder());
         JViewport viewport = scrollPane.getViewport();
         viewport.setBackground(theme.background());
         scrollPane.getVerticalScrollBar().setUI(new ThemedScrollBarUI(theme));
@@ -1006,6 +1121,12 @@ public class AppsPanel extends JPanel {
         if (scrollPane.getColumnHeader() != null) {
             scrollPane.getColumnHeader().setBackground(theme.secondarySurface());
         }
+    }
+
+    private void styleBackgroundModeSlider() {
+        backgroundModeSlider.setBackground(theme.background());
+        backgroundModeSlider.setForeground(backgroundModeSlider.isEnabled() ? theme.actionBackground() : theme.textSecondary());
+        updateBackgroundModeLegendColors(currentDetails == null ? null : currentDetails.backgroundMode());
     }
 
     private void configureActionButton(JButton button, ToolbarIcon.Type iconType, boolean primary) {
@@ -1079,6 +1200,41 @@ public class AppsPanel extends JPanel {
                 ? Messages.text("apps.action.enable")
                 : Messages.text("apps.action.disable"));
         updateActionButtonIcons();
+    }
+
+    private void updateBackgroundModePresentation(AppBackgroundMode mode) {
+        AppBackgroundMode safeMode = mode == null ? AppBackgroundMode.OPTIMIZED : mode;
+        syncingBackgroundMode = true;
+        try {
+            backgroundModeSlider.setValue(safeMode.sliderValue());
+        } finally {
+            syncingBackgroundMode = false;
+        }
+
+        backgroundModeValueLabel.setText(mode == null ? "-" : Messages.text(safeMode.messageKey()));
+        updateBackgroundModeLegendColors(mode);
+    }
+
+    private void updateBackgroundModeLegendColors(AppBackgroundMode mode) {
+        AppBackgroundMode selectedMode = mode == null ? null : mode;
+        styleBackgroundModeLegendLabel(backgroundUnrestrictedLabel, selectedMode == AppBackgroundMode.UNRESTRICTED);
+        styleBackgroundModeLegendLabel(backgroundOptimizedLabel, selectedMode == AppBackgroundMode.OPTIMIZED);
+        styleBackgroundModeLegendLabel(backgroundRestrictedLabel, selectedMode == AppBackgroundMode.RESTRICTED);
+    }
+
+    private void styleBackgroundModeLegendLabel(JLabel label, boolean selected) {
+        label.setForeground(selected ? theme.actionBackground() : theme.textSecondary());
+        label.setFont(new Font(Font.SANS_SERIF, selected ? Font.BOLD : Font.PLAIN, 13));
+    }
+
+    private void restoreSplitPaneLocation() {
+        SwingUtilities.invokeLater(() -> {
+            if (savedDividerLocation > 0) {
+                contentSplitPane.setDividerLocation(savedDividerLocation);
+            } else {
+                contentSplitPane.setDividerLocation(0.46d);
+            }
+        });
     }
 
     private Icon createApplicationIcon(AppDetails details) {
@@ -1169,28 +1325,6 @@ public class AppsPanel extends JPanel {
             }
         }
         return builder.isEmpty() ? "A" : builder.toString();
-    }
-
-    private GridBagConstraints buildListConstraints() {
-        GridBagConstraints constraints = new GridBagConstraints();
-        constraints.gridx = 0;
-        constraints.gridy = 0;
-        constraints.weightx = 0.46;
-        constraints.weighty = 1.0;
-        constraints.fill = GridBagConstraints.BOTH;
-        constraints.insets = new Insets(0, 0, 0, 12);
-        return constraints;
-    }
-
-    private GridBagConstraints buildDetailsConstraints() {
-        GridBagConstraints constraints = new GridBagConstraints();
-        constraints.gridx = 1;
-        constraints.gridy = 0;
-        constraints.weightx = 0.54;
-        constraints.weighty = 1.0;
-        constraints.fill = GridBagConstraints.BOTH;
-        constraints.insets = new Insets(0, 12, 0, 0);
-        return constraints;
     }
 
     private TitledBorder createSectionBorder(String title) {

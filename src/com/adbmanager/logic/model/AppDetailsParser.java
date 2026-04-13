@@ -46,6 +46,7 @@ public class AppDetailsParser {
                 dataSizeBytes,
                 cacheSizeBytes,
                 dumpOutput != null && dumpOutput.contains("DEBUGGABLE"),
+                AppBackgroundMode.fromAppOps(appOpsByName),
                 permissions,
                 iconImage);
     }

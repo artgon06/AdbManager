@@ -99,21 +99,17 @@ public record DisplayInfo(
             return "-";
         }
 
-        if (screenOffTimeoutMs < 1000) {
-            return screenOffTimeoutMs + " ms";
-        }
-
         if (screenOffTimeoutMs % 60000 == 0) {
             long minutes = screenOffTimeoutMs / 60000L;
-            return screenOffTimeoutMs + " ms (" + minutes + " min)";
+            return (screenOffTimeoutMs / 1000L) + " s (" + minutes + " min)";
         }
 
         if (screenOffTimeoutMs % 1000 == 0) {
             long seconds = screenOffTimeoutMs / 1000L;
-            return screenOffTimeoutMs + " ms (" + seconds + " s)";
+            return seconds + " s";
         }
 
-        return screenOffTimeoutMs + " ms";
+        return formatSeconds(screenOffTimeoutMs / 1000d) + " s";
     }
 
     public String supportedRefreshRatesLabel() {
@@ -171,6 +167,14 @@ public record DisplayInfo(
             return String.format(Locale.US, "%.0f Hz", rounded);
         }
         return String.format(Locale.US, "%.2f Hz", rate);
+    }
+
+    private String formatSeconds(double seconds) {
+        double rounded = Math.rint(seconds);
+        if (Math.abs(seconds - rounded) < 0.001d) {
+            return String.format(Locale.US, "%.0f", rounded);
+        }
+        return String.format(Locale.US, "%.3f", seconds).replaceAll("0+$", "").replaceAll("\\.$", "");
     }
 
     private double normalize(double rate) {

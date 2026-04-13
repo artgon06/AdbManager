@@ -5,13 +5,18 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Cursor;
+import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import javax.swing.AbstractAction;
+import javax.swing.ActionMap;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.DefaultComboBoxModel;
@@ -19,11 +24,14 @@ import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
+import javax.swing.InputMap;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
+import javax.swing.KeyStroke;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
@@ -214,6 +222,10 @@ public class MainFrame extends JFrame {
 
     public void setApplicationPermissionToggleHandler(AppsPanel.PermissionToggleHandler handler) {
         appsPanel.setPermissionToggleHandler(handler);
+    }
+
+    public void setApplicationBackgroundModeChangeHandler(AppsPanel.BackgroundModeChangeHandler handler) {
+        appsPanel.setBackgroundModeChangeHandler(handler);
     }
 
     public void setOpenApplicationAction(ActionListener actionListener) {
@@ -493,6 +505,10 @@ public class MainFrame extends JFrame {
         return displayPanel.getRequestedScreenOffTimeout();
     }
 
+    public String getRequestedDisplayScreenOffTimeoutLabel() {
+        return displayPanel.getRequestedScreenOffTimeoutLabel();
+    }
+
     public boolean hasRequestedDisplayScreenOffTimeout() {
         return displayPanel.hasRequestedScreenOffTimeout();
     }
@@ -555,6 +571,10 @@ public class MainFrame extends JFrame {
 
     public void setSystemBusy(boolean busy) {
         systemPanel.setBusy(busy);
+    }
+
+    public boolean isSelectedSystemKeyboardEnabled() {
+        return systemPanel.isSelectedKeyboardEnabled();
     }
 
     public void setSystemDeviceAvailable(boolean available) {
@@ -803,6 +823,7 @@ public class MainFrame extends JFrame {
 
         addTopBar();
         addContent();
+        installTabNavigationShortcuts();
     }
 
     private void addTopBar() {
@@ -942,6 +963,57 @@ public class MainFrame extends JFrame {
                 : currentTheme.textSecondary());
         wirelessButton.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, wirelessButton.getBackground()));
         wirelessButton.setText("+");
+    }
+
+    private void installTabNavigationShortcuts() {
+        InputMap inputMap = getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap actionMap = getRootPane().getActionMap();
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, InputEvent.CTRL_DOWN_MASK), "tabs.next");
+        inputMap.put(
+                KeyStroke.getKeyStroke(KeyEvent.VK_TAB, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK),
+                "tabs.previous");
+
+        actionMap.put("tabs.next", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                cycleTabs(1);
+            }
+        });
+        actionMap.put("tabs.previous", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                cycleTabs(-1);
+            }
+        });
+    }
+
+    private void cycleTabs(int delta) {
+        int nextIndex = Math.floorMod(currentTabIndex() + delta, 5);
+        switch (nextIndex) {
+            case 0 -> showHomeScreen();
+            case 1 -> showDisplayScreen();
+            case 2 -> showAppsScreen();
+            case 3 -> showSystemScreen();
+            case 4 -> showSettingsScreen();
+            default -> showHomeScreen();
+        }
+    }
+
+    private int currentTabIndex() {
+        if (displayButton.isSelected()) {
+            return 1;
+        }
+        if (appsButton.isSelected()) {
+            return 2;
+        }
+        if (systemButton.isSelected()) {
+            return 3;
+        }
+        if (settingsButton.isSelected()) {
+            return 4;
+        }
+        return 0;
     }
 
     private String defaultScreenshotName() {

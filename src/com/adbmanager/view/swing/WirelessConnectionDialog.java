@@ -259,6 +259,9 @@ public class WirelessConnectionDialog extends JDialog {
         capabilityCard.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(16, 18, 16, 18)));
+        limitVerticalGrowth(capabilityCard);
+        limitVerticalGrowth(primaryTabsPanel);
+        limitVerticalGrowth(secondaryTabsPanel);
 
         for (JLabel label : secondaryLabels) {
             label.setForeground(theme.textSecondary());
@@ -318,6 +321,8 @@ public class WirelessConnectionDialog extends JDialog {
     }
 
     public void open() {
+        getContentPane().revalidate();
+        getContentPane().doLayout();
         setLocationRelativeTo(getOwner());
         setVisible(true);
     }
@@ -387,6 +392,11 @@ public class WirelessConnectionDialog extends JDialog {
         constraints.anchor = GridBagConstraints.WEST;
         constraints.insets = new Insets(0, 0, row == 3 ? 0 : 10, 0);
         capabilityCard.add(value, constraints);
+    }
+
+    private void limitVerticalGrowth(JComponent component) {
+        Dimension preferredSize = component.getPreferredSize();
+        component.setMaximumSize(new Dimension(Integer.MAX_VALUE, preferredSize.height));
     }
 
     private void addCapabilityRow(int row, JLabel title, WrappingTextArea value) {

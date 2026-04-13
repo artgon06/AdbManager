@@ -18,6 +18,7 @@ public record AppDetails(
         long dataSizeBytes,
         long cacheSizeBytes,
         boolean debuggable,
+        AppBackgroundMode backgroundMode,
         List<AppPermission> permissions,
         BufferedImage iconImage) {
 
@@ -31,6 +32,7 @@ public record AppDetails(
         installerPackage = normalize(installerPackage, "-");
         sourceDir = normalize(sourceDir, app.apkPath().isBlank() ? "-" : app.apkPath());
         dataDir = normalize(dataDir, "-");
+        backgroundMode = backgroundMode == null ? AppBackgroundMode.OPTIMIZED : backgroundMode;
         permissions = List.copyOf(permissions == null ? List.of() : permissions);
     }
 

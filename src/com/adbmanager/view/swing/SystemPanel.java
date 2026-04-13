@@ -5,10 +5,7 @@ import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
 import java.awt.GridLayout;
-import java.awt.Insets;
 import java.awt.event.ActionListener;
 import java.util.List;
 
@@ -20,6 +17,7 @@ import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -172,6 +170,11 @@ public class SystemPanel extends JPanel {
         return selectedItem instanceof KeyboardInputMethod keyboard ? keyboard.id() : "";
     }
 
+    public boolean isSelectedKeyboardEnabled() {
+        Object selectedItem = keyboardCombo.getSelectedItem();
+        return selectedItem instanceof KeyboardInputMethod keyboard && keyboard.enabled();
+    }
+
     public void setSystemState(SystemState state) {
         currentState = state == null ? SystemState.empty() : state;
         applySystemState();
@@ -209,7 +212,7 @@ public class SystemPanel extends JPanel {
         currentKeyboardLabel.setText(Messages.text("system.keyboards.current"));
         keyboardSelectionLabel.setText(Messages.text("system.keyboards.selection"));
         keyboardHintLabel.setText(Messages.text("system.keyboards.hint"));
-        enableKeyboardButton.setText(Messages.text("system.keyboards.enable"));
+        updateKeyboardToggleButtonText();
         setKeyboardButton.setText(Messages.text("system.keyboards.setDefault"));
         refreshKeyboardsButton.setText(Messages.text("system.keyboards.refresh"));
 
@@ -333,11 +336,7 @@ public class SystemPanel extends JPanel {
         usersPanel.setAlignmentX(LEFT_ALIGNMENT);
         usersPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
-        JPanel currentUserRow = new JPanel(new BorderLayout(10, 0));
-        currentUserRow.setOpaque(false);
-        currentUserRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
-        currentUserRow.add(currentUserLabel, BorderLayout.WEST);
-        currentUserRow.add(currentUserValueLabel, BorderLayout.CENTER);
+        JPanel currentUserRow = createStackedFieldPanel(currentUserLabel, currentUserValueLabel);
 
         usersArea.setEditable(false);
         usersArea.setFocusable(false);
@@ -350,12 +349,14 @@ public class SystemPanel extends JPanel {
         usersCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         usersCombo.setFocusable(false);
 
-        JPanel selectionPanel = new JPanel(new GridBagLayout());
+        JPanel selectionPanel = new JPanel();
         selectionPanel.setOpaque(false);
-        addFieldRow(selectionPanel, userSelectionLabel, usersCombo, 0);
-        addFieldRow(selectionPanel, newUserLabel, newUserField, 1);
+        selectionPanel.setLayout(new BoxLayout(selectionPanel, BoxLayout.Y_AXIS));
         selectionPanel.setAlignmentX(LEFT_ALIGNMENT);
-        selectionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 96));
+        selectionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
+        selectionPanel.add(createStackedFieldPanel(userSelectionLabel, usersCombo));
+        selectionPanel.add(Box.createVerticalStrut(10));
+        selectionPanel.add(createStackedFieldPanel(newUserLabel, newUserField));
 
         JPanel actionsPanel = new JPanel(new GridLayout(1, 4, 10, 0));
         actionsPanel.setOpaque(false);
@@ -412,21 +413,15 @@ public class SystemPanel extends JPanel {
         keyboardsPanel.setAlignmentX(LEFT_ALIGNMENT);
         keyboardsPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
-        JPanel currentKeyboardRow = new JPanel(new BorderLayout(10, 0));
-        currentKeyboardRow.setOpaque(false);
-        currentKeyboardRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
-        currentKeyboardRow.add(currentKeyboardLabel, BorderLayout.WEST);
-        currentKeyboardRow.add(currentKeyboardValueLabel, BorderLayout.CENTER);
+        JPanel currentKeyboardRow = createStackedFieldPanel(currentKeyboardLabel, currentKeyboardValueLabel);
 
         keyboardCombo.setRenderer(keyboardRenderer);
         keyboardCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         keyboardCombo.setFocusable(false);
+        keyboardCombo.addActionListener(event -> updateKeyboardToggleButtonText());
 
-        JPanel selectionPanel = new JPanel(new GridBagLayout());
-        selectionPanel.setOpaque(false);
-        addFieldRow(selectionPanel, keyboardSelectionLabel, keyboardCombo, 0);
-        selectionPanel.setAlignmentX(LEFT_ALIGNMENT);
-        selectionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+        JPanel selectionPanel = createStackedFieldPanel(keyboardSelectionLabel, keyboardCombo);
+        selectionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 72));
 
         JPanel actionsPanel = new JPanel(new GridLayout(1, 3, 10, 0));
         actionsPanel.setOpaque(false);
@@ -513,25 +508,30 @@ public class SystemPanel extends JPanel {
         keyboardCombo.setEnabled(hasKeyboards);
         enableKeyboardButton.setEnabled(hasKeyboards);
         setKeyboardButton.setEnabled(hasKeyboards);
+        updateKeyboardToggleButtonText();
 
         applyTheme(theme);
     }
 
-    private void addFieldRow(JPanel panel, JLabel label, Component field, int rowIndex) {
-        GridBagConstraints labelConstraints = new GridBagConstraints();
-        labelConstraints.gridx = 0;
-        labelConstraints.gridy = rowIndex;
-        labelConstraints.anchor = GridBagConstraints.WEST;
-        labelConstraints.insets = new Insets(0, 0, rowIndex == 1 ? 0 : 10, 10);
-        panel.add(label, labelConstraints);
+    private JPanel createStackedFieldPanel(JLabel label, Component field) {
+        JPanel panel = new JPanel();
+        panel.setOpaque(false);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setAlignmentX(LEFT_ALIGNMENT);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        label.setAlignmentX(LEFT_ALIGNMENT);
+        if (field instanceof JComponent component) {
+            component.setAlignmentX(LEFT_ALIGNMENT);
+        }
+        panel.add(label);
+        panel.add(Box.createVerticalStrut(8));
+        panel.add(field);
+        return panel;
+    }
 
-        GridBagConstraints fieldConstraints = new GridBagConstraints();
-        fieldConstraints.gridx = 1;
-        fieldConstraints.gridy = rowIndex;
-        fieldConstraints.weightx = 1.0;
-        fieldConstraints.fill = GridBagConstraints.HORIZONTAL;
-        fieldConstraints.insets = new Insets(0, 0, rowIndex == 1 ? 0 : 10, 0);
-        panel.add(field, fieldConstraints);
+    private void updateKeyboardToggleButtonText() {
+        enableKeyboardButton.setText(Messages.text(
+                isSelectedKeyboardEnabled() ? "system.keyboards.disable" : "system.keyboards.enable"));
     }
 
     private void styleSection(JPanel panel, String title) {
@@ -575,8 +575,10 @@ public class SystemPanel extends JPanel {
         textField.setBackground(textField.isEnabled() ? theme.secondarySurface() : theme.surface());
         textField.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
-                BorderFactory.createEmptyBorder(8, 10, 8, 10)));
+                BorderFactory.createEmptyBorder(10, 10, 10, 10)));
         textField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        textField.setPreferredSize(new Dimension(0, 42));
+        textField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
     }
 
     private void styleComboBox(JComboBox<?> comboBox, DefaultListCellRenderer renderer) {
