@@ -6,6 +6,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.Shape;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Path2D;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +25,14 @@ public class ToolbarIcon implements Icon {
         HOME("M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"),
         DISPLAY("M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 16H7V5h10v12z"),
         APPS("M4 8h4V4H4v4zm6 0h4V4h-4v4zm6 0h4V4h-4v4z M4 14h4v-4H4v4zm6 0h4v-4h-4v4zm6 0h4v-4h-4v4z M4 20h4v-4H4v4zm6 0h4v-4h-4v4zm6 0h4v-4h-4v4z"),
-        SYSTEM("M7.4 5.2L6 3.8l.7-.7 1.6 1.6h7.4l1.6-1.6.7.7-1.4 1.4H17c1.1 0 2 .9 2 2v6c0 1.1-.9 2-2 2v2h-2v-2H9v2H7v-2c-1.1 0-2-.9-2-2V8c0-1.1.9-2 2-2h.4z M7 8v6h10V8H7z M9 9h1v1H9z M14 9h1v1h-1z"),
+
+        // SVG original:
+        // <svg viewBox="0 -960 960 960"><path d="..."/></svg>
+        SYSTEM(
+            "M40-240q9-107 65.5-197T256-580l-74-128q-6-9-3-19t13-15q8-5 18-2t16 12l74 128q86-36 180-36t180 36l74-128q6-9 16-12t18 2q10 5 13 15t-3 19l-74 128q94 53 150.5 143T920-240H40Zm275.5-124.5Q330-379 330-400t-14.5-35.5Q301-450 280-450t-35.5 14.5Q230-421 230-400t14.5 35.5Q259-350 280-350t35.5-14.5Zm400 0Q730-379 730-400t-14.5-35.5Q701-450 680-450t-35.5 14.5Q630-421 630-400t14.5 35.5Q659-350 680-350t35.5-14.5Z",
+            0, -960, 960, 960
+        ),
+
         REFRESH("M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"),
         SETTINGS("M19.14,12.94c0.04-0.31,0.06-0.63,0.06-0.94s-0.02-0.63-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.4,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.3-0.59-0.22l-2.39,0.96c-0.5-0.38-1.05-0.69-1.66-0.92L14.46,2.5C14.43,2.24,14.21,2,13.95,2h-3.9C9.79,2,9.57,2.24,9.54,2.5L9.17,5.03C8.56,5.26,8.01,5.58,7.51,5.95L5.12,4.99c-0.22-0.09-0.47,0-0.59,0.22L2.61,8.53c-0.12,0.22-0.07,0.47,0.12,0.61l2.03,1.58C4.72,11.37,4.7,11.69,4.7,12s0.02,0.63,0.06,0.94l-2.03,1.58c-0.18,0.14-0.23,0.4-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.3,0.59,0.22l2.39-0.96c0.5,0.38,1.05,0.69,1.66,0.92l0.37,2.53c0.03,0.26,0.25,0.5,0.51,0.5h3.9c0.26,0,0.48-0.24,0.51-0.5l0.37-2.53c0.61-0.23,1.16-0.55,1.66-0.92l2.39,0.96c0.22,0.09,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.5c-1.93,0-3.5-1.57-3.5-3.5s1.57-3.5,3.5-3.5s3.5,1.57,3.5,3.5S13.93,15.5,12,15.5z"),
         OPEN("M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3z M5 5h6v2H7v10h10v-4h2v6H5V5z"),
@@ -40,7 +48,23 @@ public class ToolbarIcon implements Icon {
         private final Shape shape;
 
         Type(String pathData) {
-            this.shape = SvgPathParser.parse(pathData);
+            this(pathData, 0, 0, VIEWBOX_SIZE, VIEWBOX_SIZE);
+        }
+
+        Type(String pathData, double viewBoxMinX, double viewBoxMinY, double viewBoxWidth, double viewBoxHeight) {
+            Shape parsed = SvgPathParser.parse(pathData);
+
+            if (viewBoxMinX != 0 || viewBoxMinY != 0 || viewBoxWidth != VIEWBOX_SIZE || viewBoxHeight != VIEWBOX_SIZE) {
+                parsed = AffineTransform
+                        .getTranslateInstance(-viewBoxMinX, -viewBoxMinY)
+                        .createTransformedShape(parsed);
+
+                parsed = AffineTransform
+                        .getScaleInstance(VIEWBOX_SIZE / viewBoxWidth, VIEWBOX_SIZE / viewBoxHeight)
+                        .createTransformedShape(parsed);
+            }
+
+            this.shape = parsed;
         }
 
         public Shape shape() {
@@ -93,9 +117,14 @@ public class ToolbarIcon implements Icon {
             double currentY = 0;
             double startX = 0;
             double startY = 0;
-            double lastControlX = 0;
-            double lastControlY = 0;
+
+            double lastCubicControlX = 0;
+            double lastCubicControlY = 0;
+            double lastQuadControlX = 0;
+            double lastQuadControlY = 0;
+
             char command = ' ';
+            char previousCommand = ' ';
             int index = 0;
 
             while (index < tokens.size()) {
@@ -108,6 +137,7 @@ public class ToolbarIcon implements Icon {
                 switch (command) {
                     case 'M', 'm' -> {
                         boolean relative = command == 'm';
+
                         double x = nextNumber(tokens, index++);
                         double y = nextNumber(tokens, index++);
                         if (relative) {
@@ -120,8 +150,11 @@ public class ToolbarIcon implements Icon {
                         currentY = y;
                         startX = x;
                         startY = y;
-                        lastControlX = x;
-                        lastControlY = y;
+
+                        lastCubicControlX = x;
+                        lastCubicControlY = y;
+                        lastQuadControlX = x;
+                        lastQuadControlY = y;
 
                         while (hasNumber(tokens, index)) {
                             x = nextNumber(tokens, index++);
@@ -134,10 +167,14 @@ public class ToolbarIcon implements Icon {
                             path.lineTo(x, y);
                             currentX = x;
                             currentY = y;
-                            lastControlX = x;
-                            lastControlY = y;
+
+                            lastCubicControlX = x;
+                            lastCubicControlY = y;
+                            lastQuadControlX = x;
+                            lastQuadControlY = y;
                         }
                     }
+
                     case 'L', 'l' -> {
                         boolean relative = command == 'l';
                         while (hasNumber(tokens, index)) {
@@ -150,10 +187,14 @@ public class ToolbarIcon implements Icon {
                             path.lineTo(x, y);
                             currentX = x;
                             currentY = y;
-                            lastControlX = x;
-                            lastControlY = y;
+
+                            lastCubicControlX = x;
+                            lastCubicControlY = y;
+                            lastQuadControlX = x;
+                            lastQuadControlY = y;
                         }
                     }
+
                     case 'H', 'h' -> {
                         boolean relative = command == 'h';
                         while (hasNumber(tokens, index)) {
@@ -163,10 +204,14 @@ public class ToolbarIcon implements Icon {
                             }
                             path.lineTo(x, currentY);
                             currentX = x;
-                            lastControlX = x;
-                            lastControlY = currentY;
+
+                            lastCubicControlX = currentX;
+                            lastCubicControlY = currentY;
+                            lastQuadControlX = currentX;
+                            lastQuadControlY = currentY;
                         }
                     }
+
                     case 'V', 'v' -> {
                         boolean relative = command == 'v';
                         while (hasNumber(tokens, index)) {
@@ -176,10 +221,14 @@ public class ToolbarIcon implements Icon {
                             }
                             path.lineTo(currentX, y);
                             currentY = y;
-                            lastControlX = currentX;
-                            lastControlY = y;
+
+                            lastCubicControlX = currentX;
+                            lastCubicControlY = currentY;
+                            lastQuadControlX = currentX;
+                            lastQuadControlY = currentY;
                         }
                     }
+
                     case 'C', 'c' -> {
                         boolean relative = command == 'c';
                         while (hasNumber(tokens, index)) {
@@ -202,15 +251,25 @@ public class ToolbarIcon implements Icon {
                             path.curveTo(x1, y1, x2, y2, x, y);
                             currentX = x;
                             currentY = y;
-                            lastControlX = x2;
-                            lastControlY = y2;
+                            lastCubicControlX = x2;
+                            lastCubicControlY = y2;
+                            lastQuadControlX = x;
+                            lastQuadControlY = y;
                         }
                     }
+
                     case 'S', 's' -> {
                         boolean relative = command == 's';
                         while (hasNumber(tokens, index)) {
-                            double reflectedX = (2 * currentX) - lastControlX;
-                            double reflectedY = (2 * currentY) - lastControlY;
+                            double reflectedX = switch (previousCommand) {
+                                case 'C', 'c', 'S', 's' -> (2 * currentX) - lastCubicControlX;
+                                default -> currentX;
+                            };
+                            double reflectedY = switch (previousCommand) {
+                                case 'C', 'c', 'S', 's' -> (2 * currentY) - lastCubicControlY;
+                                default -> currentY;
+                            };
+
                             double x2 = nextNumber(tokens, index++);
                             double y2 = nextNumber(tokens, index++);
                             double x = nextNumber(tokens, index++);
@@ -226,19 +285,82 @@ public class ToolbarIcon implements Icon {
                             path.curveTo(reflectedX, reflectedY, x2, y2, x, y);
                             currentX = x;
                             currentY = y;
-                            lastControlX = x2;
-                            lastControlY = y2;
+                            lastCubicControlX = x2;
+                            lastCubicControlY = y2;
+                            lastQuadControlX = x;
+                            lastQuadControlY = y;
                         }
                     }
+
+                    case 'Q', 'q' -> {
+                        boolean relative = command == 'q';
+                        while (hasNumber(tokens, index)) {
+                            double x1 = nextNumber(tokens, index++);
+                            double y1 = nextNumber(tokens, index++);
+                            double x = nextNumber(tokens, index++);
+                            double y = nextNumber(tokens, index++);
+
+                            if (relative) {
+                                x1 += currentX;
+                                y1 += currentY;
+                                x += currentX;
+                                y += currentY;
+                            }
+
+                            path.quadTo(x1, y1, x, y);
+                            currentX = x;
+                            currentY = y;
+                            lastQuadControlX = x1;
+                            lastQuadControlY = y1;
+                            lastCubicControlX = x;
+                            lastCubicControlY = y;
+                        }
+                    }
+
+                    case 'T', 't' -> {
+                        boolean relative = command == 't';
+                        while (hasNumber(tokens, index)) {
+                            double reflectedX = switch (previousCommand) {
+                                case 'Q', 'q', 'T', 't' -> (2 * currentX) - lastQuadControlX;
+                                default -> currentX;
+                            };
+                            double reflectedY = switch (previousCommand) {
+                                case 'Q', 'q', 'T', 't' -> (2 * currentY) - lastQuadControlY;
+                                default -> currentY;
+                            };
+
+                            double x = nextNumber(tokens, index++);
+                            double y = nextNumber(tokens, index++);
+
+                            if (relative) {
+                                x += currentX;
+                                y += currentY;
+                            }
+
+                            path.quadTo(reflectedX, reflectedY, x, y);
+                            currentX = x;
+                            currentY = y;
+                            lastQuadControlX = reflectedX;
+                            lastQuadControlY = reflectedY;
+                            lastCubicControlX = x;
+                            lastCubicControlY = y;
+                        }
+                    }
+
                     case 'Z', 'z' -> {
                         path.closePath();
                         currentX = startX;
                         currentY = startY;
-                        lastControlX = startX;
-                        lastControlY = startY;
+                        lastCubicControlX = startX;
+                        lastCubicControlY = startY;
+                        lastQuadControlX = startX;
+                        lastQuadControlY = startY;
                     }
+
                     default -> throw new IllegalArgumentException("Unsupported SVG path command: " + command);
                 }
+
+                previousCommand = command;
             }
 
             return path;
