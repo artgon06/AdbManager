@@ -12,6 +12,7 @@ import com.adbmanager.logic.model.AppInstallRequest;
 import com.adbmanager.logic.model.AppInstallResult;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
+import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.logic.model.SystemState;
 
@@ -25,6 +26,7 @@ public interface AdbModel {
     AdbToolInfo getAdbToolInfo() throws Exception;
     byte[] captureSelectedDeviceScreenshot() throws Exception;
     List<InstalledApp> getSelectedDeviceApplications() throws Exception;
+    List<InstalledApp> getSelectedDeviceApplicationSummaries(List<String> packageNames) throws Exception;
     InstalledApp getSelectedDeviceApplicationSummary(String packageName) throws Exception;
     AppDetails getSelectedDeviceApplicationDetails(String packageName) throws Exception;
     void setSelectedDeviceApplicationPermission(String packageName, String permission, boolean granted) throws Exception;
@@ -50,6 +52,7 @@ public interface AdbModel {
     void setSelectedDeviceScreenOffTimeout(int timeoutMs) throws Exception;
     void resetSelectedDeviceDisplay() throws Exception;
     void setSelectedDeviceDarkMode(boolean enabled) throws Exception;
+    void performSelectedDevicePowerAction(DevicePowerAction action) throws Exception;
     void pairWirelessDevice(String host, int pairingPort, String pairingCode) throws Exception;
     void pairWirelessDeviceWithQr(String serviceName, String password, int timeoutSeconds) throws Exception;
     void connectWirelessDevice(String host, int port) throws Exception;

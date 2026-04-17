@@ -28,6 +28,7 @@ public record UserConfig(
         return new ScrcpyLaunchRequest(
                 ScrcpyLaunchRequest.LaunchTarget.DEVICE_DISPLAY,
                 false,
+                false,
                 null,
                 null,
                 false,

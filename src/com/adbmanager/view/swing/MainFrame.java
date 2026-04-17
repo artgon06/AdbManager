@@ -14,6 +14,8 @@ import java.io.File;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 import javax.swing.AbstractAction;
 import javax.swing.ActionMap;
@@ -27,8 +29,10 @@ import javax.swing.JFrame;
 import javax.swing.InputMap;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
 import javax.swing.KeyStroke;
@@ -38,6 +42,7 @@ import javax.swing.plaf.basic.BasicToggleButtonUI;
 
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
+import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.AppDetails;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.logic.model.ScrcpyCamera;
@@ -70,8 +75,11 @@ public class MainFrame extends JFrame {
     private final JToggleButton appsButton = new JToggleButton();
     private final JToggleButton systemButton = new JToggleButton();
     private final JToggleButton settingsButton = new JToggleButton();
+    private final JButton powerButton = new JButton();
     private final JButton wirelessButton = new JButton("+");
     private final JButton refreshButton = new JButton();
+    private final JPopupMenu powerMenu = new JPopupMenu();
+    private final Map<DevicePowerAction, JMenuItem> powerMenuItems = new LinkedHashMap<>();
     private final HomePanel homePanel = new HomePanel();
     private final DisplayPanel displayPanel = new DisplayPanel();
     private final AppsPanel appsPanel = new AppsPanel();
@@ -166,6 +174,18 @@ public class MainFrame extends JFrame {
 
     public void setWirelessAssistantAction(ActionListener actionListener) {
         wirelessButton.addActionListener(actionListener);
+    }
+
+    public void setPowerAction(ActionListener actionListener) {
+        ActionListener safeAction = actionListener == null ? event -> {
+        } : actionListener;
+        for (Map.Entry<DevicePowerAction, JMenuItem> entry : powerMenuItems.entrySet()) {
+            JMenuItem menuItem = entry.getValue();
+            for (ActionListener existingListener : menuItem.getActionListeners()) {
+                menuItem.removeActionListener(existingListener);
+            }
+            menuItem.addActionListener(safeAction);
+        }
     }
 
     public void setThemeChangeAction(ActionListener actionListener) {
@@ -354,7 +374,11 @@ public class MainFrame extends JFrame {
         systemButton.setToolTipText(Messages.text("navigation.system.tooltip"));
         settingsButton.setToolTipText(Messages.text("navigation.settings.tooltip"));
         wirelessButton.setToolTipText(Messages.text("navigation.wireless.tooltip"));
+        powerButton.setToolTipText(Messages.text("navigation.power.tooltip"));
         refreshButton.setToolTipText(Messages.text("navigation.refresh.tooltip"));
+        for (Map.Entry<DevicePowerAction, JMenuItem> entry : powerMenuItems.entrySet()) {
+            entry.getValue().setText(Messages.text(entry.getKey().messageKey()));
+        }
 
         homePanel.refreshTexts();
         displayPanel.refreshTexts();
@@ -459,6 +483,10 @@ public class MainFrame extends JFrame {
 
     public void updateApplication(InstalledApp application) {
         appsPanel.updateApplication(application);
+    }
+
+    public void updateApplications(List<InstalledApp> applications) {
+        appsPanel.updateApplications(applications);
     }
 
     public void clearApplications() {
@@ -715,6 +743,15 @@ public class MainFrame extends JFrame {
 
     public void setDeviceSelectorEnabled(boolean enabled) {
         deviceSelector.setEnabled(enabled);
+        deviceSelector.repaint();
+    }
+
+    public void setPowerActionsEnabled(boolean enabled) {
+        powerButton.setEnabled(enabled);
+        for (JMenuItem menuItem : powerMenuItems.values()) {
+            menuItem.setEnabled(enabled);
+        }
+        stylePowerButton();
     }
 
     public void setRefreshEnabled(boolean enabled) {
@@ -770,8 +807,10 @@ public class MainFrame extends JFrame {
         styleNavigationButton(appsButton);
         styleNavigationButton(systemButton);
         styleNavigationButton(settingsButton);
+        stylePowerButton();
         styleWirelessButton();
         styleRefreshButton();
+        stylePowerMenu();
 
         revalidate();
         repaint();
@@ -832,8 +871,10 @@ public class MainFrame extends JFrame {
         configureNavigationButton(appsButton, ToolbarIcon.Type.APPS);
         configureNavigationButton(systemButton, ToolbarIcon.Type.SYSTEM);
         configureNavigationButton(settingsButton, ToolbarIcon.Type.SETTINGS);
+        configurePowerButton();
         configureWirelessButton();
         configureRefreshButton();
+        buildPowerMenu();
 
         navigationGroup.add(homeButton);
         navigationGroup.add(displayButton);
@@ -848,6 +889,7 @@ public class MainFrame extends JFrame {
 
         deviceSelectorPanel.add(deviceLabel);
         deviceSelectorPanel.add(deviceSelector);
+        deviceSelectorPanel.add(powerButton);
         deviceSelectorPanel.add(wirelessButton);
         deviceSelectorPanel.add(refreshButton);
 
@@ -895,6 +937,22 @@ public class MainFrame extends JFrame {
         deviceSelector.setMaximumRowCount(12);
     }
 
+    private void configurePowerButton() {
+        powerButton.setUI(new BasicButtonUI());
+        powerButton.setFocusable(false);
+        powerButton.setFocusPainted(false);
+        powerButton.setRolloverEnabled(true);
+        powerButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        powerButton.setPreferredSize(new Dimension(TOP_BAR_HEIGHT, TOP_BAR_HEIGHT));
+        powerButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
+        powerButton.getModel().addChangeListener(event -> stylePowerButton());
+        powerButton.addActionListener(event -> {
+            if (powerButton.isEnabled()) {
+                powerMenu.show(powerButton, 0, powerButton.getHeight());
+            }
+        });
+    }
+
     private void configureWirelessButton() {
         wirelessButton.setUI(new BasicButtonUI());
         wirelessButton.setFocusable(false);
@@ -905,6 +963,17 @@ public class MainFrame extends JFrame {
         wirelessButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
         wirelessButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 24));
         wirelessButton.getModel().addChangeListener(event -> styleWirelessButton());
+    }
+
+    private void buildPowerMenu() {
+        powerMenu.removeAll();
+        powerMenuItems.clear();
+        for (DevicePowerAction action : DevicePowerAction.values()) {
+            JMenuItem menuItem = new JMenuItem(Messages.text(action.messageKey()));
+            menuItem.setActionCommand(action.actionCommand());
+            powerMenu.add(menuItem);
+            powerMenuItems.put(action, menuItem);
+        }
     }
 
     private void updateNavigationStyles() {
@@ -951,6 +1020,20 @@ public class MainFrame extends JFrame {
         refreshButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.REFRESH, 20, refreshButton.getForeground()));
     }
 
+    private void stylePowerButton() {
+        boolean hovered = powerButton.getModel().isRollover() && powerButton.isEnabled();
+        powerButton.setOpaque(true);
+        powerButton.setContentAreaFilled(true);
+        powerButton.setBackground(hovered
+                ? ThemeUtils.blend(currentTheme.surface(), currentTheme.selectionBackground(), 0.24d)
+                : currentTheme.surface());
+        powerButton.setForeground(powerButton.isEnabled()
+                ? currentTheme.actionBackground()
+                : currentTheme.textSecondary());
+        powerButton.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, powerButton.getBackground()));
+        powerButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.POWER, 20, powerButton.getForeground()));
+    }
+
     private void styleWirelessButton() {
         boolean hovered = wirelessButton.getModel().isRollover() && wirelessButton.isEnabled();
         wirelessButton.setOpaque(true);
@@ -963,6 +1046,18 @@ public class MainFrame extends JFrame {
                 : currentTheme.textSecondary());
         wirelessButton.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, wirelessButton.getBackground()));
         wirelessButton.setText("+");
+    }
+
+    private void stylePowerMenu() {
+        powerMenu.setBorder(BorderFactory.createLineBorder(currentTheme.border(), 1));
+        powerMenu.setBackground(currentTheme.surface());
+        for (JMenuItem menuItem : powerMenuItems.values()) {
+            menuItem.setOpaque(true);
+            menuItem.setBackground(currentTheme.surface());
+            menuItem.setForeground(menuItem.isEnabled() ? currentTheme.textPrimary() : currentTheme.textSecondary());
+            menuItem.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+            menuItem.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        }
     }
 
     private void installTabNavigationShortcuts() {

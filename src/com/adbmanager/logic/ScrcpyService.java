@@ -156,6 +156,10 @@ public final class ScrcpyService {
             command.add("--fullscreen");
         }
 
+        if (request.shouldTurnScreenOff()) {
+            command.add("--turn-screen-off");
+        }
+
         switch (request.launchTarget()) {
             case VIRTUAL_DISPLAY -> {
                 String newDisplayValue = buildNewDisplayValue(request);

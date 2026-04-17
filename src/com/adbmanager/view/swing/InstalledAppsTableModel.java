@@ -26,22 +26,46 @@ public class InstalledAppsTableModel extends AbstractTableModel {
     }
 
     public void updateApplication(InstalledApp application) {
-        if (application == null) {
+        updateApplications(application == null ? List.of() : List.of(application));
+    }
+
+    public void updateApplications(List<InstalledApp> updatedApplications) {
+        if (updatedApplications == null || updatedApplications.isEmpty()) {
             return;
         }
 
-        for (int index = 0; index < applications.size(); index++) {
-            if (applications.get(index).packageName().equals(application.packageName())) {
-                applications.set(index, application);
-                sortApplications();
-                fireTableDataChanged();
-                return;
+        boolean changed = false;
+        for (InstalledApp application : updatedApplications) {
+            if (application == null) {
+                continue;
+            }
+
+            boolean replaced = false;
+            for (int index = 0; index < applications.size(); index++) {
+                if (applications.get(index).packageName().equals(application.packageName())) {
+                    applications.set(index, application);
+                    replaced = true;
+                    changed = true;
+                    break;
+                }
+            }
+
+            if (!replaced) {
+                applications.add(application);
+                changed = true;
             }
         }
 
-        applications.add(application);
+        if (!changed) {
+            return;
+        }
+
         sortApplications();
         fireTableDataChanged();
+    }
+
+    public List<InstalledApp> getApplications() {
+        return List.copyOf(applications);
     }
 
     public InstalledApp getApplicationAt(int modelRow) {

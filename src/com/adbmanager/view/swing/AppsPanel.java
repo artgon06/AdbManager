@@ -247,12 +247,26 @@ public class AppsPanel extends JPanel {
     }
 
     public void updateApplication(InstalledApp application) {
+        updateApplications(application == null ? List.of() : List.of(application));
+    }
+
+    public void updateApplications(List<InstalledApp> applications) {
+        if (applications == null || applications.isEmpty()) {
+            return;
+        }
+
         String selectedPackage = getSelectedPackageName();
         syncingSelection = true;
         try {
-            tableModel.updateApplication(application);
+            tableModel.updateApplications(applications);
             applyFiltersInternal(false);
-            selectPackage(selectedPackage == null ? application.packageName() : selectedPackage);
+            String preferredPackage = selectedPackage;
+            if ((preferredPackage == null || preferredPackage.isBlank())
+                    && applications.size() == 1
+                    && applications.get(0) != null) {
+                preferredPackage = applications.get(0).packageName();
+            }
+            selectPackage(preferredPackage);
         } finally {
             syncingSelection = false;
         }
@@ -1245,6 +1259,24 @@ public class AppsPanel extends JPanel {
         return createFallbackIcon(details.displayName(), details.app().packageName());
     }
 
+    private Icon createListApplicationIcon(InstalledApp application) {
+        if (application == null) {
+            return null;
+        }
+
+        if (application.iconImage() != null) {
+            Image scaled = application.iconImage().getScaledInstance(18, 18, Image.SCALE_SMOOTH);
+            return new ImageIcon(scaled);
+        }
+
+        Icon fallbackIcon = createFallbackIcon(application.displayName(), application.packageName());
+        if (fallbackIcon instanceof ImageIcon imageIcon) {
+            Image scaled = imageIcon.getImage().getScaledInstance(18, 18, Image.SCALE_SMOOTH);
+            return new ImageIcon(scaled);
+        }
+        return fallbackIcon;
+    }
+
     private Icon createFallbackIcon(String displayName, String packageName) {
         int size = 64;
         BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
@@ -1352,6 +1384,13 @@ public class AppsPanel extends JPanel {
             setBackground(isSelected ? theme.selectionBackground() : theme.background());
             setForeground(isSelected ? theme.selectionForeground() : theme.textPrimary());
             setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+            if (column == 0) {
+                InstalledApp application = tableModel.getApplicationAt(table.convertRowIndexToModel(row));
+                setIcon(createListApplicationIcon(application));
+                setIconTextGap(10);
+            } else {
+                setIcon(null);
+            }
             return this;
         }
     }

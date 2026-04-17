@@ -59,6 +59,7 @@ public class ScrcpyLauncherPanel extends JPanel {
     private final JComboBox<ScrcpyLaunchRequest.LaunchTarget> targetCombo = new JComboBox<>(
             ScrcpyLaunchRequest.LaunchTarget.values());
     private final JCheckBox fullscreenCheck = new JCheckBox();
+    private final JCheckBox turnScreenOffCheck = new JCheckBox();
     private final JCheckBox readOnlyCheck = new JCheckBox();
     private final WrappingTextArea hintLabel = new WrappingTextArea();
 
@@ -191,6 +192,7 @@ public class ScrcpyLauncherPanel extends JPanel {
                 ? new ScrcpyLaunchRequest(
                         ScrcpyLaunchRequest.LaunchTarget.DEVICE_DISPLAY,
                         false,
+                        false,
                         null,
                         null,
                         false,
@@ -211,6 +213,7 @@ public class ScrcpyLauncherPanel extends JPanel {
 
         targetCombo.setSelectedItem(safeRequest.launchTarget());
         fullscreenCheck.setSelected(safeRequest.fullscreen());
+        turnScreenOffCheck.setSelected(safeRequest.turnScreenOff());
         readOnlyCheck.setSelected(safeRequest.readOnly());
         maxSizeField.setText(safeRequest.maxSize() == null ? "" : String.valueOf(safeRequest.maxSize()));
         maxFpsField.setText(safeRequest.maxFps() == null ? "" : formatDecimal(safeRequest.maxFps()));
@@ -273,6 +276,7 @@ public class ScrcpyLauncherPanel extends JPanel {
         return new ScrcpyLaunchRequest(
                 getSelectedLaunchTarget(),
                 fullscreenCheck.isSelected(),
+                turnScreenOffCheck.isSelected(),
                 parsePositiveInteger(maxSizeField.getText()),
                 parsePositiveDouble(maxFpsField.getText()),
                 recordCheck.isSelected(),
@@ -300,6 +304,7 @@ public class ScrcpyLauncherPanel extends JPanel {
 
         targetLabel.setText(Messages.text("scrcpy.target.label"));
         fullscreenCheck.setText(Messages.text("scrcpy.option.fullscreen"));
+        turnScreenOffCheck.setText(Messages.text("scrcpy.option.turnScreenOff"));
         readOnlyCheck.setText(Messages.text("scrcpy.option.readOnly"));
         maxSizeLabel.setText(Messages.text("scrcpy.option.maxSize"));
         maxFpsLabel.setText(Messages.text("scrcpy.option.maxFps"));
@@ -359,6 +364,7 @@ public class ScrcpyLauncherPanel extends JPanel {
 
         styleLabel(targetLabel);
         styleCheckBox(fullscreenCheck);
+        styleCheckBox(turnScreenOffCheck);
         styleCheckBox(readOnlyCheck);
         hintLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
 
@@ -404,6 +410,8 @@ public class ScrcpyLauncherPanel extends JPanel {
         content.setLayout(new GridBagLayout());
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scrollPane.getViewport().setBackground(theme.background());
+        introLabel.setAlignmentX(LEFT_ALIGNMENT);
+        introLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
         buildStatusCard();
         buildSourceCard();
@@ -447,6 +455,12 @@ public class ScrcpyLauncherPanel extends JPanel {
         statusCard.setLayout(new BoxLayout(statusCard, BoxLayout.Y_AXIS));
         statusCard.setBorder(new EmptyBorder(12, 12, 12, 12));
         configureButton(prepareButton);
+        availabilityValueLabel.setAlignmentX(LEFT_ALIGNMENT);
+        versionValueLabel.setAlignmentX(LEFT_ALIGNMENT);
+        locationValueLabel.setAlignmentX(LEFT_ALIGNMENT);
+        feedbackLabel.setAlignmentX(LEFT_ALIGNMENT);
+        feedbackLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, feedbackLabel.getPreferredSize().height));
+        prepareButton.setAlignmentX(LEFT_ALIGNMENT);
         statusCard.add(createKeyValueRow(availabilityLabel, availabilityValueLabel));
         statusCard.add(Box.createVerticalStrut(8));
         statusCard.add(createKeyValueRow(versionLabel, versionValueLabel));
@@ -464,13 +478,21 @@ public class ScrcpyLauncherPanel extends JPanel {
         targetLabel.setAlignmentX(LEFT_ALIGNMENT);
         targetCombo.setAlignmentX(LEFT_ALIGNMENT);
         targetCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        hintLabel.setAlignmentX(LEFT_ALIGNMENT);
+        hintLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
         JPanel togglesRow = new JPanel(new GridLayout(1, 2, 10, 0));
         togglesRow.setOpaque(false);
         togglesRow.setAlignmentX(LEFT_ALIGNMENT);
         togglesRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         togglesRow.add(fullscreenCheck);
-        togglesRow.add(readOnlyCheck);
+        togglesRow.add(turnScreenOffCheck);
+
+        JPanel behaviorRow = new JPanel(new GridLayout(1, 1, 0, 0));
+        behaviorRow.setOpaque(false);
+        behaviorRow.setAlignmentX(LEFT_ALIGNMENT);
+        behaviorRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        behaviorRow.add(readOnlyCheck);
 
         targetCombo.addActionListener(event -> {
             updateSourceSpecificControls();
@@ -482,6 +504,8 @@ public class ScrcpyLauncherPanel extends JPanel {
         sourceCard.add(targetCombo);
         sourceCard.add(Box.createVerticalStrut(12));
         sourceCard.add(togglesRow);
+        sourceCard.add(Box.createVerticalStrut(10));
+        sourceCard.add(behaviorRow);
         sourceCard.add(Box.createVerticalStrut(10));
         sourceCard.add(hintLabel);
     }
@@ -569,18 +593,27 @@ public class ScrcpyLauncherPanel extends JPanel {
     }
 
     private JPanel createKeyValueRow(JLabel keyLabel, JLabel valueLabel) {
-        JPanel row = new JPanel(new BorderLayout(10, 0));
+        JPanel row = new JPanel();
+        row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
         row.setOpaque(false);
-        row.add(keyLabel, BorderLayout.WEST);
-        row.add(valueLabel, BorderLayout.CENTER);
+        row.setAlignmentX(LEFT_ALIGNMENT);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        keyLabel.setAlignmentX(LEFT_ALIGNMENT);
+        valueLabel.setAlignmentX(LEFT_ALIGNMENT);
+        row.add(keyLabel);
+        row.add(Box.createVerticalStrut(4));
+        row.add(valueLabel);
         return row;
     }
 
     private JPanel createKeyValueRow(JLabel keyLabel, WrappingTextArea valueLabel) {
         JPanel row = new JPanel();
-        row.setOpaque(false);
         row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
+        row.setOpaque(false);
+        row.setAlignmentX(LEFT_ALIGNMENT);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         keyLabel.setAlignmentX(LEFT_ALIGNMENT);
+        keyLabel.setVerticalAlignment(JLabel.TOP);
         valueLabel.setAlignmentX(LEFT_ALIGNMENT);
         valueLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         row.add(keyLabel);
@@ -642,6 +675,7 @@ public class ScrcpyLauncherPanel extends JPanel {
         startAppCombo.setEnabled(!busy && startAppCheck.isSelected() && !cameraMode);
 
         readOnlyCheck.setEnabled(!busy && !cameraMode);
+        turnScreenOffCheck.setEnabled(!busy && !cameraMode);
         keyboardCombo.setEnabled(!busy && !cameraMode && !readOnlyCheck.isSelected());
         mouseCombo.setEnabled(!busy && !cameraMode && !readOnlyCheck.isSelected());
         maxSizeField.setEnabled(!busy && !cameraMode);
@@ -785,17 +819,7 @@ public class ScrcpyLauncherPanel extends JPanel {
     }
 
     private void styleEditableComboEditor(JComboBox<?> comboBox, JTextField editorField) {
-        boolean enabled = comboBox.isEnabled();
-        editorField.setOpaque(true);
-        editorField.setEnabled(enabled);
-        editorField.setEditable(enabled);
-        editorField.setDisabledTextColor(theme.textSecondary());
-        editorField.setBackground(enabled ? theme.secondarySurface() : theme.surface());
-        editorField.setForeground(enabled ? theme.textPrimary() : theme.textSecondary());
-        editorField.setCaretColor(theme.textPrimary());
-        editorField.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 2));
-        editorField.setSelectionColor(theme.selectionBackground());
-        editorField.setSelectedTextColor(theme.selectionForeground());
+        ThemedComboBoxUI.styleEditableEditor(comboBox, theme);
         editorField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
     }
 
@@ -910,9 +934,7 @@ public class ScrcpyLauncherPanel extends JPanel {
                 boolean isSelected,
                 boolean cellHasFocus) {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            setOpaque(true);
-            setBackground(isSelected ? theme.selectionBackground() : (index == -1 ? theme.secondarySurface() : theme.surface()));
-            setForeground(isSelected ? theme.selectionForeground() : theme.textPrimary());
+            ThemedComboBoxUI.applyRendererColors(this, list, theme, isSelected, index);
 
             if (value instanceof ScrcpyLaunchRequest.LaunchTarget launchTarget) {
                 setText(Messages.text(launchTarget.messageKey()));
@@ -934,9 +956,7 @@ public class ScrcpyLauncherPanel extends JPanel {
                 boolean isSelected,
                 boolean cellHasFocus) {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            setOpaque(true);
-            setBackground(isSelected ? theme.selectionBackground() : (index == -1 ? theme.secondarySurface() : theme.surface()));
-            setForeground(isSelected ? theme.selectionForeground() : theme.textPrimary());
+            ThemedComboBoxUI.applyRendererColors(this, list, theme, isSelected, index);
 
             if (value instanceof AppOption appOption) {
                 setText(appOption.toString());

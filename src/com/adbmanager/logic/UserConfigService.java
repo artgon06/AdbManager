@@ -24,6 +24,7 @@ public final class UserConfigService {
     private static final String ADB_CUSTOM_PATH_KEY = "adb.custom_path";
     private static final String SCRCPY_TARGET_KEY = "scrcpy.launch_target";
     private static final String SCRCPY_FULLSCREEN_KEY = "scrcpy.fullscreen";
+    private static final String SCRCPY_TURN_SCREEN_OFF_KEY = "scrcpy.turn_screen_off";
     private static final String SCRCPY_READ_ONLY_KEY = "scrcpy.read_only";
     private static final String SCRCPY_MAX_SIZE_KEY = "scrcpy.max_size";
     private static final String SCRCPY_MAX_FPS_KEY = "scrcpy.max_fps";
@@ -70,6 +71,8 @@ public final class UserConfigService {
                                 UserConfig.defaultScrcpyLaunchRequest().launchTarget()),
                         parseBoolean(values.get(SCRCPY_FULLSCREEN_KEY),
                                 UserConfig.defaultScrcpyLaunchRequest().fullscreen()),
+                        parseBoolean(values.get(SCRCPY_TURN_SCREEN_OFF_KEY),
+                                UserConfig.defaultScrcpyLaunchRequest().turnScreenOff()),
                         parseInteger(values.get(SCRCPY_MAX_SIZE_KEY)),
                         parseDouble(values.get(SCRCPY_MAX_FPS_KEY)),
                         parseBoolean(values.get(SCRCPY_RECORD_ENABLED_KEY),
@@ -118,6 +121,7 @@ public final class UserConfigService {
         builder.append("# launch_target: device_display | virtual_display | camera").append(System.lineSeparator());
         builder.append(SCRCPY_TARGET_KEY).append("=").append(enumValue(safeConfig.scrcpyLaunchRequest().launchTarget())).append(System.lineSeparator());
         builder.append(SCRCPY_FULLSCREEN_KEY).append("=").append(safeConfig.scrcpyLaunchRequest().fullscreen()).append(System.lineSeparator());
+        builder.append(SCRCPY_TURN_SCREEN_OFF_KEY).append("=").append(safeConfig.scrcpyLaunchRequest().turnScreenOff()).append(System.lineSeparator());
         builder.append(SCRCPY_READ_ONLY_KEY).append("=").append(safeConfig.scrcpyLaunchRequest().readOnly()).append(System.lineSeparator());
         builder.append(SCRCPY_MAX_SIZE_KEY).append("=").append(integerValue(safeConfig.scrcpyLaunchRequest().maxSize())).append(System.lineSeparator());
         builder.append(SCRCPY_MAX_FPS_KEY).append("=").append(doubleValue(safeConfig.scrcpyLaunchRequest().maxFps())).append(System.lineSeparator());

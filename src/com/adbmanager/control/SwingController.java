@@ -28,6 +28,7 @@ import com.adbmanager.logic.model.AppInstallRequest;
 import com.adbmanager.logic.model.AppInstallResult;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
+import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.logic.model.ScrcpyCamera;
 import com.adbmanager.logic.model.ScrcpyLaunchRequest;
@@ -45,7 +46,7 @@ import com.adbmanager.view.swing.WirelessConnectionDialog;
 
 public class SwingController {
 
-    private static final int MAX_BACKGROUND_APP_ENRICHMENTS = 18;
+    private static final int MAX_BACKGROUND_APP_ENRICHMENTS = 50;
     private static final int VISIBLE_APP_ENRICHMENT_EXTRA_ROWS = 8;
 
     @FunctionalInterface
@@ -73,9 +74,10 @@ public class SwingController {
     private String scrcpyApplicationsLoadedSerial;
     private String scrcpyCamerasLoadedSerial;
     private String currentSelectedPackageName;
-    private SwingWorker<Void, InstalledApp> applicationEnrichmentWorker;
+    private SwingWorker<Void, List<InstalledApp>> applicationEnrichmentWorker;
     private final Set<String> enrichedApplicationPackages = new HashSet<>();
     private final Set<String> pendingApplicationPackages = new LinkedHashSet<>();
+    private int totalApplicationPackagesToEnrich;
     private boolean autoRefreshOnFocus = true;
     private WirelessPairingQrPayload currentQrPayload;
 
@@ -102,6 +104,7 @@ public class SwingController {
         bindEvents();
         view.setScrcpyDeviceAvailable(false);
         view.setSystemDeviceAvailable(false);
+        view.setPowerActionsEnabled(false);
         view.setSystemBusy(false);
         view.clearSystemState();
         view.setSystemStatus("", false);
@@ -119,6 +122,7 @@ public class SwingController {
         view.setSaveCaptureAction(event -> saveScreenshot());
         view.setRefreshAction(event -> refreshDevices());
         view.setWirelessAssistantAction(event -> openWirelessAssistant());
+        view.setPowerAction(event -> executePowerAction(DevicePowerAction.fromActionCommand(event.getActionCommand())));
         view.setHomeAction(event -> view.showHomeScreen());
         view.setDisplayAction(event -> showDisplayScreen());
         view.setApplyDisplayAction(event -> applyDisplayOverride());
@@ -197,6 +201,7 @@ public class SwingController {
         view.setDeviceSelectorEnabled(false);
         view.setCaptureEnabled(false);
         view.setRefreshEnabled(false);
+        view.setPowerActionsEnabled(false);
         view.setApplicationsEnabled(false);
         view.setApplicationActionsEnabled(false);
         view.setDisplayControlsEnabled(false);
@@ -237,6 +242,8 @@ public class SwingController {
                     updateSystemBusyState();
                     view.setDeviceSelectorEnabled(true);
                     view.setRefreshEnabled(true);
+                    Device selectedDevice = model.getSelectedDevice().orElse(null);
+                    view.setPowerActionsEnabled(isDisplayAvailable(selectedDevice));
                 }
             }
         }.execute();
@@ -383,6 +390,51 @@ public class SwingController {
         openUrl(Messages.repositoryUrl());
     }
 
+    private void executePowerAction(DevicePowerAction action) {
+        Device selectedDevice = model.getSelectedDevice().orElse(null);
+        if (!isDisplayAvailable(selectedDevice)) {
+            view.showError(Messages.text("error.power.deviceRequired"));
+            return;
+        }
+
+        DevicePowerAction safeAction = action == null ? DevicePowerAction.REBOOT_ANDROID : action;
+        String actionLabel = Messages.text(safeAction.messageKey());
+        String deviceLabel = selectedDevice == null ? "-" : selectedDevice.serial();
+
+        if (!view.confirmAction(
+                Messages.text("power.confirm.title"),
+                Messages.format("power.confirm.message", actionLabel, deviceLabel))) {
+            return;
+        }
+
+        view.setPowerActionsEnabled(false);
+        view.setRefreshEnabled(false);
+        view.setDeviceSelectorEnabled(false);
+
+        new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                model.performSelectedDevicePowerAction(safeAction);
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    get();
+                    view.showInfo(Messages.format("info.power.sent", actionLabel));
+                    refreshDevices();
+                } catch (Exception e) {
+                    handleError(Messages.text("error.power.action"), e);
+                    Device currentDevice = model.getSelectedDevice().orElse(null);
+                    view.setPowerActionsEnabled(isDisplayAvailable(currentDevice));
+                    view.setRefreshEnabled(true);
+                    view.setDeviceSelectorEnabled(true);
+                }
+            }
+        }.execute();
+    }
+
     private void browseCustomAdbPath() {
         File selectedFile = view.chooseAdbExecutable();
         if (selectedFile == null) {
@@ -448,6 +500,7 @@ public class SwingController {
                 && view.getCurrentApplicationDetails() != null);
         boolean displayAvailable = isDisplayAvailable(selectedDevice);
         view.setDisplayControlsEnabled(displayAvailable);
+        view.setPowerActionsEnabled(displayAvailable);
         view.setScrcpyDeviceAvailable(displayAvailable);
         boolean systemAvailable = isSystemAvailable(selectedDevice);
         view.setSystemDeviceAvailable(systemAvailable);
@@ -561,7 +614,8 @@ public class SwingController {
                         currentSelectedPackageName = null;
                         view.clearApplicationDetails();
                     } else {
-                        refreshVisibleApplicationSummaries();
+                        queueAllApplicationSummaries(applications);
+                        startApplicationEnrichmentIfNeeded(requestedSerial);
                         String selectedPackage = view.getSelectedApplicationPackage();
                         if (selectedPackage != null && !selectedPackage.isBlank()) {
                             loadApplicationDetails(selectedPackage);
@@ -1712,17 +1766,62 @@ public class SwingController {
             return;
         }
 
-        if (currentSelectedPackageName != null && !currentSelectedPackageName.isBlank()) {
-            queueApplicationSummary(currentSelectedPackageName);
-        }
-
-        for (String packageName : view.getVisibleApplicationPackages(VISIBLE_APP_ENRICHMENT_EXTRA_ROWS)) {
-            queueApplicationSummary(packageName);
-        }
+        prioritizeApplicationSummaries(currentSelectedPackageName, view.getVisibleApplicationPackages(VISIBLE_APP_ENRICHMENT_EXTRA_ROWS));
 
         if (!loadingApplications) {
             startApplicationEnrichmentIfNeeded(selectedDevice.serial());
         }
+    }
+
+    private void queueAllApplicationSummaries(List<InstalledApp> applications) {
+        resetApplicationEnrichmentState();
+        totalApplicationPackagesToEnrich = applications == null ? 0 : applications.size();
+        prioritizeApplicationSummaries(currentSelectedPackageName, view.getVisibleApplicationPackages(VISIBLE_APP_ENRICHMENT_EXTRA_ROWS));
+        if (applications == null) {
+            return;
+        }
+        for (InstalledApp application : applications) {
+            if (application != null) {
+                queueApplicationSummary(application.packageName());
+            }
+        }
+    }
+
+    private void prioritizeApplicationSummaries(String selectedPackageName, List<String> visiblePackages) {
+        List<String> prioritizedPackages = new java.util.ArrayList<>();
+        if (selectedPackageName != null && !selectedPackageName.isBlank()) {
+            prioritizedPackages.add(selectedPackageName);
+        }
+        if (visiblePackages != null) {
+            for (String packageName : visiblePackages) {
+                if (packageName != null
+                        && !packageName.isBlank()
+                        && !prioritizedPackages.contains(packageName)) {
+                    prioritizedPackages.add(packageName);
+                }
+            }
+        }
+
+        if (prioritizedPackages.isEmpty() || pendingApplicationPackages.isEmpty()) {
+            for (String packageName : prioritizedPackages) {
+                queueApplicationSummary(packageName);
+            }
+            return;
+        }
+
+        Set<String> reorderedPackages = new LinkedHashSet<>();
+        for (String packageName : prioritizedPackages) {
+            if (!enrichedApplicationPackages.contains(packageName)) {
+                reorderedPackages.add(packageName);
+            }
+        }
+        for (String packageName : pendingApplicationPackages) {
+            if (!enrichedApplicationPackages.contains(packageName)) {
+                reorderedPackages.add(packageName);
+            }
+        }
+        pendingApplicationPackages.clear();
+        pendingApplicationPackages.addAll(reorderedPackages);
     }
 
     private void queueApplicationSummary(String packageName) {
@@ -1761,47 +1860,55 @@ public class SwingController {
             return;
         }
 
-        final int total = packageNames.size();
-        view.setApplicationsLoading(true, Messages.format("apps.loading.metadata.progress", 0, total));
+        int initialLoadedCount = enrichedApplicationPackages.size();
+        view.setApplicationsLoading(true, Messages.format(
+                "apps.loading.metadata.progress",
+                initialLoadedCount,
+                Math.max(initialLoadedCount + packageNames.size(), totalApplicationPackagesToEnrich)));
 
         applicationEnrichmentWorker = new SwingWorker<>() {
-            private int enrichedCount;
-
             @Override
             protected Void doInBackground() {
-                for (String packageName : packageNames) {
-                    if (isCancelled() || !Objects.equals(requestedSerial, currentSelectedSerial)) {
-                        return null;
-                    }
+                if (isCancelled() || !Objects.equals(requestedSerial, currentSelectedSerial)) {
+                    return null;
+                }
 
-                    try {
-                        InstalledApp application = model.getSelectedDeviceApplicationSummary(packageName);
-                        publish(application);
-                    } catch (Exception ignored) {
+                try {
+                    List<InstalledApp> applications = model.getSelectedDeviceApplicationSummaries(packageNames);
+                    if (!isCancelled() && Objects.equals(requestedSerial, currentSelectedSerial)) {
+                        publish(applications);
                     }
+                } catch (Exception ignored) {
                 }
                 return null;
             }
 
             @Override
-            protected void process(List<InstalledApp> chunks) {
+            protected void process(List<List<InstalledApp>> chunks) {
                 if (!Objects.equals(requestedSerial, currentSelectedSerial)) {
                     return;
                 }
 
-                for (InstalledApp application : chunks) {
-                    if (application != null) {
+                for (List<InstalledApp> chunk : chunks) {
+                    List<InstalledApp> validApplications = chunk == null ? List.of() : chunk.stream()
+                            .filter(Objects::nonNull)
+                            .toList();
+                    if (validApplications.isEmpty()) {
+                        continue;
+                    }
+
+                    for (InstalledApp application : validApplications) {
                         enrichedApplicationPackages.add(application.packageName());
                         pendingApplicationPackages.remove(application.packageName());
-                        view.updateApplication(application);
-                        enrichedCount++;
                     }
+                    view.updateApplications(validApplications);
                 }
 
-                if (enrichedCount < total) {
-                    view.setApplicationsLoading(true,
-                            Messages.format("apps.loading.metadata.progress", enrichedCount, total));
-                }
+                view.setApplicationsLoading(true, Messages.format(
+                        "apps.loading.metadata.progress",
+                        enrichedApplicationPackages.size(),
+                        Math.max(enrichedApplicationPackages.size() + pendingApplicationPackages.size(),
+                                totalApplicationPackagesToEnrich)));
             }
 
             @Override
@@ -1838,6 +1945,7 @@ public class SwingController {
         cancelApplicationEnrichment();
         enrichedApplicationPackages.clear();
         pendingApplicationPackages.clear();
+        totalApplicationPackagesToEnrich = 0;
     }
 
     private UserConfig loadUserConfig() {

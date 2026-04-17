@@ -333,15 +333,23 @@ public class SettingsPanel extends JPanel {
 
         JPanel linksPanel = new JPanel(new GridLayout(1, 3, 10, 0));
         linksPanel.setOpaque(false);
+        linksPanel.setAlignmentX(LEFT_ALIGNMENT);
+        linksPanel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, 46));
         linksPanel.add(repositoryButton);
         linksPanel.add(scrcpyRepositoryButton);
         linksPanel.add(deviceCatalogButton);
 
+        brandRow.setAlignmentX(LEFT_ALIGNMENT);
+        brandRow.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, 46));
         aboutPanel.add(brandRow);
         aboutPanel.add(Box.createVerticalStrut(12));
         aboutSummaryLabel.setAlignmentX(LEFT_ALIGNMENT);
+        aboutSummaryLabel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         scrcpyCreditLabel.setAlignmentX(LEFT_ALIGNMENT);
+        scrcpyCreditLabel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         deviceCatalogCreditLabel.setAlignmentX(LEFT_ALIGNMENT);
+        deviceCatalogCreditLabel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        creditsTitleLabel.setAlignmentX(LEFT_ALIGNMENT);
 
         aboutPanel.add(aboutSummaryLabel);
         aboutPanel.add(Box.createVerticalStrut(18));
@@ -417,10 +425,14 @@ public class SettingsPanel extends JPanel {
         JPanel pathRow = new JPanel();
         pathRow.setOpaque(false);
         pathRow.setLayout(new BoxLayout(pathRow, BoxLayout.X_AXIS));
+        pathRow.setAlignmentX(LEFT_ALIGNMENT);
+        pathRow.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, 40));
         pathRow.add(adbPathField);
         pathRow.add(Box.createHorizontalStrut(10));
         pathRow.add(adbPathBrowseButton);
 
+        useCustomAdbPathCheckBox.setAlignmentX(LEFT_ALIGNMENT);
+        adbPathLabel.setAlignmentX(LEFT_ALIGNMENT);
         adbPanel.add(useCustomAdbPathCheckBox);
         adbPanel.add(Box.createVerticalStrut(12));
         adbPanel.add(adbPathLabel);
@@ -428,6 +440,7 @@ public class SettingsPanel extends JPanel {
         adbPanel.add(pathRow);
         adbPanel.add(Box.createVerticalStrut(10));
         adbHintLabel.setAlignmentX(LEFT_ALIGNMENT);
+        adbHintLabel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         adbPanel.add(adbHintLabel);
         updateAdbPathState();
     }
@@ -442,7 +455,7 @@ public class SettingsPanel extends JPanel {
                         TitledBorder.TOP,
                         new Font(Font.SANS_SERIF, Font.BOLD, 18),
                         theme.textPrimary()),
-                BorderFactory.createEmptyBorder(18, 18, 18, 18)));
+                BorderFactory.createEmptyBorder(16, 12, 16, 12)));
     }
 
     private void styleSectionLabel(JLabel label, AppTheme theme) {
@@ -540,15 +553,7 @@ public class SettingsPanel extends JPanel {
                 boolean isSelected,
                 boolean cellHasFocus) {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            if (index == -1) {
-                setOpaque(true);
-                setBackground(theme.secondarySurface());
-                setForeground(theme.textPrimary());
-            } else {
-                setOpaque(true);
-                setBackground(isSelected ? theme.selectionBackground() : theme.surface());
-                setForeground(isSelected ? theme.selectionForeground() : theme.textPrimary());
-            }
+            ThemedComboBoxUI.applyRendererColors(this, list, theme, isSelected, index);
             return this;
         }
     }

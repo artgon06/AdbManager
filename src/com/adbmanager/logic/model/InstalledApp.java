@@ -1,5 +1,6 @@
 package com.adbmanager.logic.model;
 
+import java.awt.image.BufferedImage;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -9,7 +10,18 @@ public record InstalledApp(
         String apkPath,
         long storageBytes,
         boolean systemApp,
-        boolean disabled) {
+        boolean disabled,
+        BufferedImage iconImage) {
+
+    public InstalledApp(
+            String packageName,
+            String displayName,
+            String apkPath,
+            long storageBytes,
+            boolean systemApp,
+            boolean disabled) {
+        this(packageName, displayName, apkPath, storageBytes, systemApp, disabled, null);
+    }
 
     public InstalledApp {
         packageName = Objects.requireNonNullElse(packageName, "");
@@ -31,15 +43,19 @@ public record InstalledApp(
     }
 
     public InstalledApp withDisplayName(String newDisplayName) {
-        return new InstalledApp(packageName, newDisplayName, apkPath, storageBytes, systemApp, disabled);
+        return new InstalledApp(packageName, newDisplayName, apkPath, storageBytes, systemApp, disabled, iconImage);
     }
 
     public InstalledApp withStorageBytes(long newStorageBytes) {
-        return new InstalledApp(packageName, displayName, apkPath, newStorageBytes, systemApp, disabled);
+        return new InstalledApp(packageName, displayName, apkPath, newStorageBytes, systemApp, disabled, iconImage);
     }
 
     public InstalledApp withFlags(boolean newSystemApp, boolean newDisabled) {
-        return new InstalledApp(packageName, displayName, apkPath, storageBytes, newSystemApp, newDisabled);
+        return new InstalledApp(packageName, displayName, apkPath, storageBytes, newSystemApp, newDisabled, iconImage);
+    }
+
+    public InstalledApp withIconImage(BufferedImage newIconImage) {
+        return new InstalledApp(packageName, displayName, apkPath, storageBytes, systemApp, disabled, newIconImage);
     }
 
     public String defaultApkFileName() {

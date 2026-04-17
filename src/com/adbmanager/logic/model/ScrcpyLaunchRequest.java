@@ -5,6 +5,7 @@ import java.util.Objects;
 public record ScrcpyLaunchRequest(
         LaunchTarget launchTarget,
         boolean fullscreen,
+        boolean turnScreenOff,
         Integer maxSize,
         Double maxFps,
         boolean recordEnabled,
@@ -38,6 +39,10 @@ public record ScrcpyLaunchRequest(
 
     public boolean usesCameraSource() {
         return launchTarget == LaunchTarget.CAMERA;
+    }
+
+    public boolean shouldTurnScreenOff() {
+        return turnScreenOff && !usesCameraSource();
     }
 
     public boolean hasMaxSize() {

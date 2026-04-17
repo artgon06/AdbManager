@@ -687,9 +687,7 @@ public class SystemPanel extends JPanel {
                 boolean isSelected,
                 boolean cellHasFocus) {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            setOpaque(true);
-            setBackground(isSelected ? theme.selectionBackground() : (index == -1 ? theme.secondarySurface() : theme.surface()));
-            setForeground(isSelected ? theme.selectionForeground() : theme.textPrimary());
+            ThemedComboBoxUI.applyRendererColors(this, list, theme, isSelected, index);
             if (value instanceof AndroidUser user) {
                 setText(formatUser(user));
             }
@@ -706,9 +704,7 @@ public class SystemPanel extends JPanel {
                 boolean isSelected,
                 boolean cellHasFocus) {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            setOpaque(true);
-            setBackground(isSelected ? theme.selectionBackground() : (index == -1 ? theme.secondarySurface() : theme.surface()));
-            setForeground(isSelected ? theme.selectionForeground() : theme.textPrimary());
+            ThemedComboBoxUI.applyRendererColors(this, list, theme, isSelected, index);
             if (value instanceof KeyboardInputMethod keyboard) {
                 setText(formatKeyboard(keyboard));
             }

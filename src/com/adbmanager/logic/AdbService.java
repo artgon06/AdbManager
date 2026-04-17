@@ -12,9 +12,12 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -25,6 +28,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -55,6 +59,7 @@ import com.adbmanager.logic.model.BundletoolDeviceSpec;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DeviceDetailsParser;
+import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.DeviceParser;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.logic.model.KeyboardInputMethod;
@@ -65,7 +70,10 @@ public class AdbService implements AdbModel {
 
     private static final String PRIMARY_USER_ID = "0";
     private static final int APK_SIZE_BATCH_SIZE = 24;
+    private static final int APP_SUMMARY_BATCH_SIZE = 50;
     private static final Duration LOCAL_TOOL_TIMEOUT = Duration.ofSeconds(20);
+    private static final String PACKAGE_BATCH_BEGIN_MARKER = "__ADBMANAGER_PKG_BEGIN__";
+    private static final String PACKAGE_BATCH_END_MARKER = "__ADBMANAGER_PKG_END__";
     private static final Pattern APP_OP_PATTERN = Pattern.compile("^([A-Z0-9_]+):\\s*(allow|ignore|deny|default)\\b");
     private static final Pattern BADGING_LABEL_PATTERN = Pattern.compile("^application-label(?:-[^:]+)?:'(.*?)'$");
     private static final Pattern BADGING_ICON_PATTERN = Pattern.compile("^application-icon-(\\d+):'(.*?)'$");
@@ -113,6 +121,7 @@ public class AdbService implements AdbModel {
     private final AppDetailsParser appDetailsParser = new AppDetailsParser();
     private final Map<String, ApplicationPresentation> applicationPresentationCache = new HashMap<>();
     private final Map<String, InstalledApp> applicationSummaryCache = new HashMap<>();
+    private volatile List<Path> cachedAaptExecutables;
     private List<Device> devices = List.of();
     private List<InstalledApp> applications = List.of();
     private String selectedDeviceSerial;
@@ -321,16 +330,58 @@ public class AdbService implements AdbModel {
     }
 
     @Override
+    public List<InstalledApp> getSelectedDeviceApplicationSummaries(List<String> packageNames) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.apps.deviceRequired"),
+                Messages.text("error.apps.deviceDisconnected"));
+
+        List<String> requestedPackages = normalizePackageNames(packageNames);
+        if (requestedPackages.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, InstalledApp> summariesByPackage = new LinkedHashMap<>();
+        for (int start = 0; start < requestedPackages.size(); start += APP_SUMMARY_BATCH_SIZE) {
+            int end = Math.min(start + APP_SUMMARY_BATCH_SIZE, requestedPackages.size());
+            List<String> batch = requestedPackages.subList(start, end);
+            Map<String, InstalledApp> batchSummaries = new LinkedHashMap<>();
+
+            try {
+                batchSummaries.putAll(loadApplicationSummaryBatch(device.serial(), batch));
+            } catch (Exception ignored) {
+            }
+
+            for (String packageName : batch) {
+                if (batchSummaries.containsKey(packageName)) {
+                    summariesByPackage.put(packageName, batchSummaries.get(packageName));
+                    continue;
+                }
+
+                try {
+                    summariesByPackage.put(packageName, loadApplicationSummarySlow(device, packageName));
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        return requestedPackages.stream()
+                .map(summariesByPackage::get)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    @Override
     public InstalledApp getSelectedDeviceApplicationSummary(String packageName) throws Exception {
         Device device = requireConnectedSelectedDevice(
                 Messages.text("error.apps.deviceRequired"),
                 Messages.text("error.apps.deviceDisconnected"));
         String targetPackage = requirePackageName(packageName);
 
-        InstalledApp baseApp = applications.stream()
-                .filter(application -> application.packageName().equals(targetPackage))
-                .findFirst()
-                .orElse(new InstalledApp(targetPackage, null, "", 0L, false, false));
+        return loadApplicationSummarySlow(device, targetPackage);
+    }
+
+    private InstalledApp loadApplicationSummarySlow(Device device, String targetPackage) throws Exception {
+        InstalledApp baseApp = baseApplicationFor(targetPackage);
 
         AdbResult dumpResult = client.runForSerial(device.serial(), List.of("shell", "dumpsys", "package", targetPackage));
         AdbResult pathResult = client.runForSerial(
@@ -385,6 +436,9 @@ public class AdbService implements AdbModel {
         InstalledApp updatedApplication = enrichedDetails.toListEntry().withFlags(baseApp.systemApp(), baseApp.disabled());
         if (!presentation.displayName().isBlank()) {
             updatedApplication = updatedApplication.withDisplayName(presentation.displayName());
+        }
+        if (presentation.iconImage() != null) {
+            updatedApplication = updatedApplication.withIconImage(presentation.iconImage());
         }
 
         cacheApplicationSummary(updatedApplication);
@@ -939,6 +993,39 @@ public class AdbService implements AdbModel {
         client.runForSerial(
                 device.serial(),
                 List.of("shell", "cmd", "uimode", "night", enabled ? "yes" : "no"));
+    }
+
+    @Override
+    public void performSelectedDevicePowerAction(DevicePowerAction action) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.display.deviceRequired"),
+                Messages.text("error.display.deviceDisconnected"));
+        DevicePowerAction safeAction = action == null ? DevicePowerAction.REBOOT_ANDROID : action;
+
+        List<String> command = switch (safeAction) {
+            case POWER_OFF -> List.of("shell", "reboot", "-p");
+            case REBOOT_ANDROID -> List.of("reboot");
+            case REBOOT_RECOVERY -> List.of("reboot", "recovery");
+            case REBOOT_BOOTLOADER -> List.of("reboot", "bootloader");
+            case REBOOT_FASTBOOTD -> List.of("shell", "reboot", "fastboot");
+            case REBOOT_DOWNLOAD -> List.of("shell", "reboot", "download");
+        };
+
+        AdbResult result = client.runForSerial(device.serial(), command);
+        String commandDescription = "adb -s " + device.serial() + " " + String.join(" ", command);
+        if (result.ok()) {
+            return;
+        }
+
+        String output = result.output() == null ? "" : result.output().trim().toLowerCase(Locale.ROOT);
+        if (output.contains("closed")
+                || output.contains("disconnected")
+                || output.contains("offline")
+                || output.contains("transport error")) {
+            return;
+        }
+
+        throw new Exception(commandDescription + " failed:\n" + result.output());
     }
 
     @Override
@@ -1647,21 +1734,310 @@ public class AdbService implements AdbModel {
             return null;
         }
 
-        InstalledApp cachedSummary = applicationSummaryCache.get(presentationCacheKey(
-                application.packageName(),
-                application.apkPath()));
+        String cacheKey = presentationCacheKey(application.packageName(), application.apkPath());
+        InstalledApp cachedSummary = applicationSummaryCache.get(cacheKey);
         if (cachedSummary != null) {
-            return cachedSummary.withFlags(application.systemApp(), application.disabled());
+            return cachedSummary.withFlags(application.systemApp(), application.disabled())
+                    .withStorageBytes(Math.max(application.storageBytes(), cachedSummary.storageBytes()));
         }
 
-        ApplicationPresentation presentation = applicationPresentationCache.get(presentationCacheKey(
-                application.packageName(),
-                application.apkPath()));
-        if (presentation == null || presentation.displayName().isBlank()) {
+        ApplicationPresentation presentation = applicationPresentationCache.get(cacheKey);
+        if (presentation == null) {
+            presentation = loadPresentationFromPersistentCache(cacheKey);
+        }
+        if (presentation == null || (presentation.displayName().isBlank() && presentation.iconImage() == null)) {
             return application;
         }
 
-        return application.withDisplayName(presentation.displayName());
+        InstalledApp updatedApplication = application;
+        if (!presentation.displayName().isBlank()) {
+            updatedApplication = updatedApplication.withDisplayName(presentation.displayName());
+        }
+        if (presentation.iconImage() != null) {
+            updatedApplication = updatedApplication.withIconImage(presentation.iconImage());
+        }
+        return updatedApplication;
+    }
+
+    private List<String> normalizePackageNames(List<String> packageNames) {
+        if (packageNames == null || packageNames.isEmpty()) {
+            return List.of();
+        }
+
+        LinkedHashSet<String> normalizedPackages = new LinkedHashSet<>();
+        for (String packageName : packageNames) {
+            if (packageName != null && !packageName.isBlank()) {
+                normalizedPackages.add(packageName.trim());
+            }
+        }
+        return List.copyOf(normalizedPackages);
+    }
+
+    private InstalledApp baseApplicationFor(String packageName) {
+        return applications.stream()
+                .filter(application -> application.packageName().equals(packageName))
+                .findFirst()
+                .orElse(new InstalledApp(packageName, null, "", 0L, false, false));
+    }
+
+    private Map<String, InstalledApp> loadApplicationSummaryBatch(String serial, List<String> packageNames) throws Exception {
+        Map<String, String> dumpOutputs = runPackageBatchCommand(
+                serial,
+                packageNames,
+                packageName -> "dumpsys package '" + packageName + "'",
+                "dumpsys package");
+        Map<String, String> pathOutputs = runPackageBatchCommand(
+                serial,
+                packageNames,
+                packageName -> "pm path --user " + PRIMARY_USER_ID + " '" + packageName + "'",
+                "pm path");
+        Map<String, Long> codeSizesByPackage = measureCodeSizesByPackage(serial, pathOutputs);
+        Map<String, SummarySeed> seedsByPackage = new LinkedHashMap<>();
+
+        for (String packageName : packageNames) {
+            InstalledApp baseApp = baseApplicationFor(packageName);
+            String dumpOutput = dumpOutputs.getOrDefault(packageName, "");
+            String pathOutput = pathOutputs.getOrDefault(packageName, "");
+            if (dumpOutput.isBlank() && pathOutput.isBlank()) {
+                continue;
+            }
+
+            String sourceDir = appDetailsParser.parsePrimaryApkPath(pathOutput, baseApp.apkPath());
+            long codeSizeBytes = Math.max(baseApp.storageBytes(), codeSizesByPackage.getOrDefault(packageName, 0L));
+            String parsedDisplayName = appDetailsParser.parseDisplayName(dumpOutput, baseApp.displayName());
+            seedsByPackage.put(packageName, new SummarySeed(baseApp, sourceDir, codeSizeBytes, parsedDisplayName));
+        }
+
+        Map<String, ApplicationPresentation> presentationsByPackage = resolveSummaryPresentationsInParallel(serial, seedsByPackage);
+        Map<String, InstalledApp> summaries = new LinkedHashMap<>();
+        for (String packageName : packageNames) {
+            SummarySeed seed = seedsByPackage.get(packageName);
+            if (seed == null) {
+                continue;
+            }
+
+            ApplicationPresentation presentation = presentationsByPackage.getOrDefault(packageName, ApplicationPresentation.empty());
+            String displayName = presentation.displayName().isBlank()
+                    ? seed.parsedDisplayName()
+                    : presentation.displayName();
+            InstalledApp summary = new InstalledApp(
+                    packageName,
+                    displayName,
+                    "-".equals(seed.sourceDir()) ? seed.baseApp().apkPath() : seed.sourceDir(),
+                    seed.codeSizeBytes(),
+                    seed.baseApp().systemApp(),
+                    seed.baseApp().disabled(),
+                    presentation.iconImage());
+            summary = mergeWithCachedSummary(summary);
+            summaries.put(packageName, summary);
+        }
+
+        replaceApplications(List.copyOf(summaries.values()));
+        return summaries;
+    }
+
+    private ApplicationPresentation resolveSummaryPresentation(
+            String serial,
+            String packageName,
+            String sourceDir,
+            String parsedDisplayName,
+            InstalledApp baseApp) {
+        String cacheKey = presentationCacheKey(packageName, sourceDir);
+        ApplicationPresentation cachedPresentation = applicationPresentationCache.get(cacheKey);
+        if (cachedPresentation != null) {
+            return cachedPresentation;
+        }
+
+        ApplicationPresentation persistentPresentation = loadPresentationFromPersistentCache(cacheKey);
+        if (persistentPresentation != null) {
+            return persistentPresentation;
+        }
+
+        return resolveApplicationPresentation(serial, packageName, sourceDir);
+    }
+
+    private boolean looksLikeUnresolvedDisplayName(String displayName, String packageName, String apkPath) {
+        if (displayName == null || displayName.isBlank()) {
+            return true;
+        }
+
+        String normalizedDisplayName = displayName.trim();
+        if (normalizedDisplayName.equalsIgnoreCase(packageName)) {
+            return true;
+        }
+
+        InstalledApp fallbackApplication = new InstalledApp(packageName, null, apkPath, 0L, false, false);
+        return normalizedDisplayName.equalsIgnoreCase(fallbackApplication.displayName())
+                || normalizedDisplayName.toLowerCase(Locale.ROOT).startsWith("com ")
+                || normalizedDisplayName.toLowerCase(Locale.ROOT).startsWith("org ")
+                || normalizedDisplayName.toLowerCase(Locale.ROOT).startsWith("net ")
+                || normalizedDisplayName.toLowerCase(Locale.ROOT).startsWith("io ");
+    }
+
+    private InstalledApp mergeWithCachedSummary(InstalledApp application) {
+        if (application == null) {
+            return null;
+        }
+
+        InstalledApp cachedSummary = applicationSummaryCache.get(presentationCacheKey(
+                application.packageName(),
+                application.apkPath()));
+        if (cachedSummary == null) {
+            return application;
+        }
+
+        String displayName = application.displayName();
+        if (looksLikeUnresolvedDisplayName(displayName, application.packageName(), application.apkPath())
+                && cachedSummary.displayName() != null
+                && !cachedSummary.displayName().isBlank()) {
+            displayName = cachedSummary.displayName();
+        }
+
+        BufferedImage iconImage = application.iconImage() != null
+                ? application.iconImage()
+                : cachedSummary.iconImage();
+        return new InstalledApp(
+                application.packageName(),
+                displayName,
+                application.apkPath(),
+                Math.max(application.storageBytes(), cachedSummary.storageBytes()),
+                application.systemApp(),
+                application.disabled(),
+                iconImage);
+    }
+
+    private Map<String, ApplicationPresentation> resolveSummaryPresentationsInParallel(
+            String serial,
+            Map<String, SummarySeed> seedsByPackage) {
+        if (seedsByPackage.isEmpty()) {
+            return Map.of();
+        }
+
+        int poolSize = Math.max(1, Math.min(4, seedsByPackage.size()));
+        ExecutorService executorService = Executors.newFixedThreadPool(poolSize);
+        try {
+            Map<String, Future<ApplicationPresentation>> futuresByPackage = new LinkedHashMap<>();
+            for (Map.Entry<String, SummarySeed> entry : seedsByPackage.entrySet()) {
+                String packageName = entry.getKey();
+                SummarySeed seed = entry.getValue();
+                futuresByPackage.put(packageName, executorService.submit(() -> resolveSummaryPresentation(
+                        serial,
+                        packageName,
+                        seed.sourceDir(),
+                        seed.parsedDisplayName(),
+                        seed.baseApp())));
+            }
+
+            Map<String, ApplicationPresentation> presentationsByPackage = new LinkedHashMap<>();
+            for (Map.Entry<String, Future<ApplicationPresentation>> entry : futuresByPackage.entrySet()) {
+                try {
+                    ApplicationPresentation presentation = entry.getValue().get();
+                    if (presentation != null) {
+                        presentationsByPackage.put(entry.getKey(), presentation);
+                    }
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (ExecutionException ignored) {
+                }
+            }
+            return presentationsByPackage;
+        } finally {
+            executorService.shutdownNow();
+        }
+    }
+
+    private Map<String, Long> measureCodeSizesByPackage(String serial, Map<String, String> pathOutputsByPackage) throws Exception {
+        Map<String, List<String>> pathsByPackage = new LinkedHashMap<>();
+        List<String> allPaths = new ArrayList<>();
+
+        for (Map.Entry<String, String> entry : pathOutputsByPackage.entrySet()) {
+            List<String> apkPaths = appDetailsParser.parseApkPaths(entry.getValue());
+            if (apkPaths.isEmpty()) {
+                continue;
+            }
+            pathsByPackage.put(entry.getKey(), apkPaths);
+            allPaths.addAll(apkPaths);
+        }
+
+        Map<String, Long> sizesByPath = new HashMap<>();
+        for (int start = 0; start < allPaths.size(); start += APK_SIZE_BATCH_SIZE) {
+            int end = Math.min(start + APK_SIZE_BATCH_SIZE, allPaths.size());
+            sizesByPath.putAll(measurePathsInBatch(serial, allPaths.subList(start, end)));
+        }
+
+        Map<String, Long> codeSizesByPackage = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> entry : pathsByPackage.entrySet()) {
+            long totalSize = 0L;
+            for (String apkPath : entry.getValue()) {
+                totalSize += Math.max(0L, sizesByPath.getOrDefault(apkPath, 0L));
+            }
+            codeSizesByPackage.put(entry.getKey(), totalSize);
+        }
+        return codeSizesByPackage;
+    }
+
+    private Map<String, String> runPackageBatchCommand(
+            String serial,
+            List<String> packageNames,
+            Function<String, String> commandBuilder,
+            String commandDescription) throws Exception {
+        if (packageNames.isEmpty()) {
+            return Map.of();
+        }
+
+        StringBuilder script = new StringBuilder();
+        for (String packageName : packageNames) {
+            script.append("printf '")
+                    .append(PACKAGE_BATCH_BEGIN_MARKER)
+                    .append(packageName)
+                    .append("\\n';");
+            script.append(commandBuilder.apply(packageName)).append(';');
+            script.append("printf '\\n")
+                    .append(PACKAGE_BATCH_END_MARKER)
+                    .append(packageName)
+                    .append("\\n';");
+        }
+
+        AdbResult result = client.runForSerial(serial, List.of("shell", "sh", "-c", script.toString()));
+        assertOk(result, "adb -s " + serial + " shell sh -c [" + commandDescription + "]");
+        return parsePackageBatchOutput(result.output());
+    }
+
+    private Map<String, String> parsePackageBatchOutput(String output) {
+        Map<String, String> sectionsByPackage = new LinkedHashMap<>();
+        if (output == null || output.isBlank()) {
+            return sectionsByPackage;
+        }
+
+        String currentPackage = null;
+        StringBuilder currentOutput = new StringBuilder();
+        for (String line : output.split("\\R")) {
+            if (line.startsWith(PACKAGE_BATCH_BEGIN_MARKER)) {
+                currentPackage = line.substring(PACKAGE_BATCH_BEGIN_MARKER.length()).trim();
+                currentOutput.setLength(0);
+                continue;
+            }
+
+            if (line.startsWith(PACKAGE_BATCH_END_MARKER)) {
+                String finishedPackage = line.substring(PACKAGE_BATCH_END_MARKER.length()).trim();
+                if (currentPackage != null && currentPackage.equals(finishedPackage)) {
+                    sectionsByPackage.put(currentPackage, currentOutput.toString().trim());
+                }
+                currentPackage = null;
+                currentOutput.setLength(0);
+                continue;
+            }
+
+            if (currentPackage != null) {
+                if (currentOutput.length() > 0) {
+                    currentOutput.append(System.lineSeparator());
+                }
+                currentOutput.append(line);
+            }
+        }
+
+        return sectionsByPackage;
     }
 
     private void cacheApplicationSummary(InstalledApp application) {
@@ -1738,6 +2114,11 @@ public class AdbService implements AdbModel {
             return applicationPresentationCache.get(cacheKey);
         }
 
+        ApplicationPresentation persistentPresentation = loadPresentationFromPersistentCache(cacheKey);
+        if (persistentPresentation != null) {
+            return persistentPresentation;
+        }
+
         ApplicationPresentation presentation = ApplicationPresentation.empty();
         try {
             List<Path> aaptExecutables = locateAaptExecutables();
@@ -1764,10 +2145,17 @@ public class AdbService implements AdbModel {
         }
 
         applicationPresentationCache.put(cacheKey, presentation);
+        if (!presentation.displayName().isBlank() || presentation.iconImage() != null) {
+            savePresentationToPersistentCache(cacheKey, presentation);
+        }
         return presentation;
     }
 
     private List<Path> locateAaptExecutables() {
+        if (cachedAaptExecutables != null) {
+            return cachedAaptExecutables;
+        }
+
         List<Path> candidates = new ArrayList<>();
         addSdkBuildToolsCandidates(candidates, System.getenv("ANDROID_HOME"));
         addSdkBuildToolsCandidates(candidates, System.getenv("ANDROID_SDK_ROOT"));
@@ -1777,10 +2165,12 @@ public class AdbService implements AdbModel {
             addSdkBuildToolsCandidates(candidates, Path.of(localAppData, "Android", "Sdk").toString());
         }
 
-        return candidates.stream()
+        List<Path> resolvedExecutables = candidates.stream()
                 .filter(Files::exists)
                 .sorted(Comparator.reverseOrder())
                 .toList();
+        cachedAaptExecutables = resolvedExecutables;
+        return resolvedExecutables;
     }
 
     private void addSdkBuildToolsCandidates(List<Path> candidates, String sdkRoot) {
@@ -2280,6 +2670,72 @@ public class AdbService implements AdbModel {
         return packageName + "|" + (sourceDir == null ? "" : sourceDir);
     }
 
+    private ApplicationPresentation loadPresentationFromPersistentCache(String cacheKey) {
+        if (cacheKey == null || cacheKey.isBlank()) {
+            return null;
+        }
+
+        Path cacheDirectory = persistentPresentationCacheDirectory();
+        String fileBase = persistentPresentationFileBase(cacheKey);
+        Path labelFile = cacheDirectory.resolve(fileBase + ".txt");
+        Path iconFile = cacheDirectory.resolve(fileBase + ".png");
+        if (!Files.isRegularFile(labelFile) && !Files.isRegularFile(iconFile)) {
+            return null;
+        }
+
+        try {
+            String displayName = Files.isRegularFile(labelFile)
+                    ? Files.readString(labelFile, StandardCharsets.UTF_8).trim()
+                    : "";
+            BufferedImage iconImage = Files.isRegularFile(iconFile) ? ImageIO.read(iconFile.toFile()) : null;
+            ApplicationPresentation presentation = new ApplicationPresentation(displayName, iconImage);
+            applicationPresentationCache.put(cacheKey, presentation);
+            return presentation;
+        } catch (IOException ignored) {
+            return null;
+        }
+    }
+
+    private void savePresentationToPersistentCache(String cacheKey, ApplicationPresentation presentation) {
+        if (cacheKey == null || cacheKey.isBlank() || presentation == null) {
+            return;
+        }
+
+        if (presentation.displayName().isBlank() && presentation.iconImage() == null) {
+            return;
+        }
+
+        try {
+            Path cacheDirectory = persistentPresentationCacheDirectory();
+            Files.createDirectories(cacheDirectory);
+            String fileBase = persistentPresentationFileBase(cacheKey);
+            Path labelFile = cacheDirectory.resolve(fileBase + ".txt");
+            Path iconFile = cacheDirectory.resolve(fileBase + ".png");
+
+            if (!presentation.displayName().isBlank()) {
+                Files.writeString(labelFile, presentation.displayName(), StandardCharsets.UTF_8);
+            }
+            if (presentation.iconImage() != null) {
+                ImageIO.write(presentation.iconImage(), "png", iconFile.toFile());
+            }
+        } catch (IOException ignored) {
+        }
+    }
+
+    private Path persistentPresentationCacheDirectory() {
+        return Path.of(System.getProperty("user.home"), ".adbmanager", "cache", "apps");
+    }
+
+    private String persistentPresentationFileBase(String cacheKey) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(cacheKey.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            return Integer.toHexString(cacheKey.hashCode());
+        }
+    }
+
     private void syncSelectedDevice() {
         if (selectedDeviceSerial == null) {
             return;
@@ -2443,20 +2899,35 @@ public class AdbService implements AdbModel {
     }
 
     private void replaceApplication(InstalledApp updatedApplication) {
-        cacheApplicationSummary(updatedApplication);
+        replaceApplications(List.of(updatedApplication));
+    }
+
+    private void replaceApplications(List<InstalledApp> updatedApplications) {
+        if (updatedApplications == null || updatedApplications.isEmpty()) {
+            return;
+        }
+
+        Map<String, InstalledApp> updatesByPackage = new LinkedHashMap<>();
+        for (InstalledApp updatedApplication : updatedApplications) {
+            if (updatedApplication != null) {
+                cacheApplicationSummary(updatedApplication);
+                updatesByPackage.put(updatedApplication.packageName(), updatedApplication);
+            }
+        }
+        if (updatesByPackage.isEmpty()) {
+            return;
+        }
+
         List<InstalledApp> mutableApplications = new ArrayList<>(applications);
         for (int index = 0; index < mutableApplications.size(); index++) {
-            if (mutableApplications.get(index).packageName().equals(updatedApplication.packageName())) {
+            InstalledApp existingApplication = mutableApplications.get(index);
+            InstalledApp updatedApplication = updatesByPackage.remove(existingApplication.packageName());
+            if (updatedApplication != null) {
                 mutableApplications.set(index, updatedApplication);
-                mutableApplications.sort(Comparator
-                        .comparing(InstalledApp::displayName, String.CASE_INSENSITIVE_ORDER)
-                        .thenComparing(InstalledApp::packageName, String.CASE_INSENSITIVE_ORDER));
-                applications = List.copyOf(mutableApplications);
-                return;
             }
         }
 
-        mutableApplications.add(updatedApplication);
+        mutableApplications.addAll(updatesByPackage.values());
         mutableApplications.sort(Comparator
                 .comparing(InstalledApp::displayName, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(InstalledApp::packageName, String.CASE_INSENSITIVE_ORDER));
@@ -2749,6 +3220,13 @@ public class AdbService implements AdbModel {
     }
 
     private record PackagePath(String packageName, String apkPath) {
+    }
+
+    private record SummarySeed(
+            InstalledApp baseApp,
+            String sourceDir,
+            long codeSizeBytes,
+            String parsedDisplayName) {
     }
 
     private record ApplicationPresentation(String displayName, BufferedImage iconImage) {

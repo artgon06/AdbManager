@@ -14,8 +14,10 @@ import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JComboBox;
+import javax.swing.JList;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.plaf.basic.BasicComboBoxUI;
 import javax.swing.plaf.basic.BasicComboPopup;
@@ -120,15 +122,46 @@ public class ThemedComboBoxUI extends BasicComboBoxUI {
 
         boolean enabled = comboBox.isEnabled();
         editorField.setOpaque(true);
-        editorField.setEnabled(enabled);
+        editorField.setEnabled(true);
         editorField.setEditable(enabled);
+        editorField.setFocusable(enabled);
         editorField.setBackground(enabled ? theme.secondarySurface() : theme.surface());
         editorField.setForeground(enabled ? theme.textPrimary() : theme.textSecondary());
         editorField.setDisabledTextColor(theme.textSecondary());
-        editorField.setCaretColor(theme.textPrimary());
+        editorField.setCaretColor(enabled ? theme.textPrimary() : theme.textSecondary());
         editorField.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 2));
         editorField.setSelectionColor(theme.selectionBackground());
         editorField.setSelectedTextColor(theme.selectionForeground());
+    }
+
+    public static void applyRendererColors(
+            DefaultListCellRenderer renderer,
+            JList<?> list,
+            AppTheme theme,
+            boolean isSelected,
+            int index) {
+        boolean enabled = true;
+        if (list instanceof JComponent component) {
+            Object property = component.getClientProperty("combo.enabled");
+            if (property instanceof Boolean comboEnabled) {
+                enabled = comboEnabled;
+            } else {
+                enabled = list.isEnabled();
+            }
+        } else if (list != null) {
+            enabled = list.isEnabled();
+        }
+        renderer.setOpaque(true);
+        if (index == -1) {
+            renderer.setBackground(enabled ? theme.secondarySurface() : theme.surface());
+            renderer.setForeground(enabled ? theme.textPrimary() : theme.textSecondary());
+            return;
+        }
+
+        renderer.setBackground(isSelected ? theme.selectionBackground() : theme.surface());
+        renderer.setForeground(isSelected
+                ? theme.selectionForeground()
+                : (enabled ? theme.textPrimary() : theme.textSecondary()));
     }
 
     private void updateStateColors() {
@@ -138,6 +171,9 @@ public class ThemedComboBoxUI extends BasicComboBoxUI {
 
         comboBox.setBackground(resolveSurfaceColor());
         comboBox.setForeground(comboBox.isEnabled() ? theme.textPrimary() : theme.textSecondary());
+        if (listBox instanceof JComponent component) {
+            component.putClientProperty("combo.enabled", comboBox.isEnabled());
+        }
         if (arrowButtonRef != null) {
             arrowButtonRef.setBackground(resolveSurfaceColor());
             arrowButtonRef.setForeground(theme.textSecondary());

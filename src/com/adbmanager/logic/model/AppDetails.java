@@ -58,7 +58,9 @@ public record AppDetails(
     }
 
     public InstalledApp toListEntry() {
-        return app.withDisplayName(displayName).withStorageBytes(totalStorageBytes());
+        return app.withDisplayName(displayName)
+                .withStorageBytes(totalStorageBytes())
+                .withIconImage(iconImage);
     }
 
     private static String normalize(String value, String fallback) {
