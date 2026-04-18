@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.imageio.ImageIO;
+import javax.swing.Timer;
 import javax.swing.SwingWorker;
 
 import com.adbmanager.logic.AdbModel;
@@ -80,6 +81,8 @@ public class SwingController {
     private int totalApplicationPackagesToEnrich;
     private boolean autoRefreshOnFocus = true;
     private WirelessPairingQrPayload currentQrPayload;
+    private String pendingPowerActionSerial;
+    private long pendingPowerActionUntilMs;
 
     public SwingController(AdbModel model, ScrcpyService scrcpyService, MainFrame view) {
         this.model = model;
@@ -192,6 +195,7 @@ public class SwingController {
     }
 
     private void refreshDevices() {
+        clearPowerActionPendingIfExpired();
         if (loadingDevices) {
             return;
         }
@@ -422,8 +426,11 @@ public class SwingController {
             protected void done() {
                 try {
                     get();
+                    markPowerActionPending(selectedDevice.serial());
                     view.showInfo(Messages.format("info.power.sent", actionLabel));
                     refreshDevices();
+                    schedulePostPowerActionRefresh(4000);
+                    schedulePostPowerActionRefresh(12000);
                 } catch (Exception e) {
                     handleError(Messages.text("error.power.action"), e);
                     Device currentDevice = model.getSelectedDevice().orElse(null);
@@ -464,9 +471,71 @@ public class SwingController {
         view.showInfo(url);
     }
 
+    private void markPowerActionPending(String serial) {
+        if (serial == null || serial.isBlank()) {
+            return;
+        }
+
+        pendingPowerActionSerial = serial;
+        pendingPowerActionUntilMs = System.currentTimeMillis() + 25000L;
+    }
+
+    private void clearPowerActionPendingIfExpired() {
+        if (pendingPowerActionSerial == null) {
+            return;
+        }
+
+        if (System.currentTimeMillis() > pendingPowerActionUntilMs) {
+            pendingPowerActionSerial = null;
+            pendingPowerActionUntilMs = 0L;
+        }
+    }
+
+    private boolean isPowerActionPendingFor(String serial) {
+        clearPowerActionPendingIfExpired();
+        if (serial == null || serial.isBlank()) {
+            return false;
+        }
+
+        return serial.equals(pendingPowerActionSerial) && System.currentTimeMillis() <= pendingPowerActionUntilMs;
+    }
+
+    private boolean shouldSuppressApplicationLoadError(String serial, Exception exception) {
+        if (!isPowerActionPendingFor(serial)) {
+            return false;
+        }
+
+        String detail = extractErrorMessage(exception, "");
+        String normalized = detail == null ? "" : detail.toLowerCase(java.util.Locale.ROOT);
+        return normalized.contains("device offline")
+                || normalized.contains("closed")
+                || normalized.contains("disconnected")
+                || normalized.contains("transport")
+                || normalized.contains("not found")
+                || normalized.contains("no devices/emulators")
+                || normalized.contains("timed out")
+                || normalized.contains("timeout");
+    }
+
+    private void schedulePostPowerActionRefresh(int delayMs) {
+        Timer timer = new Timer(delayMs, event -> {
+            Timer source = (Timer) event.getSource();
+            source.stop();
+            if (pendingPowerActionSerial != null) {
+                refreshDevices();
+            }
+        });
+        timer.setRepeats(false);
+        timer.start();
+    }
+
     private void updateDevicePresentation(Device selectedDevice, DeviceDetails details) {
         String previousSerial = currentSelectedSerial;
         currentSelectedSerial = selectedDevice == null ? null : selectedDevice.serial();
+        if (pendingPowerActionSerial != null && !pendingPowerActionSerial.equals(currentSelectedSerial)) {
+            pendingPowerActionSerial = null;
+            pendingPowerActionUntilMs = 0L;
+        }
 
         if (!Objects.equals(previousSerial, currentSelectedSerial)) {
             applicationsLoadedSerial = null;
@@ -561,6 +630,14 @@ public class SwingController {
             return;
         }
 
+        if (isPowerActionPendingFor(selectedDevice.serial())) {
+            resetApplicationEnrichmentState();
+            view.setApplicationsLoading(true, Messages.text("apps.loading.afterPowerAction"));
+            view.setApplicationsEnabled(false);
+            view.setApplicationActionsEnabled(false);
+            return;
+        }
+
         if (loadingApplications) {
             return;
         }
@@ -586,6 +663,13 @@ public class SwingController {
         }
 
         String requestedSerial = selectedDevice.serial();
+        if (isPowerActionPendingFor(requestedSerial)) {
+            resetApplicationEnrichmentState();
+            view.setApplicationsLoading(true, Messages.text("apps.loading.afterPowerAction"));
+            view.setApplicationsEnabled(false);
+            view.setApplicationActionsEnabled(false);
+            return;
+        }
         String preferredPackage = currentSelectedPackageName;
         loadingApplications = true;
         resetApplicationEnrichmentState();
@@ -622,7 +706,9 @@ public class SwingController {
                         }
                     }
                 } catch (Exception e) {
-                    handleError(Messages.text("error.apps.load"), e);
+                    if (!shouldSuppressApplicationLoadError(requestedSerial, e)) {
+                        handleError(Messages.text("error.apps.load"), e);
+                    }
                     resetApplicationEnrichmentState();
                     view.setApplicationsLoading(false, "");
                     view.clearApplications();

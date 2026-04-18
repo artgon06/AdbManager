@@ -191,77 +191,89 @@ public class AdbService implements AdbModel {
             return Optional.of(detailsParser.fromDevice(device));
         }
 
-        AdbResult propertiesResult = client.runForSerial(device.serial(), List.of("shell", "getprop"));
-        if (!propertiesResult.ok()) {
-            throw new Exception("adb -s " + device.serial() + " shell getprop failed:\n" + propertiesResult.output());
-        }
-
-        AdbResult memoryResult = client.runForSerial(device.serial(), List.of("shell", "cat", "/proc/meminfo"));
-        if (!memoryResult.ok()) {
-            throw new Exception("adb -s " + device.serial() + " shell cat /proc/meminfo failed:\n" + memoryResult.output());
-        }
-
-        AdbResult batteryResult = client.runForSerial(device.serial(), List.of("shell", "dumpsys", "battery"));
-        if (!batteryResult.ok()) {
-            throw new Exception("adb -s " + device.serial() + " shell dumpsys battery failed:\n"
-                    + batteryResult.output());
-        }
-
-        AdbResult storageResult = client.runForSerial(device.serial(), List.of("shell", "df", "-k", "/data"));
-        if (!storageResult.ok()) {
-            throw new Exception("adb -s " + device.serial() + " shell df -k /data failed:\n"
-                    + storageResult.output());
-        }
-
-        AdbResult featuresResult = client.runForSerial(device.serial(), List.of("shell", "pm", "list", "features"));
-        if (!featuresResult.ok()) {
-            throw new Exception("adb -s " + device.serial() + " shell pm list features failed:\n" + featuresResult.output());
-        }
-
-        AdbResult sizeResult = client.runForSerial(device.serial(), List.of("shell", "wm", "size"));
-        if (!sizeResult.ok()) {
-            throw new Exception("adb -s " + device.serial() + " shell wm size failed:\n" + sizeResult.output());
-        }
-
-        AdbResult densityResult = client.runForSerial(device.serial(), List.of("shell", "wm", "density"));
-        if (!densityResult.ok()) {
-            throw new Exception("adb -s " + device.serial() + " shell wm density failed:\n" + densityResult.output());
-        }
-
-        AdbResult displayResult = client.runForSerial(device.serial(), List.of("shell", "dumpsys", "display"));
-        if (!displayResult.ok()) {
-            throw new Exception("adb -s " + device.serial() + " shell dumpsys display failed:\n" + displayResult.output());
-        }
-
-        AdbResult darkModeResult = client.runForSerial(
+        String propertiesOutput = runDeviceInfoCommandOrEmpty(
                 device.serial(),
-                List.of("shell", "settings", "get", "secure", "ui_night_mode"));
-        if (!darkModeResult.ok()) {
-            throw new Exception("adb -s " + device.serial() + " shell settings get secure ui_night_mode failed:\n"
-                    + darkModeResult.output());
-        }
-
-        AdbResult screenTimeoutResult = client.runForSerial(
+                List.of("shell", "getprop"),
+                "shell getprop");
+        String memoryOutput = runDeviceInfoCommandOrEmpty(
                 device.serial(),
-                List.of("shell", "settings", "get", "system", "screen_off_timeout"));
-        if (!screenTimeoutResult.ok()) {
-            throw new Exception("adb -s " + device.serial()
-                    + " shell settings get system screen_off_timeout failed:\n"
-                    + screenTimeoutResult.output());
-        }
+                List.of("shell", "cat", "/proc/meminfo"),
+                "shell cat /proc/meminfo");
+        String batteryOutput = runDeviceInfoCommandOrEmpty(
+                device.serial(),
+                List.of("shell", "dumpsys", "battery"),
+                "shell dumpsys battery");
+        String storageOutput = runDeviceInfoCommandOrEmpty(
+                device.serial(),
+                List.of("shell", "df", "-k", "/data"),
+                "shell df -k /data");
+        String featuresOutput = runDeviceInfoCommandOrEmpty(
+                device.serial(),
+                List.of("shell", "pm", "list", "features"),
+                "shell pm list features");
+        String sizeOutput = runDeviceInfoCommandOrEmpty(
+                device.serial(),
+                List.of("shell", "wm", "size"),
+                "shell wm size");
+        String densityOutput = runDeviceInfoCommandOrEmpty(
+                device.serial(),
+                List.of("shell", "wm", "density"),
+                "shell wm density");
+        String displayOutput = runDeviceInfoCommandOrEmpty(
+                device.serial(),
+                List.of("shell", "dumpsys", "display"),
+                "shell dumpsys display");
+        String darkModeOutput = runDeviceInfoCommandOrEmpty(
+                device.serial(),
+                List.of("shell", "settings", "get", "secure", "ui_night_mode"),
+                "shell settings get secure ui_night_mode");
+        String screenTimeoutOutput = runDeviceInfoCommandOrEmpty(
+                device.serial(),
+                List.of("shell", "settings", "get", "system", "screen_off_timeout"),
+                "shell settings get system screen_off_timeout");
 
         return Optional.of(detailsParser.parse(
                 device,
-                propertiesResult.output(),
-                memoryResult.output(),
-                batteryResult.output(),
-                storageResult.output(),
-                featuresResult.output(),
-                sizeResult.output(),
-                densityResult.output(),
-                displayResult.output(),
-                darkModeResult.output(),
-                screenTimeoutResult.output()));
+                propertiesOutput,
+                memoryOutput,
+                batteryOutput,
+                storageOutput,
+                featuresOutput,
+                sizeOutput,
+                densityOutput,
+                displayOutput,
+                darkModeOutput,
+                screenTimeoutOutput));
+    }
+
+    private String runDeviceInfoCommandOrEmpty(
+            String serial,
+            List<String> args,
+            String commandDescription) throws Exception {
+        AdbResult result = client.runForSerial(serial, args);
+        if (result.ok()) {
+            return result.output();
+        }
+
+        String output = result.output() == null ? "" : result.output();
+        if (isTransientServiceNotReadyError(output)) {
+            return "";
+        }
+
+        throw new Exception("adb -s " + serial + " " + commandDescription + " failed:\n" + output);
+    }
+
+    private boolean isTransientServiceNotReadyError(String output) {
+        String normalized = output == null ? "" : output.toLowerCase(Locale.ROOT);
+        return normalized.contains("can't find service")
+                || normalized.contains("service not found")
+                || normalized.contains("device offline")
+                || normalized.contains("disconnected")
+                || normalized.contains("transport")
+                || normalized.contains("no devices/emulators found")
+                || normalized.contains("closed")
+                || normalized.contains("timeout")
+                || normalized.contains("timed out");
     }
 
     @Override

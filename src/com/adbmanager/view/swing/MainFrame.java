@@ -5,6 +5,7 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Cursor;
+import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.InputEvent;
@@ -75,7 +76,6 @@ public class MainFrame extends JFrame {
     private final JToggleButton appsButton = new JToggleButton();
     private final JToggleButton systemButton = new JToggleButton();
     private final JToggleButton settingsButton = new JToggleButton();
-    private final JButton powerButton = new JButton();
     private final JButton wirelessButton = new JButton("+");
     private final JButton refreshButton = new JButton();
     private final JPopupMenu powerMenu = new JPopupMenu();
@@ -102,6 +102,10 @@ public class MainFrame extends JFrame {
 
     public void setCaptureAction(ActionListener actionListener) {
         homePanel.setCaptureAction(actionListener);
+    }
+
+    public void setPowerButtonAction(ActionListener actionListener) {
+        homePanel.setPowerButtonAction(actionListener);
     }
 
     public void setSaveCaptureAction(ActionListener actionListener) {
@@ -374,7 +378,6 @@ public class MainFrame extends JFrame {
         systemButton.setToolTipText(Messages.text("navigation.system.tooltip"));
         settingsButton.setToolTipText(Messages.text("navigation.settings.tooltip"));
         wirelessButton.setToolTipText(Messages.text("navigation.wireless.tooltip"));
-        powerButton.setToolTipText(Messages.text("navigation.power.tooltip"));
         refreshButton.setToolTipText(Messages.text("navigation.refresh.tooltip"));
         for (Map.Entry<DevicePowerAction, JMenuItem> entry : powerMenuItems.entrySet()) {
             entry.getValue().setText(Messages.text(entry.getKey().messageKey()));
@@ -747,11 +750,10 @@ public class MainFrame extends JFrame {
     }
 
     public void setPowerActionsEnabled(boolean enabled) {
-        powerButton.setEnabled(enabled);
+        homePanel.setPowerEnabled(enabled);
         for (JMenuItem menuItem : powerMenuItems.values()) {
             menuItem.setEnabled(enabled);
         }
-        stylePowerButton();
     }
 
     public void setRefreshEnabled(boolean enabled) {
@@ -807,7 +809,6 @@ public class MainFrame extends JFrame {
         styleNavigationButton(appsButton);
         styleNavigationButton(systemButton);
         styleNavigationButton(settingsButton);
-        stylePowerButton();
         styleWirelessButton();
         styleRefreshButton();
         stylePowerMenu();
@@ -871,10 +872,14 @@ public class MainFrame extends JFrame {
         configureNavigationButton(appsButton, ToolbarIcon.Type.APPS);
         configureNavigationButton(systemButton, ToolbarIcon.Type.SYSTEM);
         configureNavigationButton(settingsButton, ToolbarIcon.Type.SETTINGS);
-        configurePowerButton();
         configureWirelessButton();
         configureRefreshButton();
         buildPowerMenu();
+        homePanel.setPowerButtonAction(event -> {
+            if (event.getSource() instanceof Component source && source.isShowing()) {
+                powerMenu.show(source, 0, source.getHeight());
+            }
+        });
 
         navigationGroup.add(homeButton);
         navigationGroup.add(displayButton);
@@ -889,7 +894,6 @@ public class MainFrame extends JFrame {
 
         deviceSelectorPanel.add(deviceLabel);
         deviceSelectorPanel.add(deviceSelector);
-        deviceSelectorPanel.add(powerButton);
         deviceSelectorPanel.add(wirelessButton);
         deviceSelectorPanel.add(refreshButton);
 
@@ -935,22 +939,6 @@ public class MainFrame extends JFrame {
 
         deviceSelector.setFocusable(false);
         deviceSelector.setMaximumRowCount(12);
-    }
-
-    private void configurePowerButton() {
-        powerButton.setUI(new BasicButtonUI());
-        powerButton.setFocusable(false);
-        powerButton.setFocusPainted(false);
-        powerButton.setRolloverEnabled(true);
-        powerButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        powerButton.setPreferredSize(new Dimension(TOP_BAR_HEIGHT, TOP_BAR_HEIGHT));
-        powerButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
-        powerButton.getModel().addChangeListener(event -> stylePowerButton());
-        powerButton.addActionListener(event -> {
-            if (powerButton.isEnabled()) {
-                powerMenu.show(powerButton, 0, powerButton.getHeight());
-            }
-        });
     }
 
     private void configureWirelessButton() {
@@ -1018,20 +1006,6 @@ public class MainFrame extends JFrame {
                 : currentTheme.textSecondary());
         refreshButton.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, refreshButton.getBackground()));
         refreshButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.REFRESH, 20, refreshButton.getForeground()));
-    }
-
-    private void stylePowerButton() {
-        boolean hovered = powerButton.getModel().isRollover() && powerButton.isEnabled();
-        powerButton.setOpaque(true);
-        powerButton.setContentAreaFilled(true);
-        powerButton.setBackground(hovered
-                ? ThemeUtils.blend(currentTheme.surface(), currentTheme.selectionBackground(), 0.24d)
-                : currentTheme.surface());
-        powerButton.setForeground(powerButton.isEnabled()
-                ? currentTheme.actionBackground()
-                : currentTheme.textSecondary());
-        powerButton.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, powerButton.getBackground()));
-        powerButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.POWER, 20, powerButton.getForeground()));
     }
 
     private void styleWirelessButton() {

@@ -44,6 +44,7 @@ public class HomePanel extends JPanel {
     private static final String FIELD_SERIAL = "serial";
     private static final int SUMMARY_COLUMNS = 3;
 
+    private final JButton powerButton = new JButton();
     private final JButton captureButton = new JButton();
     private final JButton saveScreenshotButton = new JButton();
     private final ScreenshotPreviewPanel screenshotPreviewPanel = new ScreenshotPreviewPanel();
@@ -152,12 +153,21 @@ public class HomePanel extends JPanel {
         captureButton.addActionListener(actionListener);
     }
 
+    public void setPowerButtonAction(ActionListener actionListener) {
+        powerButton.addActionListener(actionListener);
+    }
+
     public void setSaveCaptureAction(ActionListener actionListener) {
         saveScreenshotButton.addActionListener(actionListener);
     }
 
     public void setCaptureEnabled(boolean enabled) {
         captureButton.setEnabled(enabled);
+        updateActionButtonsStyle();
+    }
+
+    public void setPowerEnabled(boolean enabled) {
+        powerButton.setEnabled(enabled);
         updateActionButtonsStyle();
     }
 
@@ -183,6 +193,7 @@ public class HomePanel extends JPanel {
     }
 
     public void refreshTexts() {
+        powerButton.setToolTipText(Messages.text("navigation.power.tooltip"));
         captureButton.setText(Messages.text("home.capture"));
         saveScreenshotButton.setText(Messages.text("home.saveCapture"));
 
@@ -365,6 +376,15 @@ public class HomePanel extends JPanel {
         JPanel topActionsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         topActionsPanel.setOpaque(false);
 
+        powerButton.setUI(new BasicButtonUI());
+        powerButton.setFocusPainted(false);
+        powerButton.setRolloverEnabled(true);
+        powerButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        powerButton.getModel().addChangeListener(event -> stylePowerButton());
+        powerButton.setPreferredSize(new Dimension(42, 42));
+        topActionsPanel.add(powerButton);
+        topActionsPanel.add(Box.createHorizontalStrut(10));
+
         captureButton.setUI(new BasicButtonUI());
         captureButton.setFocusPainted(false);
         captureButton.setRolloverEnabled(true);
@@ -412,8 +432,31 @@ public class HomePanel extends JPanel {
     }
 
     private void updateActionButtonsStyle() {
+        stylePowerButton();
         styleActionButton(captureButton, true);
         styleActionButton(saveScreenshotButton, false);
+    }
+
+    private void stylePowerButton() {
+        boolean enabled = powerButton.isEnabled();
+        boolean hovered = enabled && powerButton.getModel().isRollover();
+        powerButton.setOpaque(true);
+        powerButton.setContentAreaFilled(true);
+        powerButton.setBorderPainted(true);
+        powerButton.setText("");
+        powerButton.setIcon(new ToolbarIcon(
+                ToolbarIcon.Type.POWER,
+                18,
+                enabled ? theme.actionBackground() : theme.textSecondary()));
+
+        java.awt.Color background = ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.84d);
+        if (hovered) {
+            background = ThemeUtils.blend(background, theme.selectionBackground(), 0.24d);
+        }
+        powerButton.setBackground(background);
+        powerButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(enabled ? theme.border() : theme.disabledBorder(), 1),
+                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
     }
 
     private void styleActionButton(JButton button, boolean primary) {
