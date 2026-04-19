@@ -16,12 +16,19 @@ AdbManager es una aplicacion Java para trabajar con dispositivos Android mediant
 ## Requisitos
 
 - Java 21 o superior.
-- `adb` instalado y disponible en el `PATH`.
 - Depuracion USB habilitada en el dispositivo Android.
+
+`adb` y `scrcpy` pueden detectarse desde el sistema cuando ya estan instalados. Si faltan, la app descarga automaticamente los paquetes oficiales compatibles con Windows, macOS y Linux durante el primer uso.
 
 ## Ejecutar
 
 Compilar:
+
+```bash
+find src -name "*.java" -print0 | xargs -0 javac -d bin
+```
+
+En PowerShell:
 
 ```powershell
 $sources = Get-ChildItem -Recurse src -Filter *.java | ForEach-Object { $_.FullName }

@@ -113,7 +113,7 @@ public final class UserConfigService {
         builder.append(AUTO_REFRESH_KEY).append("=").append(safeConfig.autoRefreshOnFocus()).append(System.lineSeparator());
         builder.append(System.lineSeparator());
         builder.append("# adb").append(System.lineSeparator());
-        builder.append("# adb.custom_path puede apuntar a adb.exe o a la carpeta platform-tools").append(System.lineSeparator());
+        builder.append("# adb.custom_path puede apuntar al binario adb o a la carpeta platform-tools").append(System.lineSeparator());
         builder.append(ADB_CUSTOM_PATH_ENABLED_KEY).append("=").append(safeConfig.useCustomAdbPath()).append(System.lineSeparator());
         builder.append(ADB_CUSTOM_PATH_KEY).append("=").append(textValue(safeConfig.customAdbPath())).append(System.lineSeparator());
         builder.append(System.lineSeparator());

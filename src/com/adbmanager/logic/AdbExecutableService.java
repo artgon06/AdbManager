@@ -2,7 +2,6 @@ package com.adbmanager.logic;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -23,14 +22,21 @@ import com.adbmanager.view.swing.AppTheme;
 public final class AdbExecutableService {
 
     private static final Duration DOWNLOAD_TIMEOUT = Duration.ofSeconds(90);
-    private static final URI PLATFORM_TOOLS_WINDOWS_URI = URI.create(
-            "https://dl.google.com/android/repository/platform-tools-latest-windows.zip");
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(20))
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
     private final UserConfigService userConfigService = new UserConfigService();
+    private final HostPlatform hostPlatform;
+
+    public AdbExecutableService() {
+        this(HostPlatform.current());
+    }
+
+    AdbExecutableService(HostPlatform hostPlatform) {
+        this.hostPlatform = hostPlatform;
+    }
 
     public Path ensureAvailable() throws Exception {
         UserConfig config = loadUserConfig();
@@ -40,6 +46,7 @@ public final class AdbExecutableService {
 
         Path managedExecutable = managedExecutable();
         if (Files.isRegularFile(managedExecutable)) {
+            ensureExecutablePermission(managedExecutable);
             return managedExecutable;
         }
 
@@ -68,6 +75,12 @@ public final class AdbExecutableService {
         String normalizedValue = stripWrappingQuotes(rawValue);
         Path candidate = Path.of(normalizedValue).toAbsolutePath().normalize();
         if (Files.isDirectory(candidate)) {
+            Path platformExecutable = candidate.resolve(hostPlatform.executableName("adb"));
+            if (Files.isRegularFile(platformExecutable)) {
+                ensureExecutablePermission(platformExecutable);
+                return platformExecutable;
+            }
+
             Path adbExe = candidate.resolve("adb.exe");
             if (Files.isRegularFile(adbExe)) {
                 return adbExe;
@@ -75,6 +88,7 @@ public final class AdbExecutableService {
 
             Path adbBinary = candidate.resolve("adb");
             if (Files.isRegularFile(adbBinary)) {
+                ensureExecutablePermission(adbBinary);
                 return adbBinary;
             }
         }
@@ -83,6 +97,7 @@ public final class AdbExecutableService {
             throw new Exception("La ruta personalizada de adb no es v\u00e1lida: " + candidate);
         }
 
+        ensureExecutablePermission(candidate);
         return candidate;
     }
 
@@ -96,7 +111,7 @@ public final class AdbExecutableService {
     }
 
     private Path resolveSystemExecutable() throws Exception {
-        ProcessBuilder processBuilder = new ProcessBuilder(List.of("where", "adb"));
+        ProcessBuilder processBuilder = new ProcessBuilder(hostPlatform.lookupCommand(hostPlatform.executableName("adb")));
         processBuilder.redirectErrorStream(true);
         Process process = processBuilder.start();
         boolean finished = process.waitFor(5L, java.util.concurrent.TimeUnit.SECONDS);
@@ -136,15 +151,18 @@ public final class AdbExecutableService {
             downloadPlatformTools(downloadFile);
             extractZip(downloadFile, extractionDirectory);
 
-            Path executable = extractionDirectory.resolve("platform-tools").resolve("adb.exe");
+            Path executable = extractionDirectory.resolve("platform-tools").resolve(hostPlatform.executableName("adb"));
             if (!Files.isRegularFile(executable)) {
-                throw new Exception("El paquete descargado de Platform-Tools no incluye adb.exe.");
+                throw new Exception("El paquete descargado de Platform-Tools no incluye el binario de adb.");
             }
+            ensureExecutablePermission(executable);
 
             Path targetDirectory = managedDirectory();
             deleteRecursively(targetDirectory);
             Files.move(extractionDirectory, targetDirectory, StandardCopyOption.REPLACE_EXISTING);
-            return targetDirectory.resolve("platform-tools").resolve("adb.exe");
+            Path managedExecutable = targetDirectory.resolve("platform-tools").resolve(hostPlatform.executableName("adb"));
+            ensureExecutablePermission(managedExecutable);
+            return managedExecutable;
         } finally {
             Files.deleteIfExists(downloadFile);
             if (Files.exists(extractionDirectory)) {
@@ -154,7 +172,7 @@ public final class AdbExecutableService {
     }
 
     private void downloadPlatformTools(Path targetFile) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(PLATFORM_TOOLS_WINDOWS_URI)
+        HttpRequest request = HttpRequest.newBuilder(hostPlatform.platformToolsDownloadUri())
                 .GET()
                 .timeout(DOWNLOAD_TIMEOUT)
                 .header("Accept", "application/octet-stream")
@@ -203,7 +221,13 @@ public final class AdbExecutableService {
     }
 
     private Path managedExecutable() {
-        return managedDirectory().resolve("platform-tools").resolve("adb.exe");
+        return managedDirectory().resolve("platform-tools").resolve(hostPlatform.executableName("adb"));
+    }
+
+    private void ensureExecutablePermission(Path executable) throws IOException {
+        if (hostPlatform.isUnixLike() && Files.isRegularFile(executable)) {
+            executable.toFile().setExecutable(true, false);
+        }
     }
 
     private void deleteRecursively(Path path) throws IOException {

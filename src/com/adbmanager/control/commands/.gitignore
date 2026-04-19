@@ -1,0 +1,8 @@
+/AbstractCommand.class
+/Command.class
+/CommandGenerator.class
+/ExitCommand.class
+/HelpCommand.class
+/ListDevicesCommand.class
+/NoParamsCommand.class
+/SelectDeviceCommand.class

@@ -2,6 +2,7 @@ package com.adbmanager.logic;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -48,11 +50,27 @@ public final class ScrcpyService {
             .connectTimeout(Duration.ofSeconds(20))
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
+    private final HostPlatform hostPlatform;
+    private final AdbExecutableService adbExecutableService;
+
+    public ScrcpyService() {
+        this(HostPlatform.current(), new AdbExecutableService());
+    }
+
+    public ScrcpyService(AdbExecutableService adbExecutableService) {
+        this(HostPlatform.current(), adbExecutableService);
+    }
+
+    ScrcpyService(HostPlatform hostPlatform, AdbExecutableService adbExecutableService) {
+        this.hostPlatform = hostPlatform;
+        this.adbExecutableService = adbExecutableService;
+    }
 
     public ScrcpyStatus getStatus() throws Exception {
         cleanupExistingLaunchLogs();
         Path managedExecutable = managedExecutable();
         if (Files.isRegularFile(managedExecutable)) {
+            ensureExecutablePermission(managedExecutable);
             return describeExecutable(managedExecutable, true);
         }
 
@@ -65,6 +83,7 @@ public final class ScrcpyService {
     }
 
     public ScrcpyStatus ensureAvailable() throws Exception {
+        adbExecutableService.ensureAvailable();
         ScrcpyStatus currentStatus = getStatus();
         if (currentStatus.available()) {
             return currentStatus;
@@ -72,7 +91,7 @@ public final class ScrcpyService {
 
         ReleaseAsset asset = fetchLatestReleaseAsset();
         Path installationDirectory = installRelease(asset);
-        return describeExecutable(installationDirectory.resolve("scrcpy.exe"), true);
+        return describeExecutable(installationDirectory.resolve(hostPlatform.executableName("scrcpy")), true);
     }
 
     public List<ScrcpyCamera> listCameras(String serial) throws Exception {
@@ -133,6 +152,7 @@ public final class ScrcpyService {
         processBuilder.directory(executable.getParent().toFile());
         processBuilder.redirectErrorStream(true);
         processBuilder.redirectOutput(logFile.toFile());
+        processBuilder.environment().put("ADB", adbExecutableService.ensureAvailable().toString());
 
         Process process = processBuilder.start();
         boolean finishedQuickly = process.waitFor(1500L, java.util.concurrent.TimeUnit.MILLISECONDS);
@@ -276,7 +296,11 @@ public final class ScrcpyService {
     }
 
     private String detectVersion(Path executable) throws Exception {
-        CommandResult versionResult = runScrcpyCommand(executable, List.of("--version"), Duration.ofSeconds(5));
+        CommandResult versionResult = runGenericCommand(
+                List.of(executable.toString(), "--version"),
+                Duration.ofSeconds(5),
+                executable.getParent(),
+                null);
         if (!versionResult.ok()) {
             return "-";
         }
@@ -286,7 +310,10 @@ public final class ScrcpyService {
     }
 
     private Path resolveSystemExecutable() throws Exception {
-        CommandResult result = runGenericCommand(List.of("where", "scrcpy"), Duration.ofSeconds(5), null);
+        CommandResult result = runGenericCommand(
+                hostPlatform.lookupCommand(hostPlatform.executableName("scrcpy")),
+                Duration.ofSeconds(5),
+                null);
         if (!result.ok()) {
             return null;
         }
@@ -320,31 +347,42 @@ public final class ScrcpyService {
         String tag = tagMatcher.find() ? tagMatcher.group(1).trim() : "";
 
         Matcher assetMatcher = RELEASE_ASSET_PATTERN.matcher(responseBody);
+        String assetPrefix = hostPlatform.scrcpyAssetPrefix();
+        String assetSuffix = hostPlatform.scrcpyArchiveSuffix();
         while (assetMatcher.find()) {
             String assetName = assetMatcher.group(1).trim();
             String downloadUrl = unescapeJson(assetMatcher.group(2));
             String normalizedName = assetName.toLowerCase(Locale.ROOT);
-            if (normalizedName.startsWith("scrcpy-win64-") && normalizedName.endsWith(".zip")) {
+            if (normalizedName.startsWith(assetPrefix) && normalizedName.endsWith(assetSuffix)) {
                 return new ReleaseAsset(tag, assetName, URI.create(downloadUrl));
             }
         }
 
-        throw new Exception("No se encontró un paquete win64 oficial en el último release de scrcpy.");
+        throw new Exception("No se encontró un paquete oficial de scrcpy compatible con "
+                + readablePlatformLabel() + " en el último release.");
     }
 
     private Path installRelease(ReleaseAsset asset) throws Exception {
         Files.createDirectories(scrcpyHomeDirectory());
-        Path downloadFile = Files.createTempFile(scrcpyHomeDirectory(), "scrcpy-release-", ".zip");
+        Path downloadFile = Files.createTempFile(
+                scrcpyHomeDirectory(),
+                "scrcpy-release-",
+                hostPlatform.isWindows() ? ".zip" : ".tar.gz");
         Path extractionDirectory = Files.createTempDirectory(scrcpyHomeDirectory(), "scrcpy-extract-");
 
         try {
             downloadAsset(asset, downloadFile);
-            extractPortableZip(downloadFile, extractionDirectory);
-
-            Path executable = extractionDirectory.resolve("scrcpy.exe");
-            if (!Files.isRegularFile(executable)) {
-                throw new Exception("El release descargado de scrcpy no incluye scrcpy.exe.");
+            if (hostPlatform.isWindows()) {
+                extractPortableZip(downloadFile, extractionDirectory);
+            } else {
+                extractPortableTarGz(downloadFile, extractionDirectory);
             }
+
+            Path executable = extractionDirectory.resolve(hostPlatform.executableName("scrcpy"));
+            if (!Files.isRegularFile(executable)) {
+                throw new Exception("El release descargado de scrcpy no incluye el binario esperado.");
+            }
+            ensureExecutablePermission(executable);
 
             Files.writeString(
                     extractionDirectory.resolve("version.txt"),
@@ -354,6 +392,7 @@ public final class ScrcpyService {
             Path targetDirectory = managedDirectory();
             deleteRecursively(targetDirectory);
             Files.move(extractionDirectory, targetDirectory, StandardCopyOption.REPLACE_EXISTING);
+            ensureExecutablePermission(targetDirectory.resolve(hostPlatform.executableName("scrcpy")));
             return targetDirectory;
         } finally {
             Files.deleteIfExists(downloadFile);
@@ -405,6 +444,56 @@ public final class ScrcpyService {
         }
     }
 
+    private void extractPortableTarGz(Path archiveFile, Path targetDirectory) throws Exception {
+        try (InputStream fileInputStream = Files.newInputStream(archiveFile);
+                GZIPInputStream gzipInputStream = new GZIPInputStream(fileInputStream)) {
+            byte[] header = new byte[512];
+            while (readFully(gzipInputStream, header) == header.length) {
+                if (isEmptyBlock(header)) {
+                    break;
+                }
+
+                String entryName = stripTopLevelSegment(readTarString(header, 0, 100, StandardCharsets.US_ASCII));
+                String prefix = readTarString(header, 345, 155, StandardCharsets.US_ASCII);
+                if (!prefix.isBlank()) {
+                    entryName = stripTopLevelSegment(prefix + "/" + entryName);
+                }
+
+                long size = readTarOctal(header, 124, 12);
+                int mode = (int) readTarOctal(header, 100, 8);
+                byte type = header[156];
+
+                if (entryName.isBlank()) {
+                    skipTarEntryData(gzipInputStream, size);
+                    skipTarPadding(gzipInputStream, size);
+                    continue;
+                }
+
+                Path targetFile = targetDirectory.resolve(entryName).normalize();
+                if (!targetFile.startsWith(targetDirectory)) {
+                    throw new IOException("Entrada TAR fuera del directorio de extracción: " + entryName);
+                }
+
+                if (type == '5') {
+                    Files.createDirectories(targetFile);
+                } else if (type == 0 || type == '0') {
+                    Path parent = targetFile.getParent();
+                    if (parent != null) {
+                        Files.createDirectories(parent);
+                    }
+                    copyFixedSize(gzipInputStream, targetFile, size);
+                    applyTarMode(targetFile, mode);
+                } else {
+                    skipTarEntryData(gzipInputStream, size);
+                    skipTarPadding(gzipInputStream, size);
+                    continue;
+                }
+
+                skipTarPadding(gzipInputStream, size);
+            }
+        }
+    }
+
     private String stripTopLevelSegment(String entryName) {
         if (entryName == null || entryName.isBlank()) {
             return "";
@@ -424,7 +513,7 @@ public final class ScrcpyService {
     }
 
     private Path managedExecutable() {
-        return managedDirectory().resolve("scrcpy.exe");
+        return managedDirectory().resolve(hostPlatform.executableName("scrcpy"));
     }
 
     private void cleanupOldLaunchLogs(Path latestLog) throws IOException {
@@ -470,14 +559,25 @@ public final class ScrcpyService {
         List<String> command = new ArrayList<>();
         command.add(executable.toString());
         command.addAll(args);
-        return runGenericCommand(command, timeout, executable.getParent());
+        return runGenericCommand(command, timeout, executable.getParent(), adbExecutableService.ensureAvailable());
     }
 
     private CommandResult runGenericCommand(List<String> command, Duration timeout, Path workingDirectory) throws Exception {
+        return runGenericCommand(command, timeout, workingDirectory, null);
+    }
+
+    private CommandResult runGenericCommand(
+            List<String> command,
+            Duration timeout,
+            Path workingDirectory,
+            Path adbExecutable) throws Exception {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true);
         if (workingDirectory != null) {
             processBuilder.directory(workingDirectory.toFile());
+        }
+        if (adbExecutable != null) {
+            processBuilder.environment().put("ADB", adbExecutable.toAbsolutePath().normalize().toString());
         }
 
         Process process = processBuilder.start();
@@ -520,6 +620,102 @@ public final class ScrcpyService {
             }
             throw exception;
         }
+    }
+
+    private int readFully(InputStream inputStream, byte[] buffer) throws IOException {
+        int offset = 0;
+        while (offset < buffer.length) {
+            int read = inputStream.read(buffer, offset, buffer.length - offset);
+            if (read < 0) {
+                return offset;
+            }
+            offset += read;
+        }
+        return offset;
+    }
+
+    private boolean isEmptyBlock(byte[] block) {
+        for (byte value : block) {
+            if (value != 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String readTarString(byte[] header, int offset, int length, java.nio.charset.Charset charset) {
+        int end = offset;
+        int max = offset + length;
+        while (end < max && header[end] != 0) {
+            end++;
+        }
+        return new String(header, offset, end - offset, charset).trim();
+    }
+
+    private long readTarOctal(byte[] header, int offset, int length) {
+        String value = readTarString(header, offset, length, StandardCharsets.US_ASCII)
+                .replace("\u0000", "")
+                .trim();
+        return value.isBlank() ? 0L : Long.parseLong(value, 8);
+    }
+
+    private void skipTarEntryData(InputStream inputStream, long size) throws IOException {
+        long remaining = size;
+        while (remaining > 0) {
+            long skipped = inputStream.skip(remaining);
+            if (skipped <= 0) {
+                if (inputStream.read() < 0) {
+                    throw new IOException("Fin inesperado del archivo TAR.");
+                }
+                skipped = 1;
+            }
+            remaining -= skipped;
+        }
+    }
+
+    private void skipTarPadding(InputStream inputStream, long size) throws IOException {
+        long padding = (512 - (size % 512)) % 512;
+        skipTarEntryData(inputStream, padding);
+    }
+
+    private void copyFixedSize(InputStream inputStream, Path targetFile, long size) throws IOException {
+        byte[] buffer = new byte[8192];
+        long remaining = size;
+        try (OutputStream outputStream = Files.newOutputStream(targetFile)) {
+            while (remaining > 0) {
+                int read = inputStream.read(buffer, 0, (int) Math.min(buffer.length, remaining));
+                if (read < 0) {
+                    throw new IOException("Fin inesperado del archivo TAR.");
+                }
+                outputStream.write(buffer, 0, read);
+                remaining -= read;
+            }
+        }
+    }
+
+    private void applyTarMode(Path targetFile, int mode) {
+        if (hostPlatform.isUnixLike() && (mode & 0111) != 0) {
+            targetFile.toFile().setExecutable(true, false);
+        }
+    }
+
+    private void ensureExecutablePermission(Path executable) throws IOException {
+        if (hostPlatform.isUnixLike() && Files.isRegularFile(executable)) {
+            executable.toFile().setExecutable(true, false);
+        }
+    }
+
+    private String readablePlatformLabel() {
+        if (hostPlatform.isWindows()) {
+            return "Windows";
+        }
+        if (hostPlatform.isMacos()) {
+            return "macOS " + hostPlatform.architecture();
+        }
+        if (hostPlatform.isLinux()) {
+            return "Linux " + hostPlatform.architecture();
+        }
+        return hostPlatform.operatingSystem().name().toLowerCase(Locale.ROOT);
     }
 
     private String safeReadString(Path file) {
