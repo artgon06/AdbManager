@@ -64,6 +64,9 @@ import com.adbmanager.logic.model.DeviceParser;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.logic.model.KeyboardInputMethod;
 import com.adbmanager.logic.model.SystemState;
+import com.adbmanager.logic.model.WirelessDebugEndpoint;
+import com.adbmanager.logic.model.WirelessEndpointDiscovery;
+import com.adbmanager.logic.model.WirelessPairingResult;
 import com.adbmanager.view.Messages;
 
 public class AdbService implements AdbModel {
@@ -72,25 +75,33 @@ public class AdbService implements AdbModel {
     private static final int APK_SIZE_BATCH_SIZE = 24;
     private static final int APP_SUMMARY_BATCH_SIZE = 50;
     private static final Duration LOCAL_TOOL_TIMEOUT = Duration.ofSeconds(20);
+    private static final int DEFAULT_TCPIP_PORT = 5555;
     private static final String PACKAGE_BATCH_BEGIN_MARKER = "__ADBMANAGER_PKG_BEGIN__";
     private static final String PACKAGE_BATCH_END_MARKER = "__ADBMANAGER_PKG_END__";
     private static final Pattern APP_OP_PATTERN = Pattern.compile("^([A-Z0-9_]+):\\s*(allow|ignore|deny|default)\\b");
-    private static final Pattern BADGING_LABEL_PATTERN = Pattern.compile("^application-label(?:-[^:]+)?:'(.*?)'$");
+    private static final Pattern BADGING_LABEL_PATTERN = Pattern.compile("^application-label(?:-([^:]+))?:'(.*?)'$");
     private static final Pattern BADGING_ICON_PATTERN = Pattern.compile("^application-icon-(\\d+):'(.*?)'$");
     private static final Pattern BADGING_FALLBACK_ICON_PATTERN = Pattern.compile("icon='(.*?)'");
-    private static final Pattern RESOURCE_SPEC_PATTERN = Pattern.compile("spec resource 0x([0-9a-fA-F]+) [^:]+:([A-Za-z0-9_./-]+)");
+    private static final Pattern RESOURCE_SPEC_PATTERN = Pattern.compile(
+            "^(?:spec\\s+)?resource\\s+0x([0-9a-fA-F]+)\\s+(?:[^:]+:)?([A-Za-z0-9_./-]+)\\b");
     private static final Pattern RESOURCE_FILE_VALUE_PATTERN = Pattern.compile(
             "^resource 0x([0-9a-fA-F]+) [^:]+: t=0x03 .*");
     private static final Pattern RESOURCE_STRING_VALUE_PATTERN = Pattern.compile(
             "^\\((?:string8|string16)\\) \"(res/.*?)\"$");
+    private static final Pattern RESOURCE_AAPT2_FILE_VALUE_PATTERN = Pattern.compile(
+            "^\\([^)]*\\)\\s+\\(file\\)\\s+(res/\\S+)\\s+type=");
     private static final Pattern RESOURCE_COLOR_VALUE_PATTERN = Pattern.compile(
             "resource 0x([0-9a-fA-F]+) [^:]+:color/[^:]+: t=0x[0-9a-fA-F]+ d=0x([0-9a-fA-F]+)");
+    private static final Pattern RESOURCE_AAPT2_COLOR_LITERAL_PATTERN = Pattern.compile(
+            "^\\([^)]*\\)\\s+(#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8}))\\s*$");
+    private static final Pattern RESOURCE_AAPT2_COLOR_REFERENCE_PATTERN = Pattern.compile(
+            "^\\([^)]*\\)\\s+@0x([0-9a-fA-F]+)\\s*$");
     private static final Pattern XMLTREE_DRAWABLE_REFERENCE_PATTERN = Pattern.compile(
             "android:drawable\\([^)]*\\)=@0x([0-9a-fA-F]+)");
     private static final Pattern XMLTREE_VIEWPORT_WIDTH_PATTERN = Pattern.compile(
-            "android:viewportWidth\\([^)]*\\)=\\(type 0x4\\)0x([0-9a-fA-F]+)");
+            "android:viewportWidth\\([^)]*\\)=(?:\\(type 0x4\\)0x([0-9a-fA-F]+)|([0-9]+(?:\\.[0-9]+)?))");
     private static final Pattern XMLTREE_VIEWPORT_HEIGHT_PATTERN = Pattern.compile(
-            "android:viewportHeight\\([^)]*\\)=\\(type 0x4\\)0x([0-9a-fA-F]+)");
+            "android:viewportHeight\\([^)]*\\)=(?:\\(type 0x4\\)0x([0-9a-fA-F]+)|([0-9]+(?:\\.[0-9]+)?))");
     private static final Pattern XMLTREE_PATH_DATA_PATTERN = Pattern.compile(
             "android:pathData\\([^)]*\\)=\"(.*?)\"");
     private static final Pattern XMLTREE_FILL_COLOR_PATTERN = Pattern.compile(
@@ -104,6 +115,10 @@ public class AdbService implements AdbModel {
     private static final Pattern ADB_HELP_PAIR_PATTERN = Pattern.compile("(?m)^\\s*pair\\b");
     private static final Pattern ADB_HELP_MDNS_PATTERN = Pattern.compile("(?m)^\\s*mdns\\b");
     private static final Pattern MDNS_ENDPOINT_PATTERN = Pattern.compile("((?:\\d{1,3}\\.){3}\\d{1,3}):(\\d+)");
+    private static final Pattern MDNS_SERVICE_PATTERN = Pattern.compile(
+            "^(\\S+)\\s+(\\S+)\\s+((?:\\d{1,3}\\.){3}\\d{1,3}):(\\d+)\\b");
+    private static final Pattern IPV4_SRC_PATTERN = Pattern.compile("\\bsrc\\s+((?:\\d{1,3}\\.){3}\\d{1,3})\\b");
+    private static final Pattern IPV4_ADDR_PATTERN = Pattern.compile("\\binet\\s+((?:\\d{1,3}\\.){3}\\d{1,3})\\b");
     private static final Pattern INSTALL_FAILURE_CODE_PATTERN = Pattern.compile(
             "(INSTALL_(?:FAILED|PARSE_FAILED)_[A-Z0-9_]+)");
     private static final Pattern GETPROP_ENTRY_PATTERN = Pattern.compile("^\\[(.+?)\\]: \\[(.*)]$");
@@ -119,6 +134,8 @@ public class AdbService implements AdbModel {
     private final DeviceDetailsParser detailsParser = new DeviceDetailsParser();
     private final AppListParser appListParser = new AppListParser();
     private final AppDetailsParser appDetailsParser = new AppDetailsParser();
+    private final HostPlatform hostPlatform = HostPlatform.current();
+    private final Aapt2ExecutableService aapt2ExecutableService = new Aapt2ExecutableService(hostPlatform);
     private final Map<String, ApplicationPresentation> applicationPresentationCache = new HashMap<>();
     private final Map<String, InstalledApp> applicationSummaryCache = new HashMap<>();
     private volatile List<Path> cachedAaptExecutables;
@@ -1041,7 +1058,7 @@ public class AdbService implements AdbModel {
     }
 
     @Override
-    public void pairWirelessDevice(String host, int pairingPort, String pairingCode) throws Exception {
+    public WirelessPairingResult pairWirelessDevice(String host, int pairingPort, String pairingCode) throws Exception {
         AdbToolInfo toolInfo = getAdbToolInfo();
         if (!toolInfo.supportsPair()) {
             throw new IllegalStateException(Messages.text("error.wireless.pairUnsupported"));
@@ -1050,10 +1067,11 @@ public class AdbService implements AdbModel {
         String endpoint = buildEndpoint(host, pairingPort);
         String secret = requireWirelessSecret(pairingCode);
         pairWirelessEndpoint(endpoint, secret);
+        return resolvePostPairingResult(host);
     }
 
     @Override
-    public void pairWirelessDeviceWithQr(String serviceName, String password, int timeoutSeconds) throws Exception {
+    public WirelessPairingResult pairWirelessDeviceWithQr(String serviceName, String password, int timeoutSeconds) throws Exception {
         AdbToolInfo toolInfo = getAdbToolInfo();
         if (!toolInfo.supportsQrPairing()) {
             throw new IllegalStateException(Messages.text("error.wireless.qrUnsupported"));
@@ -1061,19 +1079,46 @@ public class AdbService implements AdbModel {
 
         String targetService = requireNonBlank(serviceName, Messages.text("error.wireless.qrPayload"));
         String secret = requireWirelessSecret(password);
-        String endpoint = waitForPairingEndpoint(targetService, Math.max(5, timeoutSeconds));
-        pairWirelessEndpoint(endpoint, secret);
+        WirelessDebugEndpoint endpoint = waitForPairingEndpoint(targetService, Math.max(5, timeoutSeconds));
+        pairWirelessEndpoint(endpoint.endpoint(), secret);
+        return resolvePostPairingResult(endpoint.host());
     }
 
     @Override
     public void connectWirelessDevice(String host, int port) throws Exception {
         String endpoint = buildEndpoint(host, port);
-        AdbResult connectResult = client.run(List.of("connect", endpoint));
-        assertOk(connectResult, "adb connect " + endpoint);
+        connectWirelessEndpoint(endpoint);
+    }
 
-        String output = connectResult.output() == null ? "" : connectResult.output().toLowerCase(Locale.ROOT);
-        if (output.contains("failed") || output.contains("unable")) {
-            throw new Exception("adb connect " + endpoint + " failed:\n" + connectResult.output());
+    @Override
+    public String connectSelectedUsbDeviceOverTcpip(int port) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.wireless.tcpipUsbRequired"),
+                Messages.text("error.wireless.tcpipUsbRequired"));
+        String serial = requireUsbConnectedDevice(device);
+        int targetPort = normalizeTcpipPort(port);
+
+        AdbResult tcpipResult = client.runForSerial(serial, List.of("tcpip", String.valueOf(targetPort)));
+        assertOk(tcpipResult, "adb -s " + serial + " tcpip " + targetPort);
+        String tcpipOutput = tcpipResult.output() == null ? "" : tcpipResult.output().toLowerCase(Locale.ROOT);
+        if (tcpipOutput.contains("failed") || tcpipOutput.contains("unable") || tcpipOutput.contains("error")) {
+            throw new Exception("adb -s " + serial + " tcpip " + targetPort + " failed:\n" + tcpipResult.output());
+        }
+
+        Thread.sleep(1200L);
+
+        String host = resolveSelectedDeviceWirelessHost(serial);
+        String endpoint = buildEndpoint(host, targetPort);
+        connectWirelessEndpointWithRetries(endpoint);
+        return endpoint;
+    }
+
+    @Override
+    public WirelessEndpointDiscovery discoverWirelessEndpoints() throws Exception {
+        try {
+            return discoverWirelessEndpointsInternal("");
+        } catch (Exception ignored) {
+            return WirelessEndpointDiscovery.empty();
         }
     }
 
@@ -2163,7 +2208,7 @@ public class AdbService implements AdbModel {
         return presentation;
     }
 
-    private List<Path> locateAaptExecutables() {
+    private synchronized List<Path> locateAaptExecutables() {
         if (cachedAaptExecutables != null) {
             return cachedAaptExecutables;
         }
@@ -2171,18 +2216,97 @@ public class AdbService implements AdbModel {
         List<Path> candidates = new ArrayList<>();
         addSdkBuildToolsCandidates(candidates, System.getenv("ANDROID_HOME"));
         addSdkBuildToolsCandidates(candidates, System.getenv("ANDROID_SDK_ROOT"));
+        addCommonSdkRootCandidates(candidates);
+        addSdkBuildToolsCandidates(candidates, sdkRootFromCurrentAdb());
 
         String localAppData = System.getenv("LOCALAPPDATA");
         if (localAppData != null && !localAppData.isBlank()) {
             addSdkBuildToolsCandidates(candidates, Path.of(localAppData, "Android", "Sdk").toString());
         }
 
+        addPathExecutableCandidates(candidates, hostPlatform.executableName("aapt"));
+        addPathExecutableCandidates(candidates, hostPlatform.executableName("aapt2"));
+
         List<Path> resolvedExecutables = candidates.stream()
-                .filter(Files::exists)
+                .filter(Files::isRegularFile)
+                .distinct()
                 .sorted(Comparator.reverseOrder())
-                .toList();
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        if (resolvedExecutables.isEmpty()) {
+            try {
+                resolvedExecutables.add(aapt2ExecutableService.ensureAvailable());
+            } catch (Exception ignored) {
+            }
+        }
+        resolvedExecutables = List.copyOf(resolvedExecutables);
         cachedAaptExecutables = resolvedExecutables;
         return resolvedExecutables;
+    }
+
+    private void addCommonSdkRootCandidates(List<Path> candidates) {
+        String userHome = System.getProperty("user.home", "");
+        if (userHome == null || userHome.isBlank()) {
+            return;
+        }
+
+        addSdkBuildToolsCandidates(candidates, Path.of(userHome, "Library", "Android", "sdk").toString());
+        addSdkBuildToolsCandidates(candidates, Path.of(userHome, "Android", "Sdk").toString());
+        addSdkBuildToolsCandidates(candidates, Path.of(userHome, "Android", "sdk").toString());
+    }
+
+    private String sdkRootFromCurrentAdb() {
+        try {
+            AdbResult versionResult = client.run(List.of("version"));
+            if (!versionResult.ok()) {
+                return "";
+            }
+
+            String adbPathValue = findFirstGroup(ADB_INSTALLED_AS_PATTERN, versionResult.output(), "");
+            if (adbPathValue.isBlank()) {
+                return "";
+            }
+
+            Path adbPath = Path.of(adbPathValue).toAbsolutePath().normalize();
+            Path platformToolsDirectory = adbPath.getParent();
+            if (platformToolsDirectory == null || platformToolsDirectory.getFileName() == null) {
+                return "";
+            }
+            if (!"platform-tools".equalsIgnoreCase(platformToolsDirectory.getFileName().toString())) {
+                return "";
+            }
+
+            Path sdkRoot = platformToolsDirectory.getParent();
+            return sdkRoot == null ? "" : sdkRoot.toString();
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private void addPathExecutableCandidates(List<Path> candidates, String executableName) {
+        try {
+            Process process = new ProcessBuilder(hostPlatform.lookupCommand(executableName))
+                    .redirectErrorStream(true)
+                    .start();
+            boolean finished = process.waitFor(5L, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                return;
+            }
+            if (process.exitValue() != 0) {
+                return;
+            }
+
+            try (InputStream inputStream = process.getInputStream()) {
+                String output = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+                for (String rawLine : output.split("\\R")) {
+                    String line = rawLine == null ? "" : rawLine.trim();
+                    if (!line.isBlank()) {
+                        candidates.add(Path.of(line).toAbsolutePath().normalize());
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private void addSdkBuildToolsCandidates(List<Path> candidates, String sdkRoot) {
@@ -2197,8 +2321,10 @@ public class AdbService implements AdbModel {
 
         try (var stream = Files.list(buildToolsDirectory)) {
             stream.filter(Files::isDirectory)
-                    .map(path -> path.resolve(windowsExecutable("aapt")))
-                    .filter(Files::exists)
+                    .flatMap(path -> Stream.of(
+                            path.resolve(windowsExecutable("aapt")),
+                            path.resolve(windowsExecutable("aapt2"))))
+                    .filter(Files::isRegularFile)
                     .forEach(candidates::add);
         } catch (IOException ignored) {
         }
@@ -2210,18 +2336,22 @@ public class AdbService implements AdbModel {
     }
 
     private ApplicationPresentation loadPresentationFromApk(Path aaptExecutable, Path localApk) throws Exception {
-        String output = runLocalTool(aaptExecutable, List.of("dump", "badging", localApk.toString()));
+        String output = dumpBadging(aaptExecutable, localApk);
         if (output == null || output.isBlank()) {
             return ApplicationPresentation.empty();
         }
 
-        String label = "";
+        Map<String, String> labelsByQualifier = new LinkedHashMap<>();
         String iconPath = "";
         int iconDensity = Integer.MIN_VALUE;
         for (String line : output.split("\\R")) {
             Matcher labelMatcher = BADGING_LABEL_PATTERN.matcher(line.trim());
-            if (labelMatcher.matches() && label.isBlank()) {
-                label = labelMatcher.group(1).trim();
+            if (labelMatcher.matches()) {
+                String qualifier = normalizeBadgingQualifier(labelMatcher.group(1));
+                String candidateLabel = sanitizeLabel(labelMatcher.group(2));
+                if (!candidateLabel.isBlank()) {
+                    labelsByQualifier.putIfAbsent(qualifier, candidateLabel);
+                }
             }
 
             Matcher iconMatcher = BADGING_ICON_PATTERN.matcher(line.trim());
@@ -2243,6 +2373,7 @@ public class AdbService implements AdbModel {
             }
         }
 
+        String label = selectPreferredBadgingLabel(labelsByQualifier);
         return new ApplicationPresentation(label, loadIconFromApk(aaptExecutable, localApk, iconPath));
     }
 
@@ -2361,7 +2492,7 @@ public class AdbService implements AdbModel {
 
     private BufferedImage renderXmlIcon(Path aaptExecutable, Path apkPath, String entryName) throws Exception {
         ResourceTable resourceTable = loadResourceTable(aaptExecutable, apkPath);
-        String xmlTree = runLocalTool(aaptExecutable, List.of("dump", "xmltree", apkPath.toString(), entryName));
+        String xmlTree = dumpXmlTree(aaptExecutable, apkPath, entryName);
         if (xmlTree.isBlank()) {
             return null;
         }
@@ -2378,24 +2509,52 @@ public class AdbService implements AdbModel {
     }
 
     private ResourceTable loadResourceTable(Path aaptExecutable, Path apkPath) throws Exception {
-        String resourcesOutput = runLocalTool(aaptExecutable, List.of("dump", "--values", "resources", apkPath.toString()));
+        String resourcesOutput = dumpResources(aaptExecutable, apkPath);
         Map<String, String> resourceNamesById = new HashMap<>();
         Map<String, String> resourcePathsById = new HashMap<>();
         Map<String, Integer> colorValuesById = new HashMap<>();
+        Map<String, String> colorReferencesById = new HashMap<>();
         String pendingPathResourceId = null;
+        String currentResourceId = null;
 
         for (String line : resourcesOutput.split("\\R")) {
             String trimmedLine = line.trim();
 
             Matcher specMatcher = RESOURCE_SPEC_PATTERN.matcher(trimmedLine);
             if (specMatcher.find()) {
-                resourceNamesById.put(normalizeResourceId(specMatcher.group(1)), specMatcher.group(2).trim());
+                currentResourceId = normalizeResourceId(specMatcher.group(1));
+                resourceNamesById.put(currentResourceId, specMatcher.group(2).trim());
             }
 
             Matcher fileValueMatcher = RESOURCE_FILE_VALUE_PATTERN.matcher(trimmedLine);
             if (fileValueMatcher.find()) {
                 pendingPathResourceId = normalizeResourceId(fileValueMatcher.group(1));
                 continue;
+            }
+
+            if (currentResourceId != null) {
+                Matcher aapt2FileMatcher = RESOURCE_AAPT2_FILE_VALUE_PATTERN.matcher(trimmedLine);
+                if (aapt2FileMatcher.find()) {
+                    String candidatePath = aapt2FileMatcher.group(1).trim();
+                    String currentPath = resourcePathsById.get(currentResourceId);
+                    if (currentPath == null
+                            || resourceDensityRank(candidatePath) > resourceDensityRank(currentPath)) {
+                        resourcePathsById.put(currentResourceId, candidatePath);
+                    }
+                    continue;
+                }
+
+                Matcher aapt2ColorLiteralMatcher = RESOURCE_AAPT2_COLOR_LITERAL_PATTERN.matcher(trimmedLine);
+                if (aapt2ColorLiteralMatcher.find()) {
+                    colorValuesById.put(currentResourceId, parseColorLiteral(aapt2ColorLiteralMatcher.group(1)));
+                    continue;
+                }
+
+                Matcher aapt2ColorReferenceMatcher = RESOURCE_AAPT2_COLOR_REFERENCE_PATTERN.matcher(trimmedLine);
+                if (aapt2ColorReferenceMatcher.find()) {
+                    colorReferencesById.put(currentResourceId, normalizeResourceId(aapt2ColorReferenceMatcher.group(1)));
+                    continue;
+                }
             }
 
             if (pendingPathResourceId != null) {
@@ -2419,7 +2578,7 @@ public class AdbService implements AdbModel {
             }
         }
 
-        return new ResourceTable(resourceNamesById, resourcePathsById, colorValuesById);
+        return new ResourceTable(resourceNamesById, resourcePathsById, colorValuesById, colorReferencesById);
     }
 
     private BufferedImage renderAdaptiveIcon(
@@ -2606,8 +2765,26 @@ public class AdbService implements AdbModel {
     }
 
     private Color resolveColor(String resourceId, ResourceTable resourceTable) {
-        Integer argb = resourceTable.colorValuesById().get(normalizeResourceId(resourceId));
-        return argb == null ? null : new Color(argb, true);
+        return resolveColor(resourceId, resourceTable, new java.util.HashSet<>());
+    }
+
+    private Color resolveColor(String resourceId, ResourceTable resourceTable, Set<String> visitedIds) {
+        String normalizedResourceId = normalizeResourceId(resourceId);
+        if (!visitedIds.add(normalizedResourceId)) {
+            return null;
+        }
+
+        Integer argb = resourceTable.colorValuesById().get(normalizedResourceId);
+        if (argb != null) {
+            return new Color(argb, true);
+        }
+
+        String referencedResourceId = resourceTable.colorReferencesById().get(normalizedResourceId);
+        if (referencedResourceId != null && !referencedResourceId.isBlank()) {
+            return resolveColor(referencedResourceId, resourceTable, visitedIds);
+        }
+
+        return null;
     }
 
     private double parseFloatBits(Pattern pattern, String value) {
@@ -2616,7 +2793,24 @@ public class AdbService implements AdbModel {
             return 0d;
         }
 
-        return Float.intBitsToFloat((int) Long.parseLong(matcher.group(1), 16));
+        if (matcher.group(1) != null && !matcher.group(1).isBlank()) {
+            return Float.intBitsToFloat((int) Long.parseLong(matcher.group(1), 16));
+        }
+        if (matcher.group(2) != null && !matcher.group(2).isBlank()) {
+            return Double.parseDouble(matcher.group(2));
+        }
+        return 0d;
+    }
+
+    private int parseColorLiteral(String literal) {
+        String normalized = literal == null ? "" : literal.trim();
+        if (normalized.startsWith("#")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.length() == 6) {
+            normalized = "ff" + normalized;
+        }
+        return (int) Long.parseLong(normalized, 16);
     }
 
     private String normalizeResourceId(String resourceId) {
@@ -2634,11 +2828,101 @@ public class AdbService implements AdbModel {
         return extensionIndex >= 0 ? fileName.substring(0, extensionIndex) : fileName;
     }
 
+    private String normalizeBadgingQualifier(String qualifier) {
+        if (qualifier == null || qualifier.isBlank()) {
+            return "";
+        }
+
+        String normalized = qualifier.trim().toLowerCase(Locale.ROOT);
+        normalized = normalized.replace("b+", "");
+        normalized = normalized.replace("-r", "-");
+        normalized = normalized.replace('+', '-');
+        normalized = normalized.replace('_', '-');
+        return normalized;
+    }
+
+    private String sanitizeLabel(String value) {
+        String sanitized = value == null ? "" : value.trim();
+        if (sanitized.startsWith("'") && sanitized.endsWith("'") && sanitized.length() > 1) {
+            sanitized = sanitized.substring(1, sanitized.length() - 1);
+        }
+        return sanitized.trim();
+    }
+
+    private String selectPreferredBadgingLabel(Map<String, String> labelsByQualifier) {
+        if (labelsByQualifier == null || labelsByQualifier.isEmpty()) {
+            return "";
+        }
+
+        String bestLabel = labelsByQualifier.getOrDefault("", "");
+        int bestScore = bestLabel.isBlank() ? Integer.MIN_VALUE : 0;
+        Locale defaultLocale = Locale.getDefault();
+        String fullTag = defaultLocale.toLanguageTag().toLowerCase(Locale.ROOT);
+        String language = defaultLocale.getLanguage() == null ? "" : defaultLocale.getLanguage().toLowerCase(Locale.ROOT);
+
+        for (Map.Entry<String, String> entry : labelsByQualifier.entrySet()) {
+            String candidateLabel = sanitizeLabel(entry.getValue());
+            if (candidateLabel.isBlank()) {
+                continue;
+            }
+
+            int score = badgingLabelScore(entry.getKey(), fullTag, language);
+            if (score > bestScore) {
+                bestScore = score;
+                bestLabel = candidateLabel;
+            }
+        }
+
+        return bestLabel == null ? "" : bestLabel;
+    }
+
+    private int badgingLabelScore(String qualifier, String fullTag, String language) {
+        String normalizedQualifier = normalizeBadgingQualifier(qualifier);
+        if (normalizedQualifier.isBlank()) {
+            return 0;
+        }
+        if (!fullTag.isBlank() && normalizedQualifier.equals(fullTag)) {
+            return 4;
+        }
+        if (!fullTag.isBlank() && (fullTag.startsWith(normalizedQualifier + "-") || normalizedQualifier.startsWith(fullTag + "-"))) {
+            return 3;
+        }
+        if (!language.isBlank() && (normalizedQualifier.equals(language) || normalizedQualifier.startsWith(language + "-"))) {
+            return 2;
+        }
+        return 1;
+    }
+
     private void drawScaledImage(Graphics2D graphics, BufferedImage image, int width, int height) {
         if (image == null) {
             return;
         }
         graphics.drawImage(image, 0, 0, width, height, null);
+    }
+
+    private String dumpBadging(Path executable, Path apkPath) throws Exception {
+        return runLocalTool(executable, List.of("dump", "badging", apkPath.toString()));
+    }
+
+    private String dumpXmlTree(Path executable, Path apkPath, String entryName) throws Exception {
+        if (usesAapt2Syntax(executable)) {
+            return runLocalTool(executable, List.of("dump", "xmltree", "--file", entryName, apkPath.toString()));
+        }
+        return runLocalTool(executable, List.of("dump", "xmltree", apkPath.toString(), entryName));
+    }
+
+    private String dumpResources(Path executable, Path apkPath) throws Exception {
+        if (usesAapt2Syntax(executable)) {
+            return runLocalTool(executable, List.of("dump", "resources", apkPath.toString()));
+        }
+        return runLocalTool(executable, List.of("dump", "--values", "resources", apkPath.toString()));
+    }
+
+    private boolean usesAapt2Syntax(Path executable) {
+        String fileName = executable == null || executable.getFileName() == null
+                ? ""
+                : executable.getFileName().toString().toLowerCase(Locale.ROOT);
+        return fileName.startsWith("aapt2");
     }
 
     private String runLocalTool(Path executable, List<String> arguments) throws Exception {
@@ -2802,12 +3086,331 @@ public class AdbService implements AdbModel {
         return requireNonBlank(value, Messages.text("error.wireless.invalidSecret"));
     }
 
+    private String requireUsbConnectedDevice(Device device) {
+        if (device == null) {
+            throw new IllegalStateException(Messages.text("error.wireless.tcpipUsbRequired"));
+        }
+
+        String serial = device.serial() == null ? "" : device.serial().trim();
+        if (serial.isBlank() || serial.startsWith("emulator-") || serial.contains(":")) {
+            throw new IllegalStateException(Messages.text("error.wireless.tcpipUsbRequired"));
+        }
+        return serial;
+    }
+
+    private int normalizeTcpipPort(int port) {
+        if (port <= 0 || port > 65535) {
+            throw new IllegalArgumentException(Messages.text("error.wireless.invalidConnectPort"));
+        }
+        return port;
+    }
+
     private String buildEndpoint(String host, int port) {
         String normalizedHost = requireNonBlank(host, Messages.text("error.wireless.invalidHost"));
         if (port <= 0 || port > 65535) {
             throw new IllegalArgumentException(Messages.text("error.wireless.invalidPort"));
         }
         return normalizedHost + ":" + port;
+    }
+
+    private void connectWirelessEndpoint(String endpoint) throws Exception {
+        AdbResult connectResult = client.run(List.of("connect", endpoint));
+        assertOk(connectResult, "adb connect " + endpoint);
+
+        String output = connectResult.output() == null ? "" : connectResult.output().toLowerCase(Locale.ROOT);
+        if (output.contains("failed") || output.contains("unable")) {
+            throw new Exception("adb connect " + endpoint + " failed:\n" + connectResult.output());
+        }
+    }
+
+    private void connectWirelessEndpointWithRetries(String endpoint) throws Exception {
+        Exception lastFailure = null;
+        for (int attempt = 0; attempt < 8; attempt++) {
+            if (attempt > 0) {
+                Thread.sleep(1000L);
+            }
+
+            try {
+                connectWirelessEndpoint(endpoint);
+                if (isWirelessEndpointReady(endpoint)) {
+                    return;
+                }
+            } catch (Exception exception) {
+                lastFailure = exception;
+            }
+        }
+
+        if (lastFailure != null) {
+            throw lastFailure;
+        }
+        throw new IllegalStateException("No se pudo establecer la conexión ADB por TCP/IP.");
+    }
+
+    private boolean isWirelessEndpointReady(String endpoint) throws Exception {
+        AdbResult probeResult = client.runForSerial(endpoint, List.of("shell", "getprop", "ro.product.model"));
+        if (probeResult.ok()) {
+            return true;
+        }
+
+        String output = probeResult.output() == null ? "" : probeResult.output();
+        if (isTransientServiceNotReadyError(output)) {
+            return false;
+        }
+
+        throw new Exception("adb -s " + endpoint + " shell getprop ro.product.model failed:\n" + output);
+    }
+
+    private WirelessPairingResult resolvePostPairingResult(String preferredHost) throws Exception {
+        WirelessDebugEndpoint discoveredConnectEndpoint = null;
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+
+        while (System.nanoTime() < deadline) {
+            WirelessDebugEndpoint connectedEndpoint = findConnectedWirelessEndpoint(preferredHost);
+            if (connectedEndpoint != null) {
+                return new WirelessPairingResult(true, connectedEndpoint);
+            }
+
+            WirelessEndpointDiscovery discovery = discoverWirelessEndpointsInternal(preferredHost);
+            if (discoveredConnectEndpoint == null && discovery.hasConnectEndpoint()) {
+                discoveredConnectEndpoint = discovery.connectEndpoint();
+            }
+
+            Thread.sleep(1200L);
+        }
+
+        return new WirelessPairingResult(false, discoveredConnectEndpoint);
+    }
+
+    private WirelessEndpointDiscovery discoverWirelessEndpointsInternal(String preferredHost) throws Exception {
+        AdbResult mdnsResult = client.run(List.of("mdns", "services"));
+        assertOk(mdnsResult, "adb mdns services");
+
+        List<WirelessDebugEndpoint> endpoints = parseMdnsEndpoints(mdnsResult.output());
+        return new WirelessEndpointDiscovery(
+                selectPreferredMdnsEndpoint(endpoints, List.of("_adb-tls-pairing._tcp"), preferredHost),
+                selectPreferredMdnsEndpoint(endpoints, List.of("_adb-tls-connect._tcp", "_adb._tcp"), preferredHost));
+    }
+
+    private List<WirelessDebugEndpoint> parseMdnsEndpoints(String mdnsOutput) {
+        if (mdnsOutput == null || mdnsOutput.isBlank()) {
+            return List.of();
+        }
+
+        List<WirelessDebugEndpoint> endpoints = new ArrayList<>();
+        for (String rawLine : mdnsOutput.split("\\R")) {
+            String line = rawLine == null ? "" : rawLine.trim();
+            if (line.isBlank() || line.startsWith("List of discovered")) {
+                continue;
+            }
+
+            Matcher matcher = MDNS_SERVICE_PATTERN.matcher(line);
+            if (!matcher.find()) {
+                continue;
+            }
+
+            endpoints.add(new WirelessDebugEndpoint(
+                    matcher.group(1).trim(),
+                    matcher.group(2).trim(),
+                    matcher.group(3).trim(),
+                    Integer.parseInt(matcher.group(4))));
+        }
+
+        return endpoints;
+    }
+
+    private WirelessDebugEndpoint selectPreferredMdnsEndpoint(
+            List<WirelessDebugEndpoint> endpoints,
+            List<String> serviceTypes,
+            String preferredHost) {
+        WirelessDebugEndpoint fallback = null;
+        for (WirelessDebugEndpoint endpoint : endpoints) {
+            if (endpoint == null || !endpoint.isValid() || !serviceTypes.contains(endpoint.serviceType())) {
+                continue;
+            }
+
+            if (preferredHost != null && !preferredHost.isBlank() && preferredHost.equals(endpoint.host())) {
+                return endpoint;
+            }
+
+            if (fallback == null || isPrivateLanIpv4(endpoint.host())) {
+                fallback = endpoint;
+            }
+        }
+        return fallback;
+    }
+
+    private WirelessDebugEndpoint findConnectedWirelessEndpoint(String preferredHost) throws Exception {
+        AdbResult devicesResult = client.run(List.of("devices", "-l"));
+        if (!devicesResult.ok()) {
+            return null;
+        }
+
+        WirelessDebugEndpoint fallback = null;
+        for (Device device : parser.parseDevices(devicesResult.output())) {
+            if (!Messages.STATUS_CONNECTED.equals(device.state())) {
+                continue;
+            }
+
+            WirelessDebugEndpoint endpoint = parseWirelessSerialEndpoint(device.serial());
+            if (endpoint == null) {
+                continue;
+            }
+
+            if (preferredHost != null && !preferredHost.isBlank() && preferredHost.equals(endpoint.host())) {
+                return endpoint;
+            }
+
+            if (fallback == null) {
+                fallback = endpoint;
+            }
+        }
+
+        return fallback;
+    }
+
+    private WirelessDebugEndpoint parseWirelessSerialEndpoint(String serial) {
+        String normalizedSerial = serial == null ? "" : serial.trim();
+        if (normalizedSerial.isBlank() || normalizedSerial.startsWith("emulator-")) {
+            return null;
+        }
+
+        int separatorIndex = normalizedSerial.lastIndexOf(':');
+        if (separatorIndex <= 0 || separatorIndex >= normalizedSerial.length() - 1) {
+            return null;
+        }
+
+        String host = normalizeIpv4(normalizedSerial.substring(0, separatorIndex));
+        if (host == null) {
+            return null;
+        }
+
+        try {
+            int port = Integer.parseInt(normalizedSerial.substring(separatorIndex + 1));
+            return new WirelessDebugEndpoint("", "_adb._tcp", host, port);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private String resolveSelectedDeviceWirelessHost(String serial) throws Exception {
+        String host = findWirelessHostFromCommand(serial, List.of("shell", "ip", "route", "show", "dev", "wlan0"), IPV4_SRC_PATTERN);
+        if (host != null) {
+            return host;
+        }
+
+        host = findWirelessHostFromRoutes(serial);
+        if (host != null) {
+            return host;
+        }
+
+        host = findWirelessHostFromCommand(serial, List.of("shell", "ip", "-f", "inet", "addr", "show", "wlan0"), IPV4_ADDR_PATTERN);
+        if (host != null) {
+            return host;
+        }
+
+        host = findWirelessHostFromCommand(serial, List.of("shell", "ifconfig", "wlan0"), IPV4_ADDR_PATTERN);
+        if (host != null) {
+            return host;
+        }
+
+        AdbResult propertyResult = client.runForSerial(serial, List.of("shell", "getprop", "dhcp.wlan0.ipaddress"));
+        if (propertyResult.ok()) {
+            String candidate = firstIpv4(propertyResult.output());
+            if (candidate != null) {
+                return candidate;
+            }
+        }
+
+        throw new IllegalStateException(Messages.text("error.wireless.tcpipIpUnavailable"));
+    }
+
+    private String findWirelessHostFromRoutes(String serial) throws Exception {
+        AdbResult result = client.runForSerial(serial, List.of("shell", "ip", "route"));
+        if (!result.ok()) {
+            return null;
+        }
+
+        String fallbackCandidate = null;
+        for (String rawLine : (result.output() == null ? "" : result.output()).split("\\R")) {
+            String line = rawLine == null ? "" : rawLine.trim();
+            if (line.isBlank()) {
+                continue;
+            }
+
+            Matcher matcher = IPV4_SRC_PATTERN.matcher(line);
+            if (!matcher.find()) {
+                continue;
+            }
+
+            String candidate = normalizeIpv4(matcher.group(1));
+            if (candidate == null) {
+                continue;
+            }
+
+            String lowerLine = line.toLowerCase(Locale.ROOT);
+            if (lowerLine.contains("wlan0")) {
+                return candidate;
+            }
+            if (fallbackCandidate == null && isPrivateLanIpv4(candidate)) {
+                fallbackCandidate = candidate;
+            }
+        }
+
+        return fallbackCandidate;
+    }
+
+    private String findWirelessHostFromCommand(String serial, List<String> command, Pattern ipv4Pattern) throws Exception {
+        AdbResult result = client.runForSerial(serial, command);
+        if (!result.ok()) {
+            return null;
+        }
+
+        Matcher matcher = ipv4Pattern.matcher(result.output() == null ? "" : result.output());
+        while (matcher.find()) {
+            String candidate = normalizeIpv4(matcher.group(1));
+            if (candidate != null) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private String firstIpv4(String value) {
+        Matcher matcher = IPV4_ADDR_PATTERN.matcher(value == null ? "" : value);
+        while (matcher.find()) {
+            String candidate = normalizeIpv4(matcher.group(1));
+            if (candidate != null) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeIpv4(String value) {
+        String candidate = value == null ? "" : value.trim();
+        if (candidate.isBlank()
+                || "127.0.0.1".equals(candidate)
+                || "0.0.0.0".equals(candidate)) {
+            return null;
+        }
+        return candidate;
+    }
+
+    private boolean isPrivateLanIpv4(String value) {
+        String[] octets = value == null ? new String[0] : value.trim().split("\\.");
+        if (octets.length != 4) {
+            return false;
+        }
+
+        try {
+            int first = Integer.parseInt(octets[0]);
+            int second = Integer.parseInt(octets[1]);
+            return first == 10
+                    || (first == 172 && second >= 16 && second <= 31)
+                    || (first == 192 && second == 168);
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
     }
 
     private void assertOk(AdbResult result, String commandDescription) throws Exception {
@@ -2832,12 +3435,12 @@ public class AdbService implements AdbModel {
         }
     }
 
-    private String waitForPairingEndpoint(String serviceName, int timeoutSeconds) throws Exception {
+    private WirelessDebugEndpoint waitForPairingEndpoint(String serviceName, int timeoutSeconds) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
         while (System.nanoTime() < deadline) {
             AdbResult mdnsResult = client.run(List.of("mdns", "services"));
             assertOk(mdnsResult, "adb mdns services");
-            String endpoint = findPairingEndpoint(mdnsResult.output(), serviceName);
+            WirelessDebugEndpoint endpoint = findPairingEndpoint(parseMdnsEndpoints(mdnsResult.output()), serviceName);
             if (endpoint != null) {
                 return endpoint;
             }
@@ -2847,23 +3450,22 @@ public class AdbService implements AdbModel {
         throw new Exception(Messages.format("error.wireless.qrTimeout", serviceName));
     }
 
-    private String findPairingEndpoint(String mdnsOutput, String serviceName) {
-        if (mdnsOutput == null || mdnsOutput.isBlank()) {
+    private WirelessDebugEndpoint findPairingEndpoint(List<WirelessDebugEndpoint> endpoints, String serviceName) {
+        if (endpoints == null || endpoints.isEmpty()) {
             return null;
         }
 
-        for (String rawLine : mdnsOutput.split("\\R")) {
-            String line = rawLine == null ? "" : rawLine.trim();
-            if (line.isBlank() || !line.contains(serviceName) || !line.contains("_adb-tls-pairing")) {
+        for (WirelessDebugEndpoint endpoint : endpoints) {
+            if (endpoint == null || !endpoint.isValid()) {
                 continue;
             }
-
-            Matcher matcher = MDNS_ENDPOINT_PATTERN.matcher(line);
-            if (matcher.find()) {
-                return matcher.group(1);
+            if (!"_adb-tls-pairing._tcp".equals(endpoint.serviceType())) {
+                continue;
+            }
+            if (serviceName == null || serviceName.isBlank() || endpoint.serviceName().contains(serviceName)) {
+                return endpoint;
             }
         }
-
         return null;
     }
 
@@ -3030,7 +3632,8 @@ public class AdbService implements AdbModel {
     private record ResourceTable(
             Map<String, String> resourceNamesById,
             Map<String, String> resourcePathsById,
-            Map<String, Integer> colorValuesById) {
+            Map<String, Integer> colorValuesById,
+            Map<String, String> colorReferencesById) {
     }
 
     private record VectorPathSpec(String pathData, Color fillColor) {

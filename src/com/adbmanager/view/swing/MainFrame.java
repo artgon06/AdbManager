@@ -77,6 +77,7 @@ public class MainFrame extends JFrame {
     private final JToggleButton systemButton = new JToggleButton();
     private final JToggleButton settingsButton = new JToggleButton();
     private final JButton wirelessButton = new JButton("+");
+    private final JButton tcpipButton = new JButton();
     private final JButton refreshButton = new JButton();
     private final JPopupMenu powerMenu = new JPopupMenu();
     private final Map<DevicePowerAction, JMenuItem> powerMenuItems = new LinkedHashMap<>();
@@ -178,6 +179,10 @@ public class MainFrame extends JFrame {
 
     public void setWirelessAssistantAction(ActionListener actionListener) {
         wirelessButton.addActionListener(actionListener);
+    }
+
+    public void setTcpipAction(ActionListener actionListener) {
+        tcpipButton.addActionListener(actionListener);
     }
 
     public void setPowerAction(ActionListener actionListener) {
@@ -378,6 +383,7 @@ public class MainFrame extends JFrame {
         systemButton.setToolTipText(Messages.text("navigation.system.tooltip"));
         settingsButton.setToolTipText(Messages.text("navigation.settings.tooltip"));
         wirelessButton.setToolTipText(Messages.text("navigation.wireless.tooltip"));
+        tcpipButton.setToolTipText(Messages.text("navigation.tcpip.tooltip"));
         refreshButton.setToolTipText(Messages.text("navigation.refresh.tooltip"));
         for (Map.Entry<DevicePowerAction, JMenuItem> entry : powerMenuItems.entrySet()) {
             entry.getValue().setText(Messages.text(entry.getKey().messageKey()));
@@ -761,6 +767,11 @@ public class MainFrame extends JFrame {
         styleRefreshButton();
     }
 
+    public void setTcpipEnabled(boolean enabled) {
+        tcpipButton.setEnabled(enabled);
+        styleTcpipButton();
+    }
+
     public void setApplicationsEnabled(boolean enabled) {
         appsPanel.setApplicationsEnabled(enabled);
     }
@@ -810,6 +821,7 @@ public class MainFrame extends JFrame {
         styleNavigationButton(systemButton);
         styleNavigationButton(settingsButton);
         styleWirelessButton();
+        styleTcpipButton();
         styleRefreshButton();
         stylePowerMenu();
 
@@ -873,6 +885,7 @@ public class MainFrame extends JFrame {
         configureNavigationButton(systemButton, ToolbarIcon.Type.SYSTEM);
         configureNavigationButton(settingsButton, ToolbarIcon.Type.SETTINGS);
         configureWirelessButton();
+        configureTcpipButton();
         configureRefreshButton();
         buildPowerMenu();
         homePanel.setPowerButtonAction(event -> {
@@ -894,6 +907,7 @@ public class MainFrame extends JFrame {
 
         deviceSelectorPanel.add(deviceLabel);
         deviceSelectorPanel.add(deviceSelector);
+        deviceSelectorPanel.add(tcpipButton);
         deviceSelectorPanel.add(wirelessButton);
         deviceSelectorPanel.add(refreshButton);
 
@@ -951,6 +965,17 @@ public class MainFrame extends JFrame {
         wirelessButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
         wirelessButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 24));
         wirelessButton.getModel().addChangeListener(event -> styleWirelessButton());
+    }
+
+    private void configureTcpipButton() {
+        tcpipButton.setUI(new BasicButtonUI());
+        tcpipButton.setFocusable(false);
+        tcpipButton.setFocusPainted(false);
+        tcpipButton.setRolloverEnabled(true);
+        tcpipButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        tcpipButton.setPreferredSize(new Dimension(TOP_BAR_HEIGHT, TOP_BAR_HEIGHT));
+        tcpipButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
+        tcpipButton.getModel().addChangeListener(event -> styleTcpipButton());
     }
 
     private void buildPowerMenu() {
@@ -1020,6 +1045,21 @@ public class MainFrame extends JFrame {
                 : currentTheme.textSecondary());
         wirelessButton.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, wirelessButton.getBackground()));
         wirelessButton.setText("+");
+    }
+
+    private void styleTcpipButton() {
+        boolean hovered = tcpipButton.getModel().isRollover() && tcpipButton.isEnabled();
+        tcpipButton.setOpaque(true);
+        tcpipButton.setContentAreaFilled(true);
+        tcpipButton.setBackground(hovered
+                ? ThemeUtils.blend(currentTheme.surface(), currentTheme.selectionBackground(), 0.24d)
+                : currentTheme.surface());
+        tcpipButton.setForeground(tcpipButton.isEnabled()
+                ? currentTheme.actionBackground()
+                : currentTheme.textSecondary());
+        tcpipButton.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, tcpipButton.getBackground()));
+        tcpipButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.WIRELESS, 18, tcpipButton.getForeground()));
+        tcpipButton.setText("");
     }
 
     private void stylePowerMenu() {

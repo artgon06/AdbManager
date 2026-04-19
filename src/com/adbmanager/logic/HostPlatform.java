@@ -102,6 +102,16 @@ public record HostPlatform(OperatingSystem operatingSystem, String architecture)
         return isWindows() ? ".zip" : ".tar.gz";
     }
 
+    public String aapt2MavenClassifier() {
+        return switch (operatingSystem) {
+            case WINDOWS -> "windows";
+            case MACOS -> "osx";
+            case LINUX -> "linux";
+            case OTHER -> throw new IllegalStateException(
+                    "El sistema operativo actual no está soportado para descargar AAPT2.");
+        };
+    }
+
     public enum OperatingSystem {
         WINDOWS,
         MACOS,

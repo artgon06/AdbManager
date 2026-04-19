@@ -30,6 +30,7 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicButtonUI;
@@ -148,6 +149,33 @@ public class WirelessConnectionDialog extends JDialog {
         return pairCodeField.getText().trim();
     }
 
+    public void suggestConnectEndpoint(String host, Integer port) {
+        if ((connectHostField.getText() == null || connectHostField.getText().isBlank()) && host != null && !host.isBlank()) {
+            connectHostField.setText(host.trim());
+        }
+        if ((connectPortField.getText() == null || connectPortField.getText().isBlank()) && port != null && port > 0) {
+            connectPortField.setText(String.valueOf(port));
+        }
+    }
+
+    public void setConnectEndpoint(String host, Integer port) {
+        if (host != null && !host.isBlank()) {
+            connectHostField.setText(host.trim());
+        }
+        if (port != null && port > 0) {
+            connectPortField.setText(String.valueOf(port));
+        }
+    }
+
+    public void suggestPairEndpoint(String host, Integer port) {
+        if ((pairHostField.getText() == null || pairHostField.getText().isBlank()) && host != null && !host.isBlank()) {
+            pairHostField.setText(host.trim());
+        }
+        if ((pairPortField.getText() == null || pairPortField.getText().isBlank()) && port != null && port > 0) {
+            pairPortField.setText(String.valueOf(port));
+        }
+    }
+
     public void setToolInfo(AdbToolInfo toolInfo) {
         adbVersionValueLabel.setText(toolInfo == null ? "-" : toolInfo.version());
         String location = toolInfo == null ? "-" : toolInfo.installedAs();
@@ -170,6 +198,14 @@ public class WirelessConnectionDialog extends JDialog {
         }
         updateActionAvailability(false);
         applyTheme(theme);
+        if (isVisible()) {
+            SwingUtilities.invokeLater(() -> {
+                pack();
+                setSize(new Dimension(Math.max(860, getWidth()), Math.max(680, getHeight())));
+                revalidate();
+                repaint();
+            });
+        }
     }
 
     public void setBusy(boolean busy) {
@@ -202,6 +238,14 @@ public class WirelessConnectionDialog extends JDialog {
 
     public void clearQrPayload() {
         setQrPayload(null, null);
+    }
+
+    public void resetSessionFields() {
+        connectHostField.setText("");
+        connectPortField.setText("");
+        pairHostField.setText("");
+        pairPortField.setText("");
+        pairCodeField.setText("");
     }
 
     public void refreshTexts() {
@@ -296,6 +340,11 @@ public class WirelessConnectionDialog extends JDialog {
         styleActionButton(generateQrButton, false);
         styleActionButton(pairQrButton, true);
 
+        limitVerticalGrowth(connectCard);
+        limitVerticalGrowth(pairCard);
+        limitVerticalGrowth(pairContent);
+        limitVerticalGrowth(rootContent);
+
         qrPreviewOuterPanel.setOpaque(true);
         qrPreviewOuterPanel.setBackground(theme.background());
         qrPreviewOuterPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -317,14 +366,20 @@ public class WirelessConnectionDialog extends JDialog {
                 : theme.textSecondary());
         statusLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
 
+        revalidate();
         repaint();
     }
 
     public void open() {
-        getContentPane().revalidate();
-        getContentPane().doLayout();
+        revalidate();
+        pack();
+        setSize(new Dimension(Math.max(860, getWidth()), Math.max(680, getHeight())));
         setLocationRelativeTo(getOwner());
         setVisible(true);
+        SwingUtilities.invokeLater(() -> {
+            revalidate();
+            repaint();
+        });
     }
 
     private void buildDialog() {
@@ -337,27 +392,35 @@ public class WirelessConnectionDialog extends JDialog {
                 KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
                 JComponent.WHEN_IN_FOCUSED_WINDOW);
 
-        JPanel content = new JPanel();
+        JPanel content = new JPanel(new BorderLayout(0, 14));
         content.setOpaque(true);
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setBorder(new EmptyBorder(24, 24, 24, 24));
+
+        JPanel header = new JPanel();
+        header.setOpaque(false);
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+
+        JPanel body = new JPanel(new BorderLayout());
+        body.setOpaque(false);
 
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         subtitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         statusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         statusLabel.setVisible(false);
 
-        content.add(titleLabel);
-        content.add(Box.createVerticalStrut(6));
-        content.add(subtitleLabel);
-        content.add(Box.createVerticalStrut(18));
-        content.add(buildCapabilityCard());
-        content.add(Box.createVerticalStrut(18));
-        content.add(buildPrimaryTabs());
-        content.add(Box.createVerticalStrut(12));
-        content.add(buildRootContent());
-        content.add(Box.createVerticalStrut(14));
-        content.add(statusLabel);
+        header.add(titleLabel);
+        header.add(Box.createVerticalStrut(6));
+        header.add(subtitleLabel);
+        header.add(Box.createVerticalStrut(18));
+        header.add(buildCapabilityCard());
+        header.add(Box.createVerticalStrut(18));
+        header.add(buildPrimaryTabs());
+
+        body.add(buildRootContent(), BorderLayout.NORTH);
+
+        content.add(header, BorderLayout.NORTH);
+        content.add(body, BorderLayout.CENTER);
+        content.add(statusLabel, BorderLayout.SOUTH);
 
         setContentPane(content);
     }
@@ -574,9 +637,11 @@ public class WirelessConnectionDialog extends JDialog {
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.addActionListener(event -> {
             layout.show(targetPanel, cardKey);
-            applyTheme(theme);
+            refreshTabStyles();
+            targetPanel.revalidate();
+            targetPanel.repaint();
         });
-        button.getModel().addChangeListener(event -> applyTheme(theme));
+        button.getModel().addChangeListener(event -> refreshTabStyles());
     }
 
     private void stylePrimaryTabButton(JToggleButton button) {
@@ -615,6 +680,15 @@ public class WirelessConnectionDialog extends JDialog {
                 BorderFactory.createLineBorder(selected ? theme.actionBackground() : theme.border(), 1),
                 BorderFactory.createEmptyBorder(10, 12, 10, 12)));
         button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+    }
+
+    private void refreshTabStyles() {
+        stylePrimaryTabButton(connectTabButton);
+        stylePrimaryTabButton(pairTabButton);
+        styleSecondaryTabButton(pairCodeTabButton);
+        styleSecondaryTabButton(pairQrTabButton);
+        primaryTabsPanel.repaint();
+        secondaryTabsPanel.repaint();
     }
 
     private void styleField(JTextField field, boolean editable) {

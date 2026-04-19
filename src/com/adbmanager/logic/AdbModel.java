@@ -15,6 +15,8 @@ import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.logic.model.SystemState;
+import com.adbmanager.logic.model.WirelessEndpointDiscovery;
+import com.adbmanager.logic.model.WirelessPairingResult;
 
 public interface AdbModel {
     void refreshDevices() throws Exception;
@@ -53,7 +55,9 @@ public interface AdbModel {
     void resetSelectedDeviceDisplay() throws Exception;
     void setSelectedDeviceDarkMode(boolean enabled) throws Exception;
     void performSelectedDevicePowerAction(DevicePowerAction action) throws Exception;
-    void pairWirelessDevice(String host, int pairingPort, String pairingCode) throws Exception;
-    void pairWirelessDeviceWithQr(String serviceName, String password, int timeoutSeconds) throws Exception;
+    WirelessPairingResult pairWirelessDevice(String host, int pairingPort, String pairingCode) throws Exception;
+    WirelessPairingResult pairWirelessDeviceWithQr(String serviceName, String password, int timeoutSeconds) throws Exception;
     void connectWirelessDevice(String host, int port) throws Exception;
+    String connectSelectedUsbDeviceOverTcpip(int port) throws Exception;
+    WirelessEndpointDiscovery discoverWirelessEndpoints() throws Exception;
 }

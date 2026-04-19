@@ -36,6 +36,8 @@ import com.adbmanager.logic.model.ScrcpyLaunchRequest;
 import com.adbmanager.logic.model.ScrcpyStatus;
 import com.adbmanager.logic.model.SystemState;
 import com.adbmanager.logic.model.UserConfig;
+import com.adbmanager.logic.model.WirelessEndpointDiscovery;
+import com.adbmanager.logic.model.WirelessPairingResult;
 import com.adbmanager.logic.model.WirelessPairingQrPayload;
 import com.adbmanager.view.Messages;
 import com.adbmanager.view.Messages.Language;
@@ -81,6 +83,7 @@ public class SwingController {
     private int totalApplicationPackagesToEnrich;
     private boolean autoRefreshOnFocus = true;
     private WirelessPairingQrPayload currentQrPayload;
+    private SwingWorker<Void, WirelessEndpointDiscovery> wirelessEndpointDiscoveryWorker;
     private String pendingPowerActionSerial;
     private long pendingPowerActionUntilMs;
 
@@ -108,6 +111,7 @@ public class SwingController {
         view.setScrcpyDeviceAvailable(false);
         view.setSystemDeviceAvailable(false);
         view.setPowerActionsEnabled(false);
+        view.setTcpipEnabled(false);
         view.setSystemBusy(false);
         view.clearSystemState();
         view.setSystemStatus("", false);
@@ -125,6 +129,7 @@ public class SwingController {
         view.setSaveCaptureAction(event -> saveScreenshot());
         view.setRefreshAction(event -> refreshDevices());
         view.setWirelessAssistantAction(event -> openWirelessAssistant());
+        view.setTcpipAction(event -> connectSelectedUsbDeviceOverTcpip());
         view.setPowerAction(event -> executePowerAction(DevicePowerAction.fromActionCommand(event.getActionCommand())));
         view.setHomeAction(event -> view.showHomeScreen());
         view.setDisplayAction(event -> showDisplayScreen());
@@ -233,6 +238,7 @@ public class SwingController {
                     view.clearScreenshot();
                     view.setScrcpyDeviceAvailable(false);
                     view.setSystemDeviceAvailable(false);
+                    view.setTcpipEnabled(false);
                     view.setSystemStatus("", false);
                     view.setScrcpyAvailableApps(List.of());
                     view.setScrcpyAvailableCameras(List.of());
@@ -570,6 +576,7 @@ public class SwingController {
         boolean displayAvailable = isDisplayAvailable(selectedDevice);
         view.setDisplayControlsEnabled(displayAvailable);
         view.setPowerActionsEnabled(displayAvailable);
+        view.setTcpipEnabled(isTcpipAvailable(selectedDevice));
         view.setScrcpyDeviceAvailable(displayAvailable);
         boolean systemAvailable = isSystemAvailable(selectedDevice);
         view.setSystemDeviceAvailable(systemAvailable);
@@ -1655,9 +1662,11 @@ public class SwingController {
         WirelessConnectionDialog dialog = view.getWirelessConnectionDialog();
         currentQrPayload = null;
         dialog.clearQrPayload();
+        dialog.resetSessionFields();
         dialog.setBusy(false);
         dialog.showStatus(Messages.text("wireless.status.loading"), false);
         dialog.open();
+        startWirelessEndpointDiscovery();
 
         new SwingWorker<AdbToolInfo, Void>() {
             @Override
@@ -1693,20 +1702,17 @@ public class SwingController {
         dialog.showStatus(Messages.text("wireless.status.pairing"), false);
         dialog.setBusy(true);
 
-        new SwingWorker<Void, Void>() {
+        new SwingWorker<WirelessPairingResult, Void>() {
             @Override
-            protected Void doInBackground() throws Exception {
-                model.pairWirelessDevice(host, pairingPort, pairingCode);
-                Thread.sleep(1200L);
-                return null;
+            protected WirelessPairingResult doInBackground() throws Exception {
+                return model.pairWirelessDevice(host, pairingPort, pairingCode);
             }
 
             @Override
             protected void done() {
                 try {
-                    get();
-                    dialog.showStatus(Messages.text("wireless.status.paired"), false);
-                    refreshDevices();
+                    WirelessPairingResult result = get();
+                    applyWirelessPairingResult(dialog, result, Messages.text("wireless.status.paired"));
                 } catch (Exception e) {
                     dialog.showStatus(extractErrorMessage(e, Messages.text("error.wireless.pair")), true);
                 } finally {
@@ -1749,6 +1755,40 @@ public class SwingController {
         }.execute();
     }
 
+    private void connectSelectedUsbDeviceOverTcpip() {
+        view.setTcpipEnabled(false);
+
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                return model.connectSelectedUsbDeviceOverTcpip(5555);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    String endpoint = get();
+                    view.showInfo(Messages.format("wireless.status.tcpipConnected", endpoint));
+                    refreshDevices();
+                } catch (Exception e) {
+                    handleError(Messages.text("error.wireless.tcpip"), e);
+                } finally {
+                    Device selectedDevice = model.getSelectedDevice().orElse(null);
+                    view.setTcpipEnabled(isTcpipAvailable(selectedDevice));
+                }
+            }
+        }.execute();
+    }
+
+    private boolean isTcpipAvailable(Device selectedDevice) {
+        if (selectedDevice == null || !Messages.STATUS_CONNECTED.equals(selectedDevice.state())) {
+            return false;
+        }
+
+        String serial = selectedDevice.serial() == null ? "" : selectedDevice.serial().trim();
+        return !serial.isBlank() && !serial.startsWith("emulator-") && !serial.contains(":");
+    }
+
     private void generateWirelessQrPayload() {
         WirelessConnectionDialog dialog = view.getWirelessConnectionDialog();
         try {
@@ -1770,20 +1810,17 @@ public class SwingController {
         dialog.showStatus(Messages.text("wireless.status.waitingForQr"), false);
         dialog.setBusy(true);
 
-        new SwingWorker<Void, Void>() {
+        new SwingWorker<WirelessPairingResult, Void>() {
             @Override
-            protected Void doInBackground() throws Exception {
-                model.pairWirelessDeviceWithQr(currentQrPayload.serviceName(), currentQrPayload.password(), 45);
-                Thread.sleep(1200L);
-                return null;
+            protected WirelessPairingResult doInBackground() throws Exception {
+                return model.pairWirelessDeviceWithQr(currentQrPayload.serviceName(), currentQrPayload.password(), 45);
             }
 
             @Override
             protected void done() {
                 try {
-                    get();
-                    dialog.showStatus(Messages.text("wireless.status.qrPaired"), false);
-                    refreshDevices();
+                    WirelessPairingResult result = get();
+                    applyWirelessPairingResult(dialog, result, Messages.text("wireless.status.qrPaired"));
                 } catch (Exception e) {
                     dialog.showStatus(extractErrorMessage(e, Messages.text("error.wireless.qrPair")), true);
                 } finally {
@@ -1791,6 +1828,92 @@ public class SwingController {
                 }
             }
         }.execute();
+    }
+
+    private void applyWirelessPairingResult(
+            WirelessConnectionDialog dialog,
+            WirelessPairingResult result,
+            String connectedStatus) {
+        if (result != null && result.hasConnectEndpoint()) {
+            dialog.setConnectEndpoint(result.connectEndpoint().host(), result.connectEndpoint().port());
+        }
+
+        if (result != null && result.connectedAutomatically()) {
+            dialog.showStatus(Messages.text("wireless.status.pairedConnected"), false);
+            refreshDevices();
+            return;
+        }
+
+        if (result != null && result.hasConnectEndpoint()) {
+            dialog.showStatus(Messages.format(
+                    "wireless.status.pairedManualConnect",
+                    result.connectEndpoint().endpoint()), false);
+            return;
+        }
+
+        dialog.showStatus(connectedStatus, false);
+    }
+
+    private void startWirelessEndpointDiscovery() {
+        cancelWirelessEndpointDiscovery();
+        WirelessConnectionDialog dialog = view.getWirelessConnectionDialog();
+
+        wirelessEndpointDiscoveryWorker = new SwingWorker<>() {
+            private WirelessEndpointDiscovery lastDiscovery = WirelessEndpointDiscovery.empty();
+
+            @Override
+            protected Void doInBackground() throws Exception {
+                long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
+                while (!isCancelled() && dialog.isVisible() && System.nanoTime() < deadline) {
+                    try {
+                        WirelessEndpointDiscovery discovery = model.discoverWirelessEndpoints();
+                        if (!Objects.equals(discovery, lastDiscovery)) {
+                            lastDiscovery = discovery;
+                            publish(discovery);
+                        }
+                    } catch (Exception ignored) {
+                    }
+
+                    Thread.sleep(1500L);
+                }
+                return null;
+            }
+
+            @Override
+            protected void process(List<WirelessEndpointDiscovery> chunks) {
+                if (!dialog.isVisible() || chunks == null || chunks.isEmpty()) {
+                    return;
+                }
+
+                WirelessEndpointDiscovery latest = chunks.get(chunks.size() - 1);
+                if (latest == null) {
+                    return;
+                }
+
+                if (latest.hasPairingEndpoint()) {
+                    dialog.suggestPairEndpoint(latest.pairingEndpoint().host(), latest.pairingEndpoint().port());
+                }
+                if (latest.hasConnectEndpoint()) {
+                    dialog.suggestConnectEndpoint(latest.connectEndpoint().host(), latest.connectEndpoint().port());
+                }
+            }
+
+            @Override
+            protected void done() {
+                if (wirelessEndpointDiscoveryWorker == this) {
+                    wirelessEndpointDiscoveryWorker = null;
+                }
+            }
+        };
+
+        wirelessEndpointDiscoveryWorker.execute();
+    }
+
+    private void cancelWirelessEndpointDiscovery() {
+        if (wirelessEndpointDiscoveryWorker != null) {
+            wirelessEndpointDiscoveryWorker.cancel(true);
+            wirelessEndpointDiscoveryWorker = null;
+        }
     }
 
     private void runDisplayCommand(String errorMessage, String successMessage, ApplicationTask task) {
