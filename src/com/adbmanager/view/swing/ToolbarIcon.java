@@ -24,6 +24,7 @@ public class ToolbarIcon implements Icon {
     public enum Type {
         HOME("M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"),
         DISPLAY("M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 16H7V5h10v12z"),
+        CONTROL("M3 17h6v2H3v-2zm0-6h10v2H3v-2zm0-6h14v2H3V5zm11 12h7v2h-7v-2zm4-6h3v2h-3v-2zm-6-6h9v2h-9V5z"),
         APPS("M4 8h4V4H4v4zm6 0h4V4h-4v4zm6 0h4V4h-4v4z M4 14h4v-4H4v4zm6 0h4v-4h-4v4zm6 0h4v-4h-4v4z M4 20h4v-4H4v4zm6 0h4v-4h-4v4zm6 0h4v-4h-4v4z"),
         WIRELESS("M12 18.5c.83 0 1.5.67 1.5 1.5S12.83 21.5 12 21.5 10.5 20.83 10.5 20 11.17 18.5 12 18.5z M7.05 14.05 8.46 15.46C9.39 14.53 10.64 14 12 14s2.61.53 3.54 1.46l1.41-1.41C15.66 12.76 13.89 12 12 12s-3.66.76-4.95 2.05z M2.81 9.81l1.41 1.41C6.3 9.14 9.05 8 12 8s5.7 1.14 7.78 3.22l1.41-1.41C18.75 7.36 15.5 6 12 6S5.25 7.36 2.81 9.81z M12 2C7.03 2 2.73 3.92 0 6.81l1.41 1.41C3.78 5.86 7.67 4 12 4s8.22 1.86 10.59 4.22L24 6.81C21.27 3.92 16.97 2 12 2z"),
 
@@ -45,6 +46,10 @@ public class ToolbarIcon implements Icon {
         CLEAR_DATA("M7 5h10l1 2H6l1-2z M6 8h12l-1 12H7L6 8z"),
         CLEAR_CACHE("M4 14h16v2H4z M7 10h10v2H7z M10 4h4v4h-4z"),
         EXPORT("M5 20h14v-2H5v2z M12 2l5.5 5.5h-4v7h-3v-7h-4L12 2z"),
+        ARROW_UP("M12 4l7 8h-4v8h-6v-8H5z"),
+        ARROW_DOWN("M12 20 5 12h4V4h6v8h4z"),
+        ARROW_LEFT("M4 12l8-7v4h8v6h-8v4z"),
+        ARROW_RIGHT("M20 12l-8 7v-4H4V9h8V5z"),
         ADD("M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z");
 
         private final Shape shape;

@@ -55,11 +55,26 @@ public enum AppBackgroundMode {
 
         String runAny = normalize(appOpsByName.get(RUN_ANY_IN_BACKGROUND));
         String run = normalize(appOpsByName.get(RUN_IN_BACKGROUND));
+        boolean runAnyMissing = runAny.isBlank() || isDefault(runAny);
+        boolean runMissing = run.isBlank() || isDefault(run);
+        boolean runAnyAllow = isAllow(runAny);
+        boolean runAllow = isAllow(run);
+        boolean runAnyDenied = isDenied(runAny);
+        boolean runDenied = isDenied(run);
 
-        if (isAllow(runAny) && isAllow(run)) {
+        if (runAnyMissing && runMissing) {
+            return OPTIMIZED;
+        }
+        if (runAnyAllow && (runAllow || runMissing)) {
             return UNRESTRICTED;
         }
-        if (isDenied(runAny) && isDenied(run)) {
+        if (runAnyMissing && runAllow) {
+            return UNRESTRICTED;
+        }
+        if (runAnyDenied && (runDenied || runMissing)) {
+            return RESTRICTED;
+        }
+        if (runAnyDenied && runDenied) {
             return RESTRICTED;
         }
         return OPTIMIZED;
@@ -71,6 +86,10 @@ public enum AppBackgroundMode {
 
     private static boolean isAllow(String value) {
         return "allow".equals(value);
+    }
+
+    private static boolean isDefault(String value) {
+        return "default".equals(value);
     }
 
     private static boolean isDenied(String value) {

@@ -44,7 +44,9 @@ import javax.swing.plaf.basic.BasicToggleButtonUI;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DevicePowerAction;
+import com.adbmanager.logic.model.DeviceSoundMode;
 import com.adbmanager.logic.model.AppDetails;
+import com.adbmanager.logic.model.ControlState;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.logic.model.ScrcpyCamera;
 import com.adbmanager.logic.model.ScrcpyLaunchRequest;
@@ -57,6 +59,7 @@ public class MainFrame extends JFrame {
 
     private static final String HOME_TAB = "home";
     private static final String DISPLAY_TAB = "display";
+    private static final String CONTROL_TAB = "control";
     private static final String APPS_TAB = "apps";
     private static final String SYSTEM_TAB = "system";
     private static final String SETTINGS_TAB = "settings";
@@ -73,6 +76,7 @@ public class MainFrame extends JFrame {
     private final JLabel deviceLabel = new JLabel();
     private final JToggleButton homeButton = new JToggleButton();
     private final JToggleButton displayButton = new JToggleButton();
+    private final JToggleButton controlButton = new JToggleButton();
     private final JToggleButton appsButton = new JToggleButton();
     private final JToggleButton systemButton = new JToggleButton();
     private final JToggleButton settingsButton = new JToggleButton();
@@ -83,6 +87,7 @@ public class MainFrame extends JFrame {
     private final Map<DevicePowerAction, JMenuItem> powerMenuItems = new LinkedHashMap<>();
     private final HomePanel homePanel = new HomePanel();
     private final DisplayPanel displayPanel = new DisplayPanel();
+    private final ControlPanel controlPanel = new ControlPanel();
     private final AppsPanel appsPanel = new AppsPanel();
     private final SystemPanel systemPanel = new SystemPanel();
     private final SettingsPanel settingsPanel = new SettingsPanel();
@@ -127,6 +132,50 @@ public class MainFrame extends JFrame {
 
     public void setDisplayAction(ActionListener actionListener) {
         displayButton.addActionListener(actionListener);
+    }
+
+    public void setControlAction(ActionListener actionListener) {
+        controlButton.addActionListener(actionListener);
+    }
+
+    public void setRefreshControlAction(ActionListener actionListener) {
+        controlPanel.setRefreshAction(actionListener);
+    }
+
+    public void setQuickControlKeyEventAction(ActionListener actionListener) {
+        controlPanel.setQuickKeyEventAction(actionListener);
+    }
+
+    public void setControlTextAction(ActionListener actionListener) {
+        controlPanel.setSendTextAction(actionListener);
+    }
+
+    public void setControlBrightnessAction(ActionListener actionListener) {
+        controlPanel.setApplyBrightnessAction(actionListener);
+    }
+
+    public void setControlVolumeAction(ActionListener actionListener) {
+        controlPanel.setApplyVolumeAction(actionListener);
+    }
+
+    public void setControlSoundModeAction(ActionListener actionListener) {
+        controlPanel.setApplySoundModeAction(actionListener);
+    }
+
+    public void setControlTapAction(ActionListener actionListener) {
+        controlPanel.setTapAction(actionListener);
+    }
+
+    public void setControlSwipeAction(ActionListener actionListener) {
+        controlPanel.setSwipeAction(actionListener);
+    }
+
+    public void setControlKeyEventAction(ActionListener actionListener) {
+        controlPanel.setKeyEventAction(actionListener);
+    }
+
+    public void setControlRawInputAction(ActionListener actionListener) {
+        controlPanel.setRawInputAction(actionListener);
     }
 
     public void setApplyDisplayAction(ActionListener actionListener) {
@@ -379,6 +428,7 @@ public class MainFrame extends JFrame {
         deviceLabel.setText(Messages.text("main.device.label"));
         homeButton.setToolTipText(Messages.text("navigation.home.tooltip"));
         displayButton.setToolTipText(Messages.text("navigation.display.tooltip"));
+        controlButton.setToolTipText(Messages.text("navigation.control.tooltip"));
         appsButton.setToolTipText(Messages.text("navigation.apps.tooltip"));
         systemButton.setToolTipText(Messages.text("navigation.system.tooltip"));
         settingsButton.setToolTipText(Messages.text("navigation.settings.tooltip"));
@@ -391,6 +441,7 @@ public class MainFrame extends JFrame {
 
         homePanel.refreshTexts();
         displayPanel.refreshTexts();
+        controlPanel.refreshTexts();
         appsPanel.refreshTexts();
         systemPanel.refreshTexts();
         settingsPanel.refreshTexts();
@@ -403,6 +454,7 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, HOME_TAB);
         homeButton.setSelected(true);
         displayButton.setSelected(false);
+        controlButton.setSelected(false);
         appsButton.setSelected(false);
         systemButton.setSelected(false);
         settingsButton.setSelected(false);
@@ -413,6 +465,18 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, DISPLAY_TAB);
         homeButton.setSelected(false);
         displayButton.setSelected(true);
+        controlButton.setSelected(false);
+        appsButton.setSelected(false);
+        systemButton.setSelected(false);
+        settingsButton.setSelected(false);
+        updateNavigationStyles();
+    }
+
+    public void showControlScreen() {
+        cardLayout.show(contentPanel, CONTROL_TAB);
+        homeButton.setSelected(false);
+        displayButton.setSelected(false);
+        controlButton.setSelected(true);
         appsButton.setSelected(false);
         systemButton.setSelected(false);
         settingsButton.setSelected(false);
@@ -423,6 +487,7 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, APPS_TAB);
         homeButton.setSelected(false);
         displayButton.setSelected(false);
+        controlButton.setSelected(false);
         appsButton.setSelected(true);
         systemButton.setSelected(false);
         settingsButton.setSelected(false);
@@ -433,6 +498,7 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, SYSTEM_TAB);
         homeButton.setSelected(false);
         displayButton.setSelected(false);
+        controlButton.setSelected(false);
         appsButton.setSelected(false);
         systemButton.setSelected(true);
         settingsButton.setSelected(false);
@@ -443,6 +509,7 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, SETTINGS_TAB);
         homeButton.setSelected(false);
         displayButton.setSelected(false);
+        controlButton.setSelected(false);
         appsButton.setSelected(false);
         systemButton.setSelected(false);
         settingsButton.setSelected(true);
@@ -554,6 +621,58 @@ public class MainFrame extends JFrame {
         return displayPanel.isDeviceDarkModeSelected();
     }
 
+    public String getControlTextInput() {
+        return controlPanel.getTextInputValue();
+    }
+
+    public int getControlBrightness() {
+        return controlPanel.getBrightnessValue();
+    }
+
+    public int getControlVolume() {
+        return controlPanel.getVolumeValue();
+    }
+
+    public DeviceSoundMode getControlSoundMode() {
+        return controlPanel.getSelectedSoundMode();
+    }
+
+    public Integer getControlTapX() {
+        return controlPanel.getTapX();
+    }
+
+    public Integer getControlTapY() {
+        return controlPanel.getTapY();
+    }
+
+    public Integer getControlSwipeX1() {
+        return controlPanel.getSwipeX1();
+    }
+
+    public Integer getControlSwipeY1() {
+        return controlPanel.getSwipeY1();
+    }
+
+    public Integer getControlSwipeX2() {
+        return controlPanel.getSwipeX2();
+    }
+
+    public Integer getControlSwipeY2() {
+        return controlPanel.getSwipeY2();
+    }
+
+    public Integer getControlSwipeDurationMs() {
+        return controlPanel.getSwipeDurationMs();
+    }
+
+    public String getControlManualKeyEvent() {
+        return controlPanel.getManualKeyEvent();
+    }
+
+    public String getControlRawInputCommand() {
+        return controlPanel.getRawInputCommand();
+    }
+
     public ScrcpyLaunchRequest getScrcpyLaunchRequest() {
         return displayPanel.getScrcpyLaunchRequest();
     }
@@ -600,6 +719,26 @@ public class MainFrame extends JFrame {
 
     public void setSystemState(SystemState state) {
         systemPanel.setSystemState(state);
+    }
+
+    public void setControlState(ControlState state) {
+        controlPanel.setControlState(state);
+    }
+
+    public void clearControlState() {
+        controlPanel.clearControlState();
+    }
+
+    public void setControlDeviceAvailable(boolean available) {
+        controlPanel.setDeviceAvailable(available);
+    }
+
+    public void setControlBusy(boolean busy) {
+        controlPanel.setBusy(busy);
+    }
+
+    public void setControlStatus(String message, boolean error) {
+        controlPanel.setStatus(message, error);
     }
 
     public void clearSystemState() {
@@ -810,6 +949,7 @@ public class MainFrame extends JFrame {
 
         homePanel.applyTheme(theme);
         displayPanel.applyTheme(theme);
+        controlPanel.applyTheme(theme);
         appsPanel.applyTheme(theme);
         systemPanel.applyTheme(theme);
         settingsPanel.applyTheme(theme);
@@ -817,6 +957,7 @@ public class MainFrame extends JFrame {
         appInstallDialog.applyTheme(theme);
         styleNavigationButton(homeButton);
         styleNavigationButton(displayButton);
+        styleNavigationButton(controlButton);
         styleNavigationButton(appsButton);
         styleNavigationButton(systemButton);
         styleNavigationButton(settingsButton);
@@ -862,6 +1003,10 @@ public class MainFrame extends JFrame {
         return displayButton.isSelected();
     }
 
+    public boolean isControlScreenVisible() {
+        return controlButton.isSelected();
+    }
+
     public boolean isSystemScreenVisible() {
         return systemButton.isSelected();
     }
@@ -881,6 +1026,7 @@ public class MainFrame extends JFrame {
     private void addTopBar() {
         configureNavigationButton(homeButton, ToolbarIcon.Type.HOME);
         configureNavigationButton(displayButton, ToolbarIcon.Type.DISPLAY);
+        configureNavigationButton(controlButton, ToolbarIcon.Type.CONTROL);
         configureNavigationButton(appsButton, ToolbarIcon.Type.APPS);
         configureNavigationButton(systemButton, ToolbarIcon.Type.SYSTEM);
         configureNavigationButton(settingsButton, ToolbarIcon.Type.SETTINGS);
@@ -896,11 +1042,13 @@ public class MainFrame extends JFrame {
 
         navigationGroup.add(homeButton);
         navigationGroup.add(displayButton);
+        navigationGroup.add(controlButton);
         navigationGroup.add(appsButton);
         navigationGroup.add(systemButton);
         navigationGroup.add(settingsButton);
         navigationTabsPanel.add(homeButton);
         navigationTabsPanel.add(displayButton);
+        navigationTabsPanel.add(controlButton);
         navigationTabsPanel.add(appsButton);
         navigationTabsPanel.add(systemButton);
         navigationTabsPanel.add(settingsButton);
@@ -920,6 +1068,7 @@ public class MainFrame extends JFrame {
     private void addContent() {
         contentPanel.add(homePanel, HOME_TAB);
         contentPanel.add(displayPanel, DISPLAY_TAB);
+        contentPanel.add(controlPanel, CONTROL_TAB);
         contentPanel.add(appsPanel, APPS_TAB);
         contentPanel.add(systemPanel, SYSTEM_TAB);
         contentPanel.add(settingsPanel, SETTINGS_TAB);
@@ -992,6 +1141,7 @@ public class MainFrame extends JFrame {
     private void updateNavigationStyles() {
         styleNavigationButton(homeButton);
         styleNavigationButton(displayButton);
+        styleNavigationButton(controlButton);
         styleNavigationButton(appsButton);
         styleNavigationButton(systemButton);
         styleNavigationButton(settingsButton);
@@ -1098,14 +1248,15 @@ public class MainFrame extends JFrame {
     }
 
     private void cycleTabs(int delta) {
-        int nextIndex = Math.floorMod(currentTabIndex() + delta, 5);
+        int nextIndex = Math.floorMod(currentTabIndex() + delta, 6);
         switch (nextIndex) {
-            case 0 -> showHomeScreen();
-            case 1 -> showDisplayScreen();
-            case 2 -> showAppsScreen();
-            case 3 -> showSystemScreen();
-            case 4 -> showSettingsScreen();
-            default -> showHomeScreen();
+            case 0 -> homeButton.doClick();
+            case 1 -> displayButton.doClick();
+            case 2 -> controlButton.doClick();
+            case 3 -> appsButton.doClick();
+            case 4 -> systemButton.doClick();
+            case 5 -> settingsButton.doClick();
+            default -> homeButton.doClick();
         }
     }
 
@@ -1113,14 +1264,17 @@ public class MainFrame extends JFrame {
         if (displayButton.isSelected()) {
             return 1;
         }
-        if (appsButton.isSelected()) {
+        if (controlButton.isSelected()) {
             return 2;
         }
-        if (systemButton.isSelected()) {
+        if (appsButton.isSelected()) {
             return 3;
         }
-        if (settingsButton.isSelected()) {
+        if (systemButton.isSelected()) {
             return 4;
+        }
+        if (settingsButton.isSelected()) {
+            return 5;
         }
         return 0;
     }

@@ -27,9 +27,11 @@ import com.adbmanager.logic.model.AppDetails;
 import com.adbmanager.logic.model.AdbToolInfo;
 import com.adbmanager.logic.model.AppInstallRequest;
 import com.adbmanager.logic.model.AppInstallResult;
+import com.adbmanager.logic.model.ControlState;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DevicePowerAction;
+import com.adbmanager.logic.model.DeviceSoundMode;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.logic.model.ScrcpyCamera;
 import com.adbmanager.logic.model.ScrcpyLaunchRequest;
@@ -69,9 +71,11 @@ public class SwingController {
     private boolean loadingScrcpyApplications;
     private boolean loadingScrcpyCameras;
     private boolean loadingSystemState;
+    private boolean loadingControlState;
     private boolean preparingScrcpy;
     private boolean launchingScrcpy;
     private boolean applyingSystemAction;
+    private boolean applyingControlAction;
     private String currentSelectedSerial;
     private String applicationsLoadedSerial;
     private String scrcpyApplicationsLoadedSerial;
@@ -110,11 +114,15 @@ public class SwingController {
         bindEvents();
         view.setScrcpyDeviceAvailable(false);
         view.setSystemDeviceAvailable(false);
+        view.setControlDeviceAvailable(false);
         view.setPowerActionsEnabled(false);
         view.setTcpipEnabled(false);
         view.setSystemBusy(false);
+        view.setControlBusy(false);
         view.clearSystemState();
+        view.clearControlState();
         view.setSystemStatus("", false);
+        view.setControlStatus("", false);
         view.showHomeScreen();
         view.showWindow();
         saveUserConfigSafely();
@@ -133,9 +141,19 @@ public class SwingController {
         view.setPowerAction(event -> executePowerAction(DevicePowerAction.fromActionCommand(event.getActionCommand())));
         view.setHomeAction(event -> view.showHomeScreen());
         view.setDisplayAction(event -> showDisplayScreen());
+        view.setControlAction(event -> showControlScreen());
         view.setApplyDisplayAction(event -> applyDisplayOverride());
         view.setResetDisplayAction(event -> resetDisplayOverride());
         view.setDeviceDarkModeAction(event -> toggleDeviceDarkMode());
+        view.setQuickControlKeyEventAction(event -> sendQuickControlKeyEvent(event.getActionCommand()));
+        view.setControlTextAction(event -> sendControlTextInput());
+        view.setControlBrightnessAction(event -> applyControlBrightness());
+        view.setControlVolumeAction(event -> applyControlVolume());
+        view.setControlSoundModeAction(event -> applyControlSoundMode());
+        view.setControlTapAction(event -> applyControlTap());
+        view.setControlSwipeAction(event -> applyControlSwipe());
+        view.setControlKeyEventAction(event -> applyControlManualKeyEvent());
+        view.setControlRawInputAction(event -> applyControlRawInputCommand());
         view.setPrepareScrcpyAction(event -> prepareScrcpy());
         view.setLaunchScrcpyAction(event -> launchScrcpy());
         view.setBrowseScrcpyRecordPathAction(event -> chooseScrcpyRecordingPath());
@@ -207,6 +225,7 @@ public class SwingController {
 
         loadingDevices = true;
         updateSystemBusyState();
+        updateControlBusyState();
         view.setDeviceSelectorEnabled(false);
         view.setCaptureEnabled(false);
         view.setRefreshEnabled(false);
@@ -238,18 +257,22 @@ public class SwingController {
                     view.clearScreenshot();
                     view.setScrcpyDeviceAvailable(false);
                     view.setSystemDeviceAvailable(false);
+                    view.setControlDeviceAvailable(false);
                     view.setTcpipEnabled(false);
                     view.setSystemStatus("", false);
+                    view.setControlStatus("", false);
                     view.setScrcpyAvailableApps(List.of());
                     view.setScrcpyAvailableCameras(List.of());
                     resetApplicationEnrichmentState();
                     view.setApplicationsLoading(false, "");
                     view.clearApplications();
                     view.clearApplicationDetails();
+                    view.clearControlState();
                     view.setSaveCaptureEnabled(false);
                 } finally {
                     loadingDevices = false;
                     updateSystemBusyState();
+                    updateControlBusyState();
                     view.setDeviceSelectorEnabled(true);
                     view.setRefreshEnabled(true);
                     Device selectedDevice = model.getSelectedDevice().orElse(null);
@@ -553,7 +576,9 @@ public class SwingController {
             view.clearApplications();
             view.clearApplicationDetails();
             view.clearSystemState();
+            view.clearControlState();
             view.setSystemStatus("", false);
+            view.setControlStatus("", false);
             view.setScrcpyAvailableApps(List.of());
             view.setScrcpyAvailableCameras(List.of());
         }
@@ -580,10 +605,16 @@ public class SwingController {
         view.setScrcpyDeviceAvailable(displayAvailable);
         boolean systemAvailable = isSystemAvailable(selectedDevice);
         view.setSystemDeviceAvailable(systemAvailable);
+        boolean controlAvailable = isControlAvailable(selectedDevice);
+        view.setControlDeviceAvailable(controlAvailable);
 
         if (!systemAvailable) {
             view.clearSystemState();
             view.setSystemStatus("", false);
+        }
+        if (!controlAvailable) {
+            view.clearControlState();
+            view.setControlStatus("", false);
         }
 
         if (view.isAppsScreenVisible()) {
@@ -592,6 +623,10 @@ public class SwingController {
 
         if (view.isSystemScreenVisible() && systemAvailable) {
             refreshSystemState(false);
+        }
+
+        if (view.isControlScreenVisible() && controlAvailable) {
+            refreshControlState(false);
         }
 
         if (view.isDisplayScreenVisible()) {
@@ -614,6 +649,11 @@ public class SwingController {
         if (view.usesScrcpyCameraSource()) {
             loadScrcpyCameras(false);
         }
+    }
+
+    private void showControlScreen() {
+        view.showControlScreen();
+        refreshControlState(false);
     }
 
     private void showAppsScreen() {
@@ -1154,6 +1194,213 @@ public class SwingController {
         return selectedDevice != null && Messages.STATUS_CONNECTED.equals(selectedDevice.state());
     }
 
+    private boolean isControlAvailable(Device selectedDevice) {
+        return selectedDevice != null && Messages.STATUS_CONNECTED.equals(selectedDevice.state());
+    }
+
+    private void refreshControlState(boolean showErrors) {
+        Device selectedDevice = model.getSelectedDevice().orElse(null);
+        if (!isControlAvailable(selectedDevice)) {
+            view.setControlDeviceAvailable(false);
+            view.clearControlState();
+            view.setControlStatus("", false);
+            return;
+        }
+
+        String requestedSerial = selectedDevice.serial();
+        if (loadingControlState || (applyingControlAction && !showErrors)) {
+            return;
+        }
+
+        loadingControlState = true;
+        view.setControlDeviceAvailable(true);
+        view.setControlStatus(Messages.text("control.status.loading"), false);
+        updateControlBusyState();
+
+        new SwingWorker<ControlState, Void>() {
+            @Override
+            protected ControlState doInBackground() throws Exception {
+                return model.getSelectedDeviceControlState().orElse(ControlState.empty());
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    ControlState state = get();
+                    if (!Objects.equals(requestedSerial, currentSelectedSerial)) {
+                        return;
+                    }
+                    view.setControlState(state);
+                    view.setControlStatus(Messages.text("control.status.ready"), false);
+                } catch (Exception e) {
+                    if (!Objects.equals(requestedSerial, currentSelectedSerial)) {
+                        return;
+                    }
+                    view.clearControlState();
+                    view.setControlStatus(extractErrorMessage(e, Messages.text("error.control.load")), true);
+                    if (showErrors) {
+                        handleError(Messages.text("error.control.load"), e);
+                    }
+                } finally {
+                    loadingControlState = false;
+                    updateControlBusyState();
+                }
+            }
+        }.execute();
+    }
+
+    private void sendQuickControlKeyEvent(String keyEvent) {
+        runControlCommand(
+                Messages.text("error.control.keyevent"),
+                Messages.text("control.status.keyeventSent"),
+                false,
+                () -> model.sendSelectedDeviceKeyEvent(keyEvent));
+    }
+
+    private void sendControlTextInput() {
+        String text = view.getControlTextInput();
+        if (text == null || text.isBlank()) {
+            view.showError(Messages.text("error.control.textRequired"));
+            return;
+        }
+
+        runControlCommand(
+                Messages.text("error.control.text"),
+                Messages.text("control.status.textSent"),
+                false,
+                () -> model.sendSelectedDeviceTextInput(text));
+    }
+
+    private void applyControlBrightness() {
+        int brightness = view.getControlBrightness();
+        runControlCommand(
+                Messages.text("error.control.brightness"),
+                Messages.format("control.status.brightnessApplied", brightness),
+                true,
+                () -> model.setSelectedDeviceBrightness(brightness));
+    }
+
+    private void applyControlVolume() {
+        int volume = view.getControlVolume();
+        runControlCommand(
+                Messages.text("error.control.volume"),
+                Messages.format("control.status.volumeApplied", volume),
+                true,
+                () -> model.setSelectedDeviceMediaVolume(volume));
+    }
+
+    private void applyControlSoundMode() {
+        DeviceSoundMode soundMode = view.getControlSoundMode();
+        runControlCommand(
+                Messages.text("error.control.soundMode"),
+                Messages.format("control.status.soundModeApplied", Messages.text(soundMode.messageKey())),
+                true,
+                () -> model.setSelectedDeviceSoundMode(soundMode));
+    }
+
+    private void applyControlTap() {
+        Integer x = view.getControlTapX();
+        Integer y = view.getControlTapY();
+        if (x == null || y == null) {
+            view.showError(Messages.text("error.control.tap"));
+            return;
+        }
+
+        runControlCommand(
+                Messages.text("error.control.tap"),
+                Messages.format("control.status.tapApplied", x, y),
+                false,
+                () -> model.tapSelectedDevice(x, y));
+    }
+
+    private void applyControlSwipe() {
+        Integer x1 = view.getControlSwipeX1();
+        Integer y1 = view.getControlSwipeY1();
+        Integer x2 = view.getControlSwipeX2();
+        Integer y2 = view.getControlSwipeY2();
+        Integer durationMs = view.getControlSwipeDurationMs();
+        if (x1 == null || y1 == null || x2 == null || y2 == null || durationMs == null) {
+            view.showError(Messages.text("error.control.swipe"));
+            return;
+        }
+
+        runControlCommand(
+                Messages.text("error.control.swipe"),
+                Messages.format("control.status.swipeApplied", x1, y1, x2, y2, durationMs),
+                false,
+                () -> model.swipeSelectedDevice(x1, y1, x2, y2, durationMs));
+    }
+
+    private void applyControlManualKeyEvent() {
+        String keyEvent = view.getControlManualKeyEvent();
+        if (keyEvent == null || keyEvent.isBlank()) {
+            view.showError(Messages.text("error.control.keyeventRequired"));
+            return;
+        }
+
+        runControlCommand(
+                Messages.text("error.control.keyevent"),
+                Messages.format("control.status.manualKeyeventApplied", keyEvent.trim()),
+                false,
+                () -> model.sendSelectedDeviceKeyEvent(keyEvent));
+    }
+
+    private void applyControlRawInputCommand() {
+        String rawCommand = view.getControlRawInputCommand();
+        if (rawCommand == null || rawCommand.isBlank()) {
+            view.showError(Messages.text("error.control.rawInputRequired"));
+            return;
+        }
+
+        runControlCommand(
+                Messages.text("error.control.rawInput"),
+                Messages.format("control.status.rawInputApplied", rawCommand.trim()),
+                false,
+                () -> model.runSelectedDeviceInputCommand(rawCommand));
+    }
+
+    private void runControlCommand(String errorMessage, String successMessage, boolean refreshAfter, ApplicationTask task) {
+        Device selectedDevice = model.getSelectedDevice().orElse(null);
+        if (!isControlAvailable(selectedDevice)) {
+            view.showError(Messages.text("error.control.deviceRequired"));
+            return;
+        }
+
+        String requestedSerial = selectedDevice.serial();
+        applyingControlAction = true;
+        view.setControlStatus(Messages.text("control.status.executing"), false);
+        updateControlBusyState();
+
+        new SwingWorker<ControlState, Void>() {
+            @Override
+            protected ControlState doInBackground() throws Exception {
+                task.run();
+                return refreshAfter ? model.getSelectedDeviceControlState().orElse(ControlState.empty()) : null;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    ControlState state = get();
+                    if (!Objects.equals(requestedSerial, currentSelectedSerial)) {
+                        return;
+                    }
+                    if (refreshAfter && state != null) {
+                        view.setControlState(state);
+                    }
+                    view.setControlStatus(successMessage == null ? Messages.text("control.status.ready") : successMessage, false);
+                } catch (Exception e) {
+                    if (Objects.equals(requestedSerial, currentSelectedSerial)) {
+                        view.setControlStatus(extractErrorMessage(e, errorMessage), true);
+                    }
+                } finally {
+                    applyingControlAction = false;
+                    updateControlBusyState();
+                }
+            }
+        }.execute();
+    }
+
     private void refreshSystemState(boolean showErrors) {
         Device selectedDevice = model.getSelectedDevice().orElse(null);
         if (!isSystemAvailable(selectedDevice)) {
@@ -1312,6 +1559,10 @@ public class SwingController {
 
     private void updateSystemBusyState() {
         view.setSystemBusy(loadingDevices || loadingSystemState || applyingSystemAction);
+    }
+
+    private void updateControlBusyState() {
+        view.setControlBusy(loadingDevices || loadingControlState || applyingControlAction);
     }
 
     private void runSystemCommand(String errorMessage, String successMessage, ApplicationTask task) {

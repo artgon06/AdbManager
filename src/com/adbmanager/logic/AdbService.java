@@ -16,6 +16,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.HashMap;
@@ -56,11 +57,13 @@ import com.adbmanager.logic.model.AppDetailsParser;
 import com.adbmanager.logic.model.AppListParser;
 import com.adbmanager.logic.model.AndroidUser;
 import com.adbmanager.logic.model.BundletoolDeviceSpec;
+import com.adbmanager.logic.model.ControlState;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DeviceDetailsParser;
 import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.DeviceParser;
+import com.adbmanager.logic.model.DeviceSoundMode;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.logic.model.KeyboardInputMethod;
 import com.adbmanager.logic.model.SystemState;
@@ -127,6 +130,17 @@ public class AdbService implements AdbModel {
     private static final Pattern GESTURAL_OVERLAY_PATTERN = Pattern.compile(
             "\\[(x|X| )\\]\\s+com\\.android\\.internal\\.systemui\\.navbar\\.gestural");
     private static final Pattern IME_VERBOSE_ID_PATTERN = Pattern.compile("^mId=([^\\s]+)\\s*$", Pattern.MULTILINE);
+    private static final Pattern MEDIA_VOLUME_PATTERN = Pattern.compile(
+            "volume\\s+is\\s+(\\d+)\\s+in\\s+range\\s+\\[(\\d+)\\.\\.(\\d+)]",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern AUDIO_CMD_RESULT_PATTERN = Pattern.compile("->\\s*(-?\\d+)\\s*$", Pattern.MULTILINE);
+    private static final Pattern AUDIO_STREAM_BLOCK_PATTERN = Pattern.compile(
+            "(?s)-\\s*STREAM_MUSIC:(.*?)(?:\\R-\\s*STREAM_|\\z)");
+    private static final Pattern AUDIO_STREAM_MIN_PATTERN = Pattern.compile("(?m)^\\s*Min:\\s*(\\d+)\\s*$");
+    private static final Pattern AUDIO_STREAM_MAX_PATTERN = Pattern.compile("(?m)^\\s*Max:\\s*(\\d+)\\s*$");
+    private static final Pattern AUDIO_STREAM_LEVEL_PATTERN = Pattern.compile("(?m)^\\s*streamVolume:\\s*(\\d+)\\s*$");
+    private static final Pattern AUDIO_STREAM_DEVICE_ID_PATTERN = Pattern.compile("(?m)^\\s*Devices:\\s*[^\\r\\n]*\\((\\d+)\\)");
+    private static final Pattern INTEGER_PATTERN = Pattern.compile("-?\\d+");
 
     private final AdbClient client;
     private final BundletoolService bundletoolService = new BundletoolService();
@@ -291,6 +305,284 @@ public class AdbService implements AdbModel {
                 || normalized.contains("closed")
                 || normalized.contains("timeout")
                 || normalized.contains("timed out");
+    }
+
+    private String runControlCommandOrEmpty(String serial, List<String> command) throws Exception {
+        AdbResult result = client.runForSerial(serial, command);
+        if (result.ok()) {
+            return result.output() == null ? "" : result.output();
+        }
+
+        String output = result.output() == null ? "" : result.output();
+        if (isTransientServiceNotReadyError(output)) {
+            return "";
+        }
+
+        throw new Exception("adb -s " + serial + " " + String.join(" ", command) + " failed:\n" + output);
+    }
+
+    private String runControlCommandLenient(String serial, List<String> command) {
+        try {
+            AdbResult result = client.runForSerial(serial, command);
+            if (result.ok()) {
+                return result.output() == null ? "" : result.output();
+            }
+
+            String output = result.output() == null ? "" : result.output();
+            if (isTransientServiceNotReadyError(output) || isControlCommandUnavailable(output)) {
+                return "";
+            }
+            return "";
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private boolean isControlCommandUnavailable(String output) {
+        String normalized = output == null ? "" : output.toLowerCase(Locale.ROOT);
+        return normalized.contains("inaccessible or not found")
+                || normalized.contains("not found")
+                || normalized.contains("unknown command")
+                || normalized.contains("unknown option")
+                || normalized.contains("unrecognized option")
+                || normalized.contains("no such service");
+    }
+
+    private int parseIntegerOrDefault(String rawValue, int fallback) {
+        if (rawValue == null) {
+            return fallback;
+        }
+
+        Matcher matcher = INTEGER_PATTERN.matcher(rawValue.trim());
+        if (!matcher.find()) {
+            return fallback;
+        }
+
+        try {
+            return Integer.parseInt(matcher.group());
+        } catch (NumberFormatException exception) {
+            return fallback;
+        }
+    }
+
+    private int[] parseMediaVolume(String output) {
+        if (output == null || output.isBlank()) {
+            return new int[] { 0, 15 };
+        }
+
+        Matcher matcher = MEDIA_VOLUME_PATTERN.matcher(output);
+        if (matcher.find()) {
+            int current = parseIntegerOrDefault(matcher.group(1), 0);
+            int min = parseIntegerOrDefault(matcher.group(2), 0);
+            int max = Math.max(1, parseIntegerOrDefault(matcher.group(3), 15));
+            return new int[] { Math.max(0, current - min), Math.max(1, max - min) };
+        }
+
+        int current = parseIntegerOrDefault(output, 0);
+        return new int[] { Math.max(0, current), 15 };
+    }
+
+    private int[] parseMediaVolumeFromDumpsys(String output) {
+        if (output == null || output.isBlank()) {
+            return null;
+        }
+
+        Matcher blockMatcher = AUDIO_STREAM_BLOCK_PATTERN.matcher(output);
+        if (!blockMatcher.find()) {
+            return null;
+        }
+
+        String block = blockMatcher.group(1);
+        int min = parseIntegerOrDefault(firstMatch(AUDIO_STREAM_MIN_PATTERN, block), 0);
+        int max = parseIntegerOrDefault(firstMatch(AUDIO_STREAM_MAX_PATTERN, block), 15);
+        int current = parseIntegerOrDefault(firstMatch(AUDIO_STREAM_LEVEL_PATTERN, block), min);
+        int span = Math.max(1, max - min);
+        int normalizedCurrent = Math.max(0, Math.min(span, current - min));
+        return new int[] { normalizedCurrent, span };
+    }
+
+    private String firstMatch(Pattern pattern, String text) {
+        Matcher matcher = pattern.matcher(text == null ? "" : text);
+        return matcher.find() ? matcher.group(1) : "";
+    }
+
+    private Integer parseAudioCmdResultValue(String output) {
+        if (output == null || output.isBlank()) {
+            return null;
+        }
+        Matcher matcher = AUDIO_CMD_RESULT_PATTERN.matcher(output);
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(matcher.group(1));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private int readAudioStreamVolumeOrDefault(String serial, int fallback) {
+        String output = runControlCommandLenient(serial, List.of("shell", "cmd", "audio", "get-stream-volume", "3"));
+        Integer value = parseAudioCmdResultValue(output);
+        return value == null ? fallback : Math.max(0, value);
+    }
+
+    private int readAudioStreamMaxOrDefault(String serial, int fallback) {
+        String output = runControlCommandLenient(serial, List.of("shell", "cmd", "audio", "get-max-volume", "3"));
+        Integer value = parseAudioCmdResultValue(output);
+        return value == null ? fallback : Math.max(1, value);
+    }
+
+    private Integer readMusicActiveDeviceType(String serial) {
+        String dumpsysAudio = runControlCommandLenient(serial, List.of("shell", "dumpsys", "audio"));
+        if (dumpsysAudio.isBlank()) {
+            return null;
+        }
+
+        Matcher blockMatcher = AUDIO_STREAM_BLOCK_PATTERN.matcher(dumpsysAudio);
+        if (!blockMatcher.find()) {
+            return null;
+        }
+        String block = blockMatcher.group(1);
+        String deviceId = firstMatch(AUDIO_STREAM_DEVICE_ID_PATTERN, block);
+        if (deviceId.isBlank()) {
+            return null;
+        }
+        return parseIntegerOrDefault(deviceId, -1);
+    }
+
+    private DeviceSoundMode parseSoundMode(String output) {
+        String normalized = output == null ? "" : output.toLowerCase(Locale.ROOT);
+        if (normalized.contains("vibrate")) {
+            return DeviceSoundMode.VIBRATE;
+        }
+        if (normalized.contains("silent")) {
+            return DeviceSoundMode.SILENT;
+        }
+        return DeviceSoundMode.NORMAL;
+    }
+
+    private DeviceSoundMode parseSoundModeFromNumeric(String output) {
+        int mode = parseIntegerOrDefault(output, 2);
+        return switch (mode) {
+            case 0 -> DeviceSoundMode.SILENT;
+            case 1 -> DeviceSoundMode.VIBRATE;
+            default -> DeviceSoundMode.NORMAL;
+        };
+    }
+
+    private int[] readMediaVolumeState(String serial) {
+        String dumpsysAudio = runControlCommandLenient(serial, List.of("shell", "dumpsys", "audio"));
+        int[] fromDumpsys = parseMediaVolumeFromDumpsys(dumpsysAudio);
+        if (fromDumpsys != null) {
+            return fromDumpsys;
+        }
+
+        int cmdAudioCurrent = readAudioStreamVolumeOrDefault(serial, -1);
+        int cmdAudioMax = readAudioStreamMaxOrDefault(serial, -1);
+        if (cmdAudioCurrent >= 0 && cmdAudioMax >= 1) {
+            int boundedCurrent = Math.max(0, Math.min(cmdAudioCurrent, cmdAudioMax));
+            return new int[] { boundedCurrent, cmdAudioMax };
+        }
+
+        String mediaSessionOutput = runControlCommandLenient(
+                serial,
+                List.of("shell", "cmd", "media_session", "volume", "--stream", "3", "--get"));
+        int[] parsed = parseMediaVolume(mediaSessionOutput);
+        if (!mediaSessionOutput.isBlank()) {
+            return parsed;
+        }
+
+        String mediaOutput = runControlCommandLenient(
+                serial,
+                List.of("shell", "media", "volume", "--stream", "3", "--get"));
+        parsed = parseMediaVolume(mediaOutput);
+        if (!mediaOutput.isBlank()) {
+            return parsed;
+        }
+
+        String settingsVolume = runControlCommandLenient(
+                serial,
+                List.of("shell", "settings", "get", "system", "volume_music"));
+        int current = Math.max(0, parseIntegerOrDefault(settingsVolume, 0));
+        return new int[] { current, 15 };
+    }
+
+    private DeviceSoundMode readSoundModeState(String serial) {
+        String commandOutput = runControlCommandLenient(serial, List.of("shell", "cmd", "audio", "get-ringer-mode"));
+        if (!commandOutput.isBlank()) {
+            return parseSoundMode(commandOutput);
+        }
+
+        String settingsOutput = runControlCommandLenient(serial, List.of("shell", "settings", "get", "global", "mode_ringer"));
+        if (!settingsOutput.isBlank()) {
+            return parseSoundModeFromNumeric(settingsOutput);
+        }
+        return DeviceSoundMode.NORMAL;
+    }
+
+    private String encodeInputText(String text) {
+        String normalized = text == null ? "" : text.trim();
+        if (normalized.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder encoded = new StringBuilder(normalized.length() + 8);
+        for (char character : normalized.toCharArray()) {
+            if (character == ' ') {
+                encoded.append("%s");
+            } else if (character == '\''
+                    || character == '"'
+                    || character == '&'
+                    || character == '|'
+                    || character == '<'
+                    || character == '>'
+                    || character == ';'
+                    || character == '\\') {
+                encoded.append('\\').append(character);
+            } else {
+                encoded.append(character);
+            }
+        }
+        return encoded.toString();
+    }
+
+    private List<String> tokenizeInputCommand(String rawCommand) {
+        String input = rawCommand == null ? "" : rawCommand.trim();
+        if (input.isEmpty()) {
+            return List.of();
+        }
+
+        ArrayDeque<String> tokens = new ArrayDeque<>();
+        StringBuilder currentToken = new StringBuilder();
+        boolean inSingleQuotes = false;
+        boolean inDoubleQuotes = false;
+
+        for (int i = 0; i < input.length(); i++) {
+            char currentChar = input.charAt(i);
+            if (currentChar == '\'' && !inDoubleQuotes) {
+                inSingleQuotes = !inSingleQuotes;
+                continue;
+            }
+            if (currentChar == '"' && !inSingleQuotes) {
+                inDoubleQuotes = !inDoubleQuotes;
+                continue;
+            }
+            if (Character.isWhitespace(currentChar) && !inSingleQuotes && !inDoubleQuotes) {
+                if (currentToken.length() > 0) {
+                    tokens.add(currentToken.toString());
+                    currentToken.setLength(0);
+                }
+                continue;
+            }
+            currentToken.append(currentChar);
+        }
+
+        if (currentToken.length() > 0) {
+            tokens.add(currentToken.toString());
+        }
+
+        return List.copyOf(tokens);
     }
 
     @Override
@@ -610,9 +902,29 @@ public class AdbService implements AdbModel {
 
         String targetPackage = requirePackageName(packageName);
         AppBackgroundMode safeMode = mode == null ? AppBackgroundMode.OPTIMIZED : mode;
+        String serial = device.serial();
 
-        setApplicationAppOp(device.serial(), targetPackage, "RUN_ANY_IN_BACKGROUND", safeMode.runAnyMode());
-        setApplicationAppOp(device.serial(), targetPackage, "RUN_IN_BACKGROUND", safeMode.runMode());
+        // Intento principal con el mapeo base.
+        setApplicationAppOp(serial, targetPackage, "RUN_ANY_IN_BACKGROUND", safeMode.runAnyMode());
+        setApplicationAppOp(serial, targetPackage, "RUN_IN_BACKGROUND", safeMode.runMode());
+        AppBackgroundMode appliedMode = readApplicationBackgroundMode(serial, targetPackage);
+        if (appliedMode == safeMode) {
+            return;
+        }
+
+        // Algunos OEM devuelven combinaciones distintas (deny/ignore/default) según la app.
+        for (String[] fallbackPair : backgroundModeFallbackPairs(safeMode)) {
+            setApplicationAppOpLenient(serial, targetPackage, "RUN_ANY_IN_BACKGROUND", fallbackPair[0]);
+            setApplicationAppOpLenient(serial, targetPackage, "RUN_IN_BACKGROUND", fallbackPair[1]);
+            appliedMode = readApplicationBackgroundMode(serial, targetPackage);
+            if (appliedMode == safeMode) {
+                return;
+            }
+        }
+
+        throw new Exception(
+                "No se pudo aplicar el modo de energ\u00eda solicitado. Objetivo: " + safeMode.name()
+                        + ", detectado: " + appliedMode.name());
     }
 
     @Override
@@ -856,6 +1168,235 @@ public class AdbService implements AdbModel {
         }
 
         return Optional.of(loadSystemStateForSerial(selectedDevice.get().serial()));
+    }
+
+    @Override
+    public Optional<ControlState> getSelectedDeviceControlState() throws Exception {
+        Optional<Device> selectedDevice = getSelectedDevice();
+        if (selectedDevice.isEmpty() || !Messages.STATUS_CONNECTED.equals(selectedDevice.get().state())) {
+            return Optional.empty();
+        }
+
+        Device device = selectedDevice.get();
+        String serial = device.serial();
+
+        int brightness = parseIntegerOrDefault(
+                runControlCommandOrEmpty(serial, List.of("shell", "settings", "get", "system", "screen_brightness")),
+                128);
+        brightness = Math.max(0, Math.min(brightness, 255));
+
+        int[] volume = readMediaVolumeState(serial);
+        DeviceSoundMode soundMode = readSoundModeState(serial);
+
+        return Optional.of(new ControlState(brightness, 255, volume[0], volume[1], soundMode));
+    }
+
+    @Override
+    public void sendSelectedDeviceTextInput(String text) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.control.deviceRequired"),
+                Messages.text("error.control.deviceDisconnected"));
+        String normalized = requireNonBlank(text, Messages.text("error.control.textRequired"));
+        String encoded = encodeInputText(normalized);
+
+        AdbResult result = client.runForSerial(
+                device.serial(),
+                List.of("shell", "input", "text", encoded));
+        assertOk(result, "adb -s " + device.serial() + " shell input text " + encoded);
+    }
+
+    @Override
+    public void setSelectedDeviceBrightness(int brightness) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.control.deviceRequired"),
+                Messages.text("error.control.deviceDisconnected"));
+        if (brightness < 0 || brightness > 255) {
+            throw new IllegalArgumentException(Messages.text("error.control.brightness"));
+        }
+
+        AdbResult modeResult = client.runForSerial(
+                device.serial(),
+                List.of("shell", "settings", "put", "system", "screen_brightness_mode", "0"));
+        assertOk(modeResult, "adb -s " + device.serial() + " shell settings put system screen_brightness_mode 0");
+
+        AdbResult brightnessResult = client.runForSerial(
+                device.serial(),
+                List.of("shell", "settings", "put", "system", "screen_brightness", String.valueOf(brightness)));
+        assertOk(brightnessResult,
+                "adb -s " + device.serial() + " shell settings put system screen_brightness " + brightness);
+    }
+
+    @Override
+    public void setSelectedDeviceMediaVolume(int volume) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.control.deviceRequired"),
+                Messages.text("error.control.deviceDisconnected"));
+        if (volume < 0) {
+            throw new IllegalArgumentException(Messages.text("error.control.volume"));
+        }
+
+        String serial = device.serial();
+        int maxVolume = readAudioStreamMaxOrDefault(serial, 30);
+        int safeVolume = Math.max(0, Math.min(volume, maxVolume));
+
+        AdbResult setVolumeResult = client.runForSerial(
+                serial,
+                List.of("shell", "cmd", "audio", "set-volume", "3", String.valueOf(safeVolume)));
+        if (setVolumeResult.ok()) {
+            int currentVolume = readMediaVolumeState(serial)[0];
+            if (currentVolume == safeVolume) {
+                return;
+            }
+        }
+
+        Integer activeDeviceType = readMusicActiveDeviceType(serial);
+        if (activeDeviceType != null && activeDeviceType > 0) {
+            AdbResult setDeviceVolumeResult = client.runForSerial(
+                    serial,
+                    List.of(
+                            "shell",
+                            "cmd",
+                            "audio",
+                            "set-device-volume",
+                            "3",
+                            String.valueOf(safeVolume),
+                            String.valueOf(activeDeviceType)));
+            if (setDeviceVolumeResult.ok()) {
+                int currentVolume = readMediaVolumeState(serial)[0];
+                if (currentVolume == safeVolume) {
+                    return;
+                }
+            }
+        }
+
+        List<List<String>> fallbackCommands = List.of(
+                List.of("shell", "cmd", "media_session", "volume", "--stream", "3", "--set", String.valueOf(safeVolume)),
+                List.of("shell", "media", "volume", "--stream", "3", "--set", String.valueOf(safeVolume)),
+                List.of("shell", "settings", "put", "system", "volume_music", String.valueOf(safeVolume)));
+
+        String lastOutput = setVolumeResult.output() == null ? "" : setVolumeResult.output();
+        for (List<String> command : fallbackCommands) {
+            AdbResult result = client.runForSerial(serial, command);
+            if (result.ok()) {
+                return;
+            }
+            String output = result.output() == null ? "" : result.output();
+            lastOutput = output;
+            if (isTransientServiceNotReadyError(output) || isControlCommandUnavailable(output)) {
+                continue;
+            }
+        }
+
+        throw new Exception("adb -s " + serial + " shell cmd/media/settings volume failed:\n" + lastOutput);
+    }
+
+    @Override
+    public void setSelectedDeviceSoundMode(DeviceSoundMode mode) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.control.deviceRequired"),
+                Messages.text("error.control.deviceDisconnected"));
+        DeviceSoundMode safeMode = mode == null ? DeviceSoundMode.NORMAL : mode;
+        String serial = device.serial();
+
+        AdbResult commandResult = client.runForSerial(
+                serial,
+                List.of("shell", "cmd", "audio", "set-ringer-mode", safeMode.adbValue()));
+        if (commandResult.ok()) {
+            return;
+        }
+
+        String output = commandResult.output() == null ? "" : commandResult.output();
+        if (!isControlCommandUnavailable(output)) {
+            throw new Exception(
+                    "adb -s " + serial + " shell cmd audio set-ringer-mode " + safeMode.adbValue() + " failed:\n"
+                            + output);
+        }
+
+        int numericMode = switch (safeMode) {
+            case SILENT -> 0;
+            case VIBRATE -> 1;
+            case NORMAL -> 2;
+        };
+        AdbResult settingsResult = client.runForSerial(
+                serial,
+                List.of("shell", "settings", "put", "global", "mode_ringer", String.valueOf(numericMode)));
+        assertOk(settingsResult,
+                "adb -s " + serial + " shell settings put global mode_ringer " + numericMode);
+    }
+
+    @Override
+    public void sendSelectedDeviceKeyEvent(String keyEvent) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.control.deviceRequired"),
+                Messages.text("error.control.deviceDisconnected"));
+        String safeKeyEvent = requireNonBlank(keyEvent, Messages.text("error.control.keyeventRequired"));
+
+        AdbResult result = client.runForSerial(
+                device.serial(),
+                List.of("shell", "input", "keyevent", safeKeyEvent));
+        assertOk(result, "adb -s " + device.serial() + " shell input keyevent " + safeKeyEvent);
+    }
+
+    @Override
+    public void tapSelectedDevice(int x, int y) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.control.deviceRequired"),
+                Messages.text("error.control.deviceDisconnected"));
+        if (x < 0 || y < 0) {
+            throw new IllegalArgumentException(Messages.text("error.control.tap"));
+        }
+
+        AdbResult result = client.runForSerial(
+                device.serial(),
+                List.of("shell", "input", "tap", String.valueOf(x), String.valueOf(y)));
+        assertOk(result, "adb -s " + device.serial() + " shell input tap " + x + " " + y);
+    }
+
+    @Override
+    public void swipeSelectedDevice(int x1, int y1, int x2, int y2, int durationMs) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.control.deviceRequired"),
+                Messages.text("error.control.deviceDisconnected"));
+        if (x1 < 0 || y1 < 0 || x2 < 0 || y2 < 0 || durationMs < 0) {
+            throw new IllegalArgumentException(Messages.text("error.control.swipe"));
+        }
+
+        AdbResult result = client.runForSerial(
+                device.serial(),
+                List.of(
+                        "shell",
+                        "input",
+                        "swipe",
+                        String.valueOf(x1),
+                        String.valueOf(y1),
+                        String.valueOf(x2),
+                        String.valueOf(y2),
+                        String.valueOf(durationMs)));
+        assertOk(
+                result,
+                "adb -s " + device.serial() + " shell input swipe " + x1 + " " + y1 + " " + x2 + " " + y2 + " "
+                        + durationMs);
+    }
+
+    @Override
+    public void runSelectedDeviceInputCommand(String rawInputCommand) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.control.deviceRequired"),
+                Messages.text("error.control.deviceDisconnected"));
+        String command = requireNonBlank(rawInputCommand, Messages.text("error.control.rawInputRequired"));
+
+        List<String> tokens = tokenizeInputCommand(command);
+        if (tokens.isEmpty()) {
+            throw new IllegalArgumentException(Messages.text("error.control.rawInputRequired"));
+        }
+
+        List<String> adbCommand = new ArrayList<>();
+        adbCommand.add("shell");
+        adbCommand.add("input");
+        adbCommand.addAll(tokens);
+
+        AdbResult result = client.runForSerial(device.serial(), adbCommand);
+        assertOk(result, "adb -s " + device.serial() + " " + String.join(" ", adbCommand));
     }
 
     @Override
@@ -2118,6 +2659,61 @@ public class AdbService implements AdbModel {
         }
 
         return appOpsByName;
+    }
+
+    private AppBackgroundMode readApplicationBackgroundMode(String serial, String packageName) throws Exception {
+        AdbResult appOpsResult = client.runForSerial(
+                serial,
+                List.of("shell", "cmd", "appops", "get", "--user", PRIMARY_USER_ID, packageName));
+        assertOk(appOpsResult, "adb -s " + serial + " shell cmd appops get --user " + PRIMARY_USER_ID + " " + packageName);
+        return AppBackgroundMode.fromAppOps(parseAppOps(appOpsResult.output()));
+    }
+
+    private List<String[]> backgroundModeFallbackPairs(AppBackgroundMode targetMode) {
+        return switch (targetMode) {
+            case UNRESTRICTED -> List.of(
+                    new String[] { "allow", "default" },
+                    new String[] { "default", "allow" },
+                    new String[] { "allow", "ignore" });
+            case OPTIMIZED -> List.of(
+                    new String[] { "allow", "deny" },
+                    new String[] { "allow", "ignore" },
+                    new String[] { "default", "deny" },
+                    new String[] { "default", "ignore" });
+            case RESTRICTED -> List.of(
+                    new String[] { "deny", "ignore" },
+                    new String[] { "ignore", "deny" },
+                    new String[] { "ignore", "ignore" },
+                    new String[] { "deny", "default" },
+                    new String[] { "ignore", "default" });
+        };
+    }
+
+    private void setApplicationAppOpLenient(String serial, String packageName, String appOp, String mode) throws Exception {
+        List<String> command = List.of(
+                "shell",
+                "cmd",
+                "appops",
+                "set",
+                "--user",
+                PRIMARY_USER_ID,
+                packageName,
+                appOp,
+                mode);
+        AdbResult result = client.runForSerial(serial, command);
+        if (result.ok()) {
+            return;
+        }
+
+        String output = result.output() == null ? "" : result.output();
+        String normalized = output.toLowerCase(Locale.ROOT);
+        if (normalized.contains("unknown operation")
+                || normalized.contains("bad operation")
+                || normalized.contains("unknown option")
+                || normalized.contains("unknown command")) {
+            return;
+        }
+        assertOk(result, "adb -s " + serial + " " + String.join(" ", command));
     }
 
     private void setApplicationAppOp(String serial, String packageName, String appOp, String mode) throws Exception {
