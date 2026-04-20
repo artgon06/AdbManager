@@ -26,6 +26,8 @@ public class ToolbarIcon implements Icon {
         DISPLAY("M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 16H7V5h10v12z"),
         CONTROL("M3 17h6v2H3v-2zm0-6h10v2H3v-2zm0-6h14v2H3V5zm11 12h7v2h-7v-2zm4-6h3v2h-3v-2zm-6-6h9v2h-9V5z"),
         APPS("M4 8h4V4H4v4zm6 0h4V4h-4v4zm6 0h4V4h-4v4z M4 14h4v-4H4v4zm6 0h4v-4h-4v4zm6 0h4v-4h-4v4z M4 20h4v-4H4v4zm6 0h4v-4h-4v4zm6 0h4v-4h-4v4z"),
+        FILES("M6 2h9l5 5v15H6z M14 2v6h6"),
+        FOLDER("M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"),
         WIRELESS("M12 18.5c.83 0 1.5.67 1.5 1.5S12.83 21.5 12 21.5 10.5 20.83 10.5 20 11.17 18.5 12 18.5z M7.05 14.05 8.46 15.46C9.39 14.53 10.64 14 12 14s2.61.53 3.54 1.46l1.41-1.41C15.66 12.76 13.89 12 12 12s-3.66.76-4.95 2.05z M2.81 9.81l1.41 1.41C6.3 9.14 9.05 8 12 8s5.7 1.14 7.78 3.22l1.41-1.41C18.75 7.36 15.5 6 12 6S5.25 7.36 2.81 9.81z M12 2C7.03 2 2.73 3.92 0 6.81l1.41 1.41C3.78 5.86 7.67 4 12 4s8.22 1.86 10.59 4.22L24 6.81C21.27 3.92 16.97 2 12 2z"),
 
         // SVG original:
@@ -46,6 +48,11 @@ public class ToolbarIcon implements Icon {
         CLEAR_DATA("M7 5h10l1 2H6l1-2z M6 8h12l-1 12H7L6 8z"),
         CLEAR_CACHE("M4 14h16v2H4z M7 10h10v2H7z M10 4h4v4h-4z"),
         EXPORT("M5 20h14v-2H5v2z M12 2l5.5 5.5h-4v7h-3v-7h-4L12 2z"),
+        DOWNLOAD("M5 18h14v2H5z M11 6h2v6h3l-4 4-4-4h3z"),
+        UPLOAD("M5 18h14v2H5z M11 16h2v-6h3l-4-4-4 4h3z"),
+        EDIT("M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z M20.71 7.04c.39-.39.39-1.02 0-1.41L18.37 3.29c-.39-.39-1.02-.39-1.41 0l-1.84 1.84 3.75 3.75 1.84-1.84z"),
+        COPY("M16 1H4v14h2V3h10z M20 5H8v18h12z"),
+        NEW_FOLDER("M3 6h5l2 2h11v12H3z M3 6v14h18V8H10L8 6H3z M15 11h-2v2h-2v2h2v2h2v-2h2v-2h-2z"),
         ARROW_UP("M12 4l7 8h-4v8h-6v-8H5z"),
         ARROW_DOWN("M12 20 5 12h4V4h6v8h4z"),
         ARROW_LEFT("M4 12l8-7v4h8v6h-8v4z"),

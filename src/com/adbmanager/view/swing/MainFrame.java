@@ -41,8 +41,10 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
 
+import com.adbmanager.logic.model.DeviceDirectoryListing;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
+import com.adbmanager.logic.model.DeviceFileEntry;
 import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.DeviceSoundMode;
 import com.adbmanager.logic.model.AppDetails;
@@ -61,6 +63,7 @@ public class MainFrame extends JFrame {
     private static final String DISPLAY_TAB = "display";
     private static final String CONTROL_TAB = "control";
     private static final String APPS_TAB = "apps";
+    private static final String FILES_TAB = "files";
     private static final String SYSTEM_TAB = "system";
     private static final String SETTINGS_TAB = "settings";
     private static final int TOP_BAR_HEIGHT = 56;
@@ -78,6 +81,7 @@ public class MainFrame extends JFrame {
     private final JToggleButton displayButton = new JToggleButton();
     private final JToggleButton controlButton = new JToggleButton();
     private final JToggleButton appsButton = new JToggleButton();
+    private final JToggleButton filesButton = new JToggleButton();
     private final JToggleButton systemButton = new JToggleButton();
     private final JToggleButton settingsButton = new JToggleButton();
     private final JButton wirelessButton = new JButton("+");
@@ -89,6 +93,7 @@ public class MainFrame extends JFrame {
     private final DisplayPanel displayPanel = new DisplayPanel();
     private final ControlPanel controlPanel = new ControlPanel();
     private final AppsPanel appsPanel = new AppsPanel();
+    private final FilesPanel filesPanel = new FilesPanel();
     private final SystemPanel systemPanel = new SystemPanel();
     private final SettingsPanel settingsPanel = new SettingsPanel();
     private final WirelessConnectionDialog wirelessDialog = new WirelessConnectionDialog(this);
@@ -218,6 +223,10 @@ public class MainFrame extends JFrame {
         appsButton.addActionListener(actionListener);
     }
 
+    public void setFilesAction(ActionListener actionListener) {
+        filesButton.addActionListener(actionListener);
+    }
+
     public void setSystemAction(ActionListener actionListener) {
         systemButton.addActionListener(actionListener);
     }
@@ -338,6 +347,50 @@ public class MainFrame extends JFrame {
         appsPanel.setInstallAction(actionListener);
     }
 
+    public void setFilesNavigateUpAction(ActionListener actionListener) {
+        filesPanel.setNavigateUpAction(actionListener);
+    }
+
+    public void setFilesRefreshAction(ActionListener actionListener) {
+        filesPanel.setRefreshAction(actionListener);
+    }
+
+    public void setFilesCreateFolderAction(ActionListener actionListener) {
+        filesPanel.setCreateFolderAction(actionListener);
+    }
+
+    public void setFilesUploadAction(ActionListener actionListener) {
+        filesPanel.setUploadAction(actionListener);
+    }
+
+    public void setFilesDownloadAction(ActionListener actionListener) {
+        filesPanel.setDownloadAction(actionListener);
+    }
+
+    public void setFilesRenameAction(ActionListener actionListener) {
+        filesPanel.setRenameAction(actionListener);
+    }
+
+    public void setFilesCopyAction(ActionListener actionListener) {
+        filesPanel.setCopyAction(actionListener);
+    }
+
+    public void setFilesDeleteAction(ActionListener actionListener) {
+        filesPanel.setDeleteAction(actionListener);
+    }
+
+    public void setFilesSelectionAction(Runnable action) {
+        filesPanel.setSelectionAction(action);
+    }
+
+    public void setFilesOpenDirectoryAction(Runnable action) {
+        filesPanel.setOpenDirectoryAction(action);
+    }
+
+    public void setFilesDropHandler(FilesPanel.FileDropHandler handler) {
+        filesPanel.setFileDropHandler(handler);
+    }
+
     public void setRefreshSystemUsersAction(ActionListener actionListener) {
         systemPanel.setRefreshUsersAction(actionListener);
     }
@@ -430,6 +483,7 @@ public class MainFrame extends JFrame {
         displayButton.setToolTipText(Messages.text("navigation.display.tooltip"));
         controlButton.setToolTipText(Messages.text("navigation.control.tooltip"));
         appsButton.setToolTipText(Messages.text("navigation.apps.tooltip"));
+        filesButton.setToolTipText(Messages.text("navigation.files.tooltip"));
         systemButton.setToolTipText(Messages.text("navigation.system.tooltip"));
         settingsButton.setToolTipText(Messages.text("navigation.settings.tooltip"));
         wirelessButton.setToolTipText(Messages.text("navigation.wireless.tooltip"));
@@ -443,6 +497,7 @@ public class MainFrame extends JFrame {
         displayPanel.refreshTexts();
         controlPanel.refreshTexts();
         appsPanel.refreshTexts();
+        filesPanel.refreshTexts();
         systemPanel.refreshTexts();
         settingsPanel.refreshTexts();
         wirelessDialog.refreshTexts();
@@ -456,6 +511,7 @@ public class MainFrame extends JFrame {
         displayButton.setSelected(false);
         controlButton.setSelected(false);
         appsButton.setSelected(false);
+        filesButton.setSelected(false);
         systemButton.setSelected(false);
         settingsButton.setSelected(false);
         updateNavigationStyles();
@@ -467,6 +523,7 @@ public class MainFrame extends JFrame {
         displayButton.setSelected(true);
         controlButton.setSelected(false);
         appsButton.setSelected(false);
+        filesButton.setSelected(false);
         systemButton.setSelected(false);
         settingsButton.setSelected(false);
         updateNavigationStyles();
@@ -478,6 +535,7 @@ public class MainFrame extends JFrame {
         displayButton.setSelected(false);
         controlButton.setSelected(true);
         appsButton.setSelected(false);
+        filesButton.setSelected(false);
         systemButton.setSelected(false);
         settingsButton.setSelected(false);
         updateNavigationStyles();
@@ -489,6 +547,19 @@ public class MainFrame extends JFrame {
         displayButton.setSelected(false);
         controlButton.setSelected(false);
         appsButton.setSelected(true);
+        filesButton.setSelected(false);
+        systemButton.setSelected(false);
+        settingsButton.setSelected(false);
+        updateNavigationStyles();
+    }
+
+    public void showFilesScreen() {
+        cardLayout.show(contentPanel, FILES_TAB);
+        homeButton.setSelected(false);
+        displayButton.setSelected(false);
+        controlButton.setSelected(false);
+        appsButton.setSelected(false);
+        filesButton.setSelected(true);
         systemButton.setSelected(false);
         settingsButton.setSelected(false);
         updateNavigationStyles();
@@ -500,6 +571,7 @@ public class MainFrame extends JFrame {
         displayButton.setSelected(false);
         controlButton.setSelected(false);
         appsButton.setSelected(false);
+        filesButton.setSelected(false);
         systemButton.setSelected(true);
         settingsButton.setSelected(false);
         updateNavigationStyles();
@@ -511,6 +583,7 @@ public class MainFrame extends JFrame {
         displayButton.setSelected(false);
         controlButton.setSelected(false);
         appsButton.setSelected(false);
+        filesButton.setSelected(false);
         systemButton.setSelected(false);
         settingsButton.setSelected(true);
         updateNavigationStyles();
@@ -717,6 +790,46 @@ public class MainFrame extends JFrame {
         displayPanel.setScrcpyAvailableCameras(cameras);
     }
 
+    public void setFilesListing(DeviceDirectoryListing listing) {
+        filesPanel.setDirectoryListing(listing);
+    }
+
+    public void clearFilesListing() {
+        filesPanel.clearDirectory();
+    }
+
+    public void setFilesBusy(boolean busy) {
+        filesPanel.setBusy(busy);
+    }
+
+    public void setFilesDeviceAvailable(boolean available) {
+        filesPanel.setDeviceAvailable(available);
+    }
+
+    public void setFilesStatus(String message, boolean error) {
+        filesPanel.setStatus(message, error);
+    }
+
+    public String getCurrentFilesDirectory() {
+        return filesPanel.getCurrentDirectoryPath();
+    }
+
+    public String getParentFilesDirectory() {
+        return filesPanel.getParentDirectoryPath();
+    }
+
+    public DeviceFileEntry getSelectedFileEntry() {
+        return filesPanel.getSelectedEntry();
+    }
+
+    public List<DeviceFileEntry> getSelectedFileEntries() {
+        return filesPanel.getSelectedEntries();
+    }
+
+    public List<String> getSelectedFilePaths() {
+        return filesPanel.getSelectedRemotePaths();
+    }
+
     public void setSystemState(SystemState state) {
         systemPanel.setSystemState(state);
     }
@@ -881,6 +994,55 @@ public class MainFrame extends JFrame {
         return fileChooser.getSelectedFile();
     }
 
+    public List<File> chooseFilesToUpload() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle(Messages.text("filechooser.upload.title"));
+        fileChooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+        fileChooser.setMultiSelectionEnabled(true);
+        fileChooser.setAcceptAllFileFilterUsed(true);
+
+        int result = fileChooser.showOpenDialog(this);
+        if (result != JFileChooser.APPROVE_OPTION) {
+            return List.of();
+        }
+
+        File[] selectedFiles = fileChooser.getSelectedFiles();
+        if (selectedFiles == null || selectedFiles.length == 0) {
+            File selectedFile = fileChooser.getSelectedFile();
+            return selectedFile == null ? List.of() : List.of(selectedFile);
+        }
+        return List.of(selectedFiles);
+    }
+
+    public File chooseDownloadDirectory() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle(Messages.text("filechooser.download.title"));
+        fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        fileChooser.setAcceptAllFileFilterUsed(false);
+
+        int result = fileChooser.showSaveDialog(this);
+        if (result != JFileChooser.APPROVE_OPTION) {
+            return null;
+        }
+
+        return fileChooser.getSelectedFile();
+    }
+
+    public String promptText(String title, String message, String initialValue) {
+        Object value = JOptionPane.showInputDialog(
+                this,
+                message,
+                title,
+                JOptionPane.PLAIN_MESSAGE,
+                null,
+                null,
+                initialValue);
+        if (value == null) {
+            return null;
+        }
+        return value.toString();
+    }
+
     public void setCaptureEnabled(boolean enabled) {
         homePanel.setCaptureEnabled(enabled);
     }
@@ -951,6 +1113,7 @@ public class MainFrame extends JFrame {
         displayPanel.applyTheme(theme);
         controlPanel.applyTheme(theme);
         appsPanel.applyTheme(theme);
+        filesPanel.applyTheme(theme);
         systemPanel.applyTheme(theme);
         settingsPanel.applyTheme(theme);
         wirelessDialog.applyTheme(theme);
@@ -959,6 +1122,7 @@ public class MainFrame extends JFrame {
         styleNavigationButton(displayButton);
         styleNavigationButton(controlButton);
         styleNavigationButton(appsButton);
+        styleNavigationButton(filesButton);
         styleNavigationButton(systemButton);
         styleNavigationButton(settingsButton);
         styleWirelessButton();
@@ -1007,6 +1171,10 @@ public class MainFrame extends JFrame {
         return controlButton.isSelected();
     }
 
+    public boolean isFilesScreenVisible() {
+        return filesButton.isSelected();
+    }
+
     public boolean isSystemScreenVisible() {
         return systemButton.isSelected();
     }
@@ -1028,6 +1196,7 @@ public class MainFrame extends JFrame {
         configureNavigationButton(displayButton, ToolbarIcon.Type.DISPLAY);
         configureNavigationButton(controlButton, ToolbarIcon.Type.CONTROL);
         configureNavigationButton(appsButton, ToolbarIcon.Type.APPS);
+        configureNavigationButton(filesButton, ToolbarIcon.Type.FOLDER);
         configureNavigationButton(systemButton, ToolbarIcon.Type.SYSTEM);
         configureNavigationButton(settingsButton, ToolbarIcon.Type.SETTINGS);
         configureWirelessButton();
@@ -1044,12 +1213,14 @@ public class MainFrame extends JFrame {
         navigationGroup.add(displayButton);
         navigationGroup.add(controlButton);
         navigationGroup.add(appsButton);
+        navigationGroup.add(filesButton);
         navigationGroup.add(systemButton);
         navigationGroup.add(settingsButton);
         navigationTabsPanel.add(homeButton);
         navigationTabsPanel.add(displayButton);
         navigationTabsPanel.add(controlButton);
         navigationTabsPanel.add(appsButton);
+        navigationTabsPanel.add(filesButton);
         navigationTabsPanel.add(systemButton);
         navigationTabsPanel.add(settingsButton);
 
@@ -1070,6 +1241,7 @@ public class MainFrame extends JFrame {
         contentPanel.add(displayPanel, DISPLAY_TAB);
         contentPanel.add(controlPanel, CONTROL_TAB);
         contentPanel.add(appsPanel, APPS_TAB);
+        contentPanel.add(filesPanel, FILES_TAB);
         contentPanel.add(systemPanel, SYSTEM_TAB);
         contentPanel.add(settingsPanel, SETTINGS_TAB);
         getContentPane().add(contentPanel, BorderLayout.CENTER);
@@ -1143,6 +1315,7 @@ public class MainFrame extends JFrame {
         styleNavigationButton(displayButton);
         styleNavigationButton(controlButton);
         styleNavigationButton(appsButton);
+        styleNavigationButton(filesButton);
         styleNavigationButton(systemButton);
         styleNavigationButton(settingsButton);
     }
@@ -1248,14 +1421,15 @@ public class MainFrame extends JFrame {
     }
 
     private void cycleTabs(int delta) {
-        int nextIndex = Math.floorMod(currentTabIndex() + delta, 6);
+        int nextIndex = Math.floorMod(currentTabIndex() + delta, 7);
         switch (nextIndex) {
             case 0 -> homeButton.doClick();
             case 1 -> displayButton.doClick();
             case 2 -> controlButton.doClick();
             case 3 -> appsButton.doClick();
-            case 4 -> systemButton.doClick();
-            case 5 -> settingsButton.doClick();
+            case 4 -> filesButton.doClick();
+            case 5 -> systemButton.doClick();
+            case 6 -> settingsButton.doClick();
             default -> homeButton.doClick();
         }
     }
@@ -1270,11 +1444,14 @@ public class MainFrame extends JFrame {
         if (appsButton.isSelected()) {
             return 3;
         }
-        if (systemButton.isSelected()) {
+        if (filesButton.isSelected()) {
             return 4;
         }
-        if (settingsButton.isSelected()) {
+        if (systemButton.isSelected()) {
             return 5;
+        }
+        if (settingsButton.isSelected()) {
+            return 6;
         }
         return 0;
     }

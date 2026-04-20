@@ -29,7 +29,9 @@ import com.adbmanager.logic.model.AppInstallRequest;
 import com.adbmanager.logic.model.AppInstallResult;
 import com.adbmanager.logic.model.ControlState;
 import com.adbmanager.logic.model.Device;
+import com.adbmanager.logic.model.DeviceDirectoryListing;
 import com.adbmanager.logic.model.DeviceDetails;
+import com.adbmanager.logic.model.DeviceFileEntry;
 import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.DeviceSoundMode;
 import com.adbmanager.logic.model.InstalledApp;
@@ -72,15 +74,19 @@ public class SwingController {
     private boolean loadingScrcpyCameras;
     private boolean loadingSystemState;
     private boolean loadingControlState;
+    private boolean loadingFiles;
     private boolean preparingScrcpy;
     private boolean launchingScrcpy;
     private boolean applyingSystemAction;
     private boolean applyingControlAction;
+    private boolean applyingFileAction;
     private String currentSelectedSerial;
     private String applicationsLoadedSerial;
+    private String filesLoadedSerial;
     private String scrcpyApplicationsLoadedSerial;
     private String scrcpyCamerasLoadedSerial;
     private String currentSelectedPackageName;
+    private String currentFilesDirectory;
     private SwingWorker<Void, List<InstalledApp>> applicationEnrichmentWorker;
     private final Set<String> enrichedApplicationPackages = new HashSet<>();
     private final Set<String> pendingApplicationPackages = new LinkedHashSet<>();
@@ -115,14 +121,18 @@ public class SwingController {
         view.setScrcpyDeviceAvailable(false);
         view.setSystemDeviceAvailable(false);
         view.setControlDeviceAvailable(false);
+        view.setFilesDeviceAvailable(false);
         view.setPowerActionsEnabled(false);
         view.setTcpipEnabled(false);
         view.setSystemBusy(false);
         view.setControlBusy(false);
+        view.setFilesBusy(false);
         view.clearSystemState();
         view.clearControlState();
+        view.clearFilesListing();
         view.setSystemStatus("", false);
         view.setControlStatus("", false);
+        view.setFilesStatus("", false);
         view.showHomeScreen();
         view.showWindow();
         saveUserConfigSafely();
@@ -161,6 +171,7 @@ public class SwingController {
         view.setScrcpyLaunchTargetChangeAction(event -> onScrcpyTargetChanged());
         view.setScrcpyStartAppToggleAction(event -> onScrcpyStartAppToggle());
         view.setAppsAction(event -> showAppsScreen());
+        view.setFilesAction(event -> showFilesScreen());
         view.setSystemAction(event -> showSystemScreen());
         view.setSettingsAction(event -> view.showSettingsScreen());
         view.setThemeChangeAction(event -> applyThemeSelection());
@@ -186,6 +197,16 @@ public class SwingController {
         view.setClearApplicationCacheAction(event -> clearSelectedApplicationCache());
         view.setExportApplicationApkAction(event -> exportSelectedApplicationApk());
         view.setInstallApplicationsAction(event -> openApplicationInstallDialog());
+        view.setFilesNavigateUpAction(event -> navigateToFilesParentDirectory());
+        view.setFilesRefreshAction(event -> refreshFilesDirectory(true, true, view.getCurrentFilesDirectory()));
+        view.setFilesCreateFolderAction(event -> createFilesDirectory());
+        view.setFilesUploadAction(event -> uploadFilesToCurrentDirectory());
+        view.setFilesDownloadAction(event -> downloadSelectedFiles());
+        view.setFilesRenameAction(event -> renameSelectedFile());
+        view.setFilesCopyAction(event -> copySelectedFile());
+        view.setFilesDeleteAction(event -> deleteSelectedFiles());
+        view.setFilesOpenDirectoryAction(this::openSelectedDirectory);
+        view.setFilesDropHandler(this::uploadDroppedFiles);
         view.setRefreshSystemUsersAction(event -> refreshSystemState(true));
         view.setCreateSystemUserAction(event -> createSystemUser());
         view.setSwitchSystemUserAction(event -> switchSystemUser());
@@ -226,6 +247,7 @@ public class SwingController {
         loadingDevices = true;
         updateSystemBusyState();
         updateControlBusyState();
+        updateFilesBusyState();
         view.setDeviceSelectorEnabled(false);
         view.setCaptureEnabled(false);
         view.setRefreshEnabled(false);
@@ -251,6 +273,8 @@ public class SwingController {
                     applyRefreshState(state);
                 } catch (Exception e) {
                     handleError(Messages.text("error.devices.load"), e);
+                    filesLoadedSerial = null;
+                    currentFilesDirectory = null;
                     view.setDevices(List.of(), null);
                     view.clearDeviceDetails();
                     view.clearSystemState();
@@ -258,9 +282,11 @@ public class SwingController {
                     view.setScrcpyDeviceAvailable(false);
                     view.setSystemDeviceAvailable(false);
                     view.setControlDeviceAvailable(false);
+                    view.setFilesDeviceAvailable(false);
                     view.setTcpipEnabled(false);
                     view.setSystemStatus("", false);
                     view.setControlStatus("", false);
+                    view.setFilesStatus("", false);
                     view.setScrcpyAvailableApps(List.of());
                     view.setScrcpyAvailableCameras(List.of());
                     resetApplicationEnrichmentState();
@@ -268,11 +294,13 @@ public class SwingController {
                     view.clearApplications();
                     view.clearApplicationDetails();
                     view.clearControlState();
+                    view.clearFilesListing();
                     view.setSaveCaptureEnabled(false);
                 } finally {
                     loadingDevices = false;
                     updateSystemBusyState();
                     updateControlBusyState();
+                    updateFilesBusyState();
                     view.setDeviceSelectorEnabled(true);
                     view.setRefreshEnabled(true);
                     Device selectedDevice = model.getSelectedDevice().orElse(null);
@@ -568,6 +596,8 @@ public class SwingController {
 
         if (!Objects.equals(previousSerial, currentSelectedSerial)) {
             applicationsLoadedSerial = null;
+            filesLoadedSerial = null;
+            currentFilesDirectory = null;
             scrcpyApplicationsLoadedSerial = null;
             scrcpyCamerasLoadedSerial = null;
             currentSelectedPackageName = null;
@@ -575,10 +605,12 @@ public class SwingController {
             view.setApplicationsLoading(false, "");
             view.clearApplications();
             view.clearApplicationDetails();
+            view.clearFilesListing();
             view.clearSystemState();
             view.clearControlState();
             view.setSystemStatus("", false);
             view.setControlStatus("", false);
+            view.setFilesStatus("", false);
             view.setScrcpyAvailableApps(List.of());
             view.setScrcpyAvailableCameras(List.of());
         }
@@ -607,6 +639,9 @@ public class SwingController {
         view.setSystemDeviceAvailable(systemAvailable);
         boolean controlAvailable = isControlAvailable(selectedDevice);
         view.setControlDeviceAvailable(controlAvailable);
+        boolean filesAvailable = isFilesAvailable(selectedDevice);
+        view.setFilesDeviceAvailable(filesAvailable);
+        updateFilesBusyState();
 
         if (!systemAvailable) {
             view.clearSystemState();
@@ -616,9 +651,17 @@ public class SwingController {
             view.clearControlState();
             view.setControlStatus("", false);
         }
+        if (!filesAvailable) {
+            view.clearFilesListing();
+            view.setFilesStatus("", false);
+        }
 
         if (view.isAppsScreenVisible()) {
             ensureApplicationsLoaded();
+        }
+
+        if (view.isFilesScreenVisible() && filesAvailable) {
+            refreshFilesDirectory(false, false, currentFilesDirectory);
         }
 
         if (view.isSystemScreenVisible() && systemAvailable) {
@@ -661,9 +704,295 @@ public class SwingController {
         ensureApplicationsLoaded();
     }
 
+    private void showFilesScreen() {
+        view.showFilesScreen();
+        refreshFilesDirectory(false, false, currentFilesDirectory);
+    }
+
     private void showSystemScreen() {
         view.showSystemScreen();
         refreshSystemState(false);
+    }
+
+    private void refreshFilesDirectory(boolean showErrors, boolean forceReload, String preferredPath) {
+        Device selectedDevice = model.getSelectedDevice().orElse(null);
+        if (!isFilesAvailable(selectedDevice)) {
+            view.setFilesDeviceAvailable(false);
+            view.clearFilesListing();
+            view.setFilesStatus("", false);
+            return;
+        }
+
+        if (loadingFiles || (applyingFileAction && !showErrors)) {
+            return;
+        }
+
+        String requestedSerial = selectedDevice.serial();
+        String targetPath = normalizePath(preferredPath == null || preferredPath.isBlank()
+                ? currentFilesDirectory
+                : preferredPath);
+
+        if (!forceReload
+                && Objects.equals(filesLoadedSerial, requestedSerial)
+                && targetPath != null
+                && Objects.equals(currentFilesDirectory, targetPath)) {
+            view.setFilesDeviceAvailable(true);
+            updateFilesBusyState();
+            return;
+        }
+
+        loadingFiles = true;
+        view.setFilesDeviceAvailable(true);
+        view.setFilesStatus(Messages.text("files.status.loading"), false);
+        updateFilesBusyState();
+
+        new SwingWorker<DeviceDirectoryListing, Void>() {
+            @Override
+            protected DeviceDirectoryListing doInBackground() throws Exception {
+                return model.listSelectedDeviceDirectory(targetPath);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    DeviceDirectoryListing listing = get();
+                    if (!Objects.equals(requestedSerial, currentSelectedSerial)) {
+                        return;
+                    }
+
+                    filesLoadedSerial = requestedSerial;
+                    currentFilesDirectory = listing.currentPath();
+                    view.setFilesListing(listing);
+                    view.setFilesStatus(Messages.format("files.status.ready", listing.currentPath()), false);
+                } catch (Exception e) {
+                    if (!Objects.equals(requestedSerial, currentSelectedSerial)) {
+                        return;
+                    }
+
+                    view.setFilesStatus(extractErrorMessage(e, Messages.text("error.files.load")), true);
+                    if (showErrors) {
+                        handleError(Messages.text("error.files.load"), e);
+                    }
+                } finally {
+                    loadingFiles = false;
+                    updateFilesBusyState();
+                }
+            }
+        }.execute();
+    }
+
+    private void navigateToFilesParentDirectory() {
+        String parentPath = view.getParentFilesDirectory();
+        if (parentPath != null && !parentPath.isBlank()) {
+            refreshFilesDirectory(true, true, parentPath);
+        }
+    }
+
+    private void openSelectedDirectory() {
+        DeviceFileEntry selectedEntry = view.getSelectedFileEntry();
+        if (selectedEntry != null && selectedEntry.directory()) {
+            refreshFilesDirectory(false, true, selectedEntry.path());
+        }
+    }
+
+    private void createFilesDirectory() {
+        String currentDirectory = view.getCurrentFilesDirectory();
+        if (currentDirectory == null || currentDirectory.isBlank()) {
+            view.showError(Messages.text("error.files.deviceRequired"));
+            return;
+        }
+
+        String directoryName = view.promptText(
+                Messages.text("files.dialog.createFolder.title"),
+                Messages.text("files.dialog.createFolder.message"),
+                Messages.text("files.dialog.createFolder.default"));
+        if (directoryName == null) {
+            return;
+        }
+
+        runFilesCommand(
+                Messages.text("error.files.createFolder"),
+                Messages.format("files.status.folderCreated", directoryName.trim()),
+                true,
+                () -> model.createSelectedDeviceDirectory(currentDirectory, directoryName));
+    }
+
+    private void uploadFilesToCurrentDirectory() {
+        List<File> localFiles = view.chooseFilesToUpload();
+        if (localFiles == null || localFiles.isEmpty()) {
+            return;
+        }
+        uploadLocalFiles(localFiles);
+    }
+
+    private void uploadDroppedFiles(List<File> files) {
+        if (files == null || files.isEmpty()) {
+            return;
+        }
+        uploadLocalFiles(files);
+    }
+
+    private void uploadLocalFiles(List<File> files) {
+        String currentDirectory = view.getCurrentFilesDirectory();
+        if (currentDirectory == null || currentDirectory.isBlank()) {
+            view.showError(Messages.text("error.files.deviceRequired"));
+            return;
+        }
+
+        runFilesCommand(
+                Messages.text("error.files.upload"),
+                Messages.format("files.status.uploaded", files.size()),
+                true,
+                () -> model.pushToSelectedDeviceDirectory(files, currentDirectory));
+    }
+
+    private void downloadSelectedFiles() {
+        List<String> selectedPaths = view.getSelectedFilePaths();
+        if (selectedPaths.isEmpty()) {
+            view.showError(Messages.text("error.files.noSelection"));
+            return;
+        }
+
+        File destinationDirectory = view.chooseDownloadDirectory();
+        if (destinationDirectory == null) {
+            return;
+        }
+
+        runFilesCommand(
+                Messages.text("error.files.download"),
+                Messages.format("files.status.downloaded", selectedPaths.size()),
+                false,
+                () -> model.pullSelectedDevicePaths(selectedPaths, destinationDirectory));
+    }
+
+    private void renameSelectedFile() {
+        DeviceFileEntry selectedEntry = view.getSelectedFileEntry();
+        if (selectedEntry == null) {
+            view.showError(Messages.text("error.files.noSelection"));
+            return;
+        }
+
+        String newName = view.promptText(
+                Messages.text("files.dialog.rename.title"),
+                Messages.text("files.dialog.rename.message"),
+                selectedEntry.name());
+        if (newName == null) {
+            return;
+        }
+
+        runFilesCommand(
+                Messages.text("error.files.rename"),
+                Messages.format("files.status.renamed", newName.trim()),
+                true,
+                () -> model.renameSelectedDevicePath(selectedEntry.path(), newName));
+    }
+
+    private void copySelectedFile() {
+        DeviceFileEntry selectedEntry = view.getSelectedFileEntry();
+        if (selectedEntry == null) {
+            view.showError(Messages.text("error.files.noSelection"));
+            return;
+        }
+
+        String copyName = view.promptText(
+                Messages.text("files.dialog.copy.title"),
+                Messages.text("files.dialog.copy.message"),
+                buildCopyNameSuggestion(selectedEntry));
+        if (copyName == null) {
+            return;
+        }
+
+        String parentPath = parentDirectoryOf(selectedEntry.path());
+        String destinationPath = joinRemotePath(parentPath, copyName);
+        runFilesCommand(
+                Messages.text("error.files.copy"),
+                Messages.format("files.status.copied", copyName.trim()),
+                true,
+                () -> model.copySelectedDevicePath(selectedEntry.path(), destinationPath));
+    }
+
+    private void deleteSelectedFiles() {
+        List<DeviceFileEntry> selectedEntries = view.getSelectedFileEntries();
+        if (selectedEntries.isEmpty()) {
+            view.showError(Messages.text("error.files.noSelection"));
+            return;
+        }
+
+        String confirmationMessage = selectedEntries.size() == 1
+                ? Messages.format("files.confirm.delete.single", selectedEntries.get(0).name())
+                : Messages.format("files.confirm.delete.multiple", selectedEntries.size());
+        if (!view.confirmAction(Messages.text("files.confirm.delete.title"), confirmationMessage)) {
+            return;
+        }
+
+        List<String> selectedPaths = selectedEntries.stream()
+                .map(DeviceFileEntry::path)
+                .filter(Objects::nonNull)
+                .toList();
+
+        runFilesCommand(
+                Messages.text("error.files.delete"),
+                Messages.format("files.status.deleted", selectedEntries.size()),
+                true,
+                () -> {
+                    for (String path : selectedPaths) {
+                        model.deleteSelectedDevicePath(path);
+                    }
+                });
+    }
+
+    private void runFilesCommand(
+            String errorMessage,
+            String successMessage,
+            boolean refreshAfter,
+            ApplicationTask task) {
+        Device selectedDevice = model.getSelectedDevice().orElse(null);
+        if (!isFilesAvailable(selectedDevice)) {
+            view.showError(Messages.text("error.files.deviceRequired"));
+            return;
+        }
+
+        String requestedSerial = selectedDevice.serial();
+        String currentDirectory = normalizePath(view.getCurrentFilesDirectory());
+        applyingFileAction = true;
+        view.setFilesStatus(Messages.text("files.status.executing"), false);
+        updateFilesBusyState();
+
+        new SwingWorker<DeviceDirectoryListing, Void>() {
+            @Override
+            protected DeviceDirectoryListing doInBackground() throws Exception {
+                task.run();
+                if (refreshAfter) {
+                    return model.listSelectedDeviceDirectory(currentDirectory);
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    DeviceDirectoryListing listing = get();
+                    if (!Objects.equals(requestedSerial, currentSelectedSerial)) {
+                        return;
+                    }
+
+                    if (refreshAfter && listing != null) {
+                        filesLoadedSerial = requestedSerial;
+                        currentFilesDirectory = listing.currentPath();
+                        view.setFilesListing(listing);
+                    }
+                    view.setFilesStatus(successMessage, false);
+                } catch (Exception e) {
+                    if (Objects.equals(requestedSerial, currentSelectedSerial)) {
+                        view.setFilesStatus(extractErrorMessage(e, errorMessage), true);
+                        handleError(errorMessage, e);
+                    }
+                } finally {
+                    applyingFileAction = false;
+                    updateFilesBusyState();
+                }
+            }
+        }.execute();
     }
 
     private void ensureApplicationsLoaded() {
@@ -1198,6 +1527,10 @@ public class SwingController {
         return selectedDevice != null && Messages.STATUS_CONNECTED.equals(selectedDevice.state());
     }
 
+    private boolean isFilesAvailable(Device selectedDevice) {
+        return selectedDevice != null && Messages.STATUS_CONNECTED.equals(selectedDevice.state());
+    }
+
     private void refreshControlState(boolean showErrors) {
         Device selectedDevice = model.getSelectedDevice().orElse(null);
         if (!isControlAvailable(selectedDevice)) {
@@ -1495,6 +1828,68 @@ public class SwingController {
                 Messages.text("error.system.userDelete"),
                 Messages.format("info.system.userDeleted", userId),
                 () -> model.removeSelectedDeviceUser(userId));
+    }
+
+    private void updateFilesBusyState() {
+        view.setFilesBusy(loadingDevices || loadingFiles || applyingFileAction);
+    }
+
+    private String normalizePath(String path) {
+        if (path == null) {
+            return null;
+        }
+
+        String normalized = path.trim().replace('\\', '/');
+        if (normalized.isBlank()) {
+            return null;
+        }
+
+        while (normalized.length() > 1 && normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private String parentDirectoryOf(String path) {
+        String normalized = normalizePath(path);
+        if (normalized == null || normalized.isBlank() || "/".equals(normalized)) {
+            return "/";
+        }
+
+        int lastSlash = normalized.lastIndexOf('/');
+        if (lastSlash <= 0) {
+            return "/";
+        }
+        return normalized.substring(0, lastSlash);
+    }
+
+    private String joinRemotePath(String parentPath, String name) {
+        String parent = normalizePath(parentPath);
+        String child = name == null ? "" : name.trim();
+        if (parent == null || parent.isBlank() || "/".equals(parent)) {
+            return "/" + child;
+        }
+        return parent + "/" + child;
+    }
+
+    private String buildCopyNameSuggestion(DeviceFileEntry entry) {
+        String baseName = entry == null ? "" : entry.name();
+        if (baseName == null || baseName.isBlank()) {
+            return Messages.text("files.copy.defaultName");
+        }
+
+        if (entry.directory()) {
+            return Messages.format("files.copy.directoryName", baseName);
+        }
+
+        int lastDot = baseName.lastIndexOf('.');
+        if (lastDot > 0 && lastDot < baseName.length() - 1) {
+            String prefix = baseName.substring(0, lastDot);
+            String extension = baseName.substring(lastDot);
+            return Messages.format("files.copy.fileName", prefix, extension);
+        }
+
+        return Messages.format("files.copy.directoryName", baseName);
     }
 
     private void applySystemAppLanguages() {

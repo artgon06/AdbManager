@@ -59,8 +59,10 @@ import com.adbmanager.logic.model.AndroidUser;
 import com.adbmanager.logic.model.BundletoolDeviceSpec;
 import com.adbmanager.logic.model.ControlState;
 import com.adbmanager.logic.model.Device;
+import com.adbmanager.logic.model.DeviceDirectoryListing;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DeviceDetailsParser;
+import com.adbmanager.logic.model.DeviceFileEntry;
 import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.DeviceParser;
 import com.adbmanager.logic.model.DeviceSoundMode;
@@ -141,6 +143,11 @@ public class AdbService implements AdbModel {
     private static final Pattern AUDIO_STREAM_LEVEL_PATTERN = Pattern.compile("(?m)^\\s*streamVolume:\\s*(\\d+)\\s*$");
     private static final Pattern AUDIO_STREAM_DEVICE_ID_PATTERN = Pattern.compile("(?m)^\\s*Devices:\\s*[^\\r\\n]*\\((\\d+)\\)");
     private static final Pattern INTEGER_PATTERN = Pattern.compile("-?\\d+");
+    private static final String FILE_EXPLORER_FIELD_SEPARATOR = "__ADBMANAGER_FILE__";
+    private static final String FILE_EXPLORER_LIST_FORMAT =
+            "%M" + FILE_EXPLORER_FIELD_SEPARATOR
+                    + "%s" + FILE_EXPLORER_FIELD_SEPARATOR
+                    + "%T@" + FILE_EXPLORER_FIELD_SEPARATOR;
 
     private final AdbClient client;
     private final BundletoolService bundletoolService = new BundletoolService();
@@ -360,6 +367,23 @@ public class AdbService implements AdbModel {
 
         try {
             return Integer.parseInt(matcher.group());
+        } catch (NumberFormatException exception) {
+            return fallback;
+        }
+    }
+
+    private long parseLongOrDefault(String rawValue, long fallback) {
+        if (rawValue == null) {
+            return fallback;
+        }
+
+        Matcher matcher = INTEGER_PATTERN.matcher(rawValue.trim());
+        if (!matcher.find()) {
+            return fallback;
+        }
+
+        try {
+            return Long.parseLong(matcher.group());
         } catch (NumberFormatException exception) {
             return fallback;
         }
@@ -1596,6 +1620,142 @@ public class AdbService implements AdbModel {
         }
 
         throw new Exception(commandDescription + " failed:\n" + result.output());
+    }
+
+    @Override
+    public DeviceDirectoryListing listSelectedDeviceDirectory(String path) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.files.deviceRequired"),
+                Messages.text("error.files.deviceDisconnected"));
+        String serial = device.serial();
+        String currentPath = resolveRemoteDirectoryPath(serial, path);
+
+        AdbResult result = client.runForSerial(
+                serial,
+                List.of(
+                        "shell",
+                        "toybox",
+                        "find",
+                        currentPath,
+                        "-mindepth",
+                        "1",
+                        "-maxdepth",
+                        "1",
+                        "-printf",
+                        FILE_EXPLORER_LIST_FORMAT,
+                        "-print"));
+        assertOk(result, "adb -s " + serial + " shell toybox find " + currentPath);
+        return new DeviceDirectoryListing(
+                currentPath,
+                parentRemotePath(currentPath),
+                parseDirectoryEntries(result.output()));
+    }
+
+    @Override
+    public void createSelectedDeviceDirectory(String parentPath, String directoryName) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.files.deviceRequired"),
+                Messages.text("error.files.deviceDisconnected"));
+        String serial = device.serial();
+        String currentPath = resolveRemoteDirectoryPath(serial, parentPath);
+        String safeName = requireValidRemoteName(directoryName);
+        String targetPath = joinRemotePath(currentPath, safeName);
+        ensureRemotePathDoesNotExist(serial, targetPath);
+        runToyboxMutation(serial, "mkdir", "-p", targetPath);
+    }
+
+    @Override
+    public void renameSelectedDevicePath(String sourcePath, String newName) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.files.deviceRequired"),
+                Messages.text("error.files.deviceDisconnected"));
+        String serial = device.serial();
+        String source = resolveExistingRemotePath(serial, sourcePath);
+        String safeName = requireValidRemoteName(newName);
+        String destination = joinRemotePath(parentRemotePath(source), safeName);
+        if (!Objects.equals(source, destination)) {
+            ensureRemotePathDoesNotExist(serial, destination);
+        }
+        runToyboxMutation(serial, "mv", source, destination);
+    }
+
+    @Override
+    public void deleteSelectedDevicePath(String sourcePath) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.files.deviceRequired"),
+                Messages.text("error.files.deviceDisconnected"));
+        String serial = device.serial();
+        String source = resolveExistingRemotePath(serial, sourcePath);
+        if ("/".equals(source)) {
+            throw new IllegalArgumentException(Messages.text("error.files.deleteRoot"));
+        }
+        runToyboxMutation(serial, "rm", "-rf", source);
+    }
+
+    @Override
+    public void copySelectedDevicePath(String sourcePath, String destinationPath) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.files.deviceRequired"),
+                Messages.text("error.files.deviceDisconnected"));
+        String serial = device.serial();
+        String source = resolveExistingRemotePath(serial, sourcePath);
+        String destination = normalizeRemotePath(
+                requireNonBlank(destinationPath, Messages.text("error.files.destinationRequired")));
+        if (destination == null || destination.isBlank()) {
+            throw new IllegalArgumentException(Messages.text("error.files.destinationRequired"));
+        }
+        ensureRemotePathDoesNotExist(serial, destination);
+        runToyboxMutation(serial, "cp", "-R", source, destination);
+    }
+
+    @Override
+    public void pullSelectedDevicePaths(List<String> remotePaths, File destinationDirectory) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.files.deviceRequired"),
+                Messages.text("error.files.deviceDisconnected"));
+        if (destinationDirectory == null) {
+            throw new IllegalArgumentException(Messages.text("error.files.destinationRequired"));
+        }
+        if ((!destinationDirectory.exists() && !destinationDirectory.mkdirs()) || !destinationDirectory.isDirectory()) {
+            throw new IllegalArgumentException(Messages.format(
+                    "error.files.invalidLocalDirectory",
+                    destinationDirectory.getAbsolutePath()));
+        }
+
+        List<String> safePaths = normalizeRemotePaths(remotePaths);
+        if (safePaths.isEmpty()) {
+            throw new IllegalArgumentException(Messages.text("error.files.noSelection"));
+        }
+
+        for (String remotePath : safePaths) {
+            String source = resolveExistingRemotePath(device.serial(), remotePath);
+            AdbResult result = client.runForSerial(
+                    device.serial(),
+                    List.of("pull", source, destinationDirectory.getAbsolutePath()));
+            assertOk(result, "adb -s " + device.serial() + " pull " + source + " " + destinationDirectory.getAbsolutePath());
+        }
+    }
+
+    @Override
+    public void pushToSelectedDeviceDirectory(List<File> localPaths, String remoteDirectory) throws Exception {
+        Device device = requireConnectedSelectedDevice(
+                Messages.text("error.files.deviceRequired"),
+                Messages.text("error.files.deviceDisconnected"));
+        String serial = device.serial();
+        String targetDirectory = resolveRemoteDirectoryPath(serial, remoteDirectory);
+        List<File> safeLocalPaths = normalizeLocalPaths(localPaths);
+        if (safeLocalPaths.isEmpty()) {
+            throw new IllegalArgumentException(Messages.text("error.files.localSelectionRequired"));
+        }
+
+        for (File localPath : safeLocalPaths) {
+            String remoteTargetPath = joinRemotePath(targetDirectory, localPath.getName());
+            ensureRemotePathDoesNotExist(serial, remoteTargetPath);
+            AdbResult result = client.runForSerial(
+                    serial,
+                    List.of("push", localPath.getAbsolutePath(), remoteTargetPath));
+            assertOk(result, "adb -s " + serial + " push " + localPath.getAbsolutePath() + " " + remoteTargetPath);
+        }
     }
 
     @Override
@@ -3662,6 +3822,237 @@ public class AdbService implements AdbModel {
             throw new IllegalStateException(disconnectedMessage);
         }
         return device;
+    }
+
+    private List<DeviceFileEntry> parseDirectoryEntries(String output) {
+        if (output == null || output.isBlank()) {
+            return List.of();
+        }
+
+        List<DeviceFileEntry> entries = new ArrayList<>();
+        for (String rawLine : output.split("\\R")) {
+            String line = rawLine == null ? "" : rawLine.trim();
+            if (line.isBlank()) {
+                continue;
+            }
+
+            String[] parts = line.split(Pattern.quote(FILE_EXPLORER_FIELD_SEPARATOR), 4);
+            if (parts.length < 4) {
+                continue;
+            }
+
+            String rawType = parts[0].trim();
+            long sizeBytes = parseLongOrDefault(parts[1], 0L);
+            long modifiedEpochSeconds = parseLongOrDefault(parts[2], 0L);
+            String fullPath = normalizeRemotePath(parts[3]);
+            if (fullPath == null || fullPath.isBlank()) {
+                continue;
+            }
+
+            boolean directory = rawType.startsWith("d");
+            String normalizedType = directory
+                    ? Messages.text("files.type.directory")
+                    : rawType.startsWith("l")
+                            ? Messages.text("files.type.link")
+                            : rawType.startsWith("-")
+                                    ? Messages.text("files.type.file")
+                                    : Messages.text("files.type.other");
+
+            entries.add(new DeviceFileEntry(
+                    fileNameFromRemotePath(fullPath),
+                    fullPath,
+                    normalizedType,
+                    directory,
+                    sizeBytes,
+                    modifiedEpochSeconds));
+        }
+
+        entries.sort(Comparator
+                .comparing(DeviceFileEntry::directory, Comparator.reverseOrder())
+                .thenComparing(entry -> entry.name().toLowerCase(Locale.ROOT))
+                .thenComparing(entry -> entry.path().toLowerCase(Locale.ROOT)));
+        return List.copyOf(entries);
+    }
+
+    private String resolveRemoteDirectoryPath(String serial, String requestedPath) throws Exception {
+        String candidate = normalizeRemotePath(requestedPath);
+        if (candidate == null || candidate.isBlank()) {
+            candidate = resolveExplorerDefaultRoot(serial);
+        }
+
+        String resolved = resolveExistingRemotePath(serial, candidate);
+        if (!isRemoteDirectory(serial, resolved)) {
+            throw new IllegalArgumentException(Messages.format("error.files.notDirectory", resolved));
+        }
+        return resolved;
+    }
+
+    private String resolveExplorerDefaultRoot(String serial) throws Exception {
+        AdbResult result = client.runForSerial(serial, List.of("shell", "toybox", "realpath", "/sdcard"));
+        if (result.ok()) {
+            String resolved = firstNonBlankLine(result.output());
+            if (resolved != null && !resolved.isBlank()) {
+                return normalizeRemotePath(resolved);
+            }
+        }
+        return "/sdcard";
+    }
+
+    private String resolveExistingRemotePath(String serial, String path) throws Exception {
+        String normalized = normalizeRemotePath(path);
+        if (normalized == null || normalized.isBlank()) {
+            throw new IllegalArgumentException(Messages.text("error.files.invalidPath"));
+        }
+
+        AdbResult result = client.runForSerial(serial, List.of("shell", "toybox", "realpath", normalized));
+        if (result.ok()) {
+            String resolved = firstNonBlankLine(result.output());
+            if (resolved != null && !resolved.isBlank()) {
+                return normalizeRemotePath(resolved);
+            }
+        }
+
+        throw new IllegalArgumentException(Messages.format("error.files.pathNotFound", normalized));
+    }
+
+    private boolean isRemoteDirectory(String serial, String path) throws Exception {
+        AdbResult result = client.runForSerial(serial, List.of("shell", "toybox", "test", "-d", path));
+        return result.ok();
+    }
+
+    private boolean remotePathExists(String serial, String path) throws Exception {
+        AdbResult result = client.runForSerial(serial, List.of("shell", "toybox", "test", "-e", path));
+        return result.ok();
+    }
+
+    private void ensureRemotePathDoesNotExist(String serial, String path) throws Exception {
+        if (remotePathExists(serial, path)) {
+            throw new IllegalArgumentException(Messages.text("error.files.destinationExists"));
+        }
+    }
+
+    private void runToyboxMutation(String serial, String... args) throws Exception {
+        List<String> command = new ArrayList<>();
+        command.add("shell");
+        command.add("toybox");
+        command.addAll(List.of(args));
+        AdbResult result = client.runForSerial(serial, command);
+        assertOk(result, "adb -s " + serial + " " + String.join(" ", command));
+    }
+
+    private String normalizeRemotePath(String path) {
+        if (path == null) {
+            return null;
+        }
+
+        String normalized = path.trim().replace('\\', '/');
+        if (normalized.isBlank()) {
+            return null;
+        }
+
+        while (normalized.length() > 1 && normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private String parentRemotePath(String path) {
+        String normalized = normalizeRemotePath(path);
+        if (normalized == null || normalized.isBlank() || "/".equals(normalized)) {
+            return null;
+        }
+
+        int lastSlash = normalized.lastIndexOf('/');
+        if (lastSlash <= 0) {
+            return "/";
+        }
+        return normalized.substring(0, lastSlash);
+    }
+
+    private String joinRemotePath(String parentPath, String childName) {
+        String parent = normalizeRemotePath(parentPath);
+        String child = requireValidRemoteName(childName);
+        if (parent == null || parent.isBlank() || "/".equals(parent)) {
+            return "/" + child;
+        }
+        return parent + "/" + child;
+    }
+
+    private String fileNameFromRemotePath(String path) {
+        String normalized = normalizeRemotePath(path);
+        if (normalized == null || normalized.isBlank()) {
+            return "";
+        }
+        if ("/".equals(normalized)) {
+            return normalized;
+        }
+
+        int lastSlash = normalized.lastIndexOf('/');
+        return lastSlash < 0 ? normalized : normalized.substring(lastSlash + 1);
+    }
+
+    private String requireValidRemoteName(String value) {
+        String normalized = requireNonBlank(value, Messages.text("error.files.invalidName"));
+        if (normalized.contains("/") || normalized.contains("\\")) {
+            throw new IllegalArgumentException(Messages.text("error.files.invalidName"));
+        }
+        if (".".equals(normalized) || "..".equals(normalized)) {
+            throw new IllegalArgumentException(Messages.text("error.files.invalidName"));
+        }
+        return normalized;
+    }
+
+    private String firstNonBlankLine(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        for (String rawLine : value.split("\\R")) {
+            String line = rawLine == null ? "" : rawLine.trim();
+            if (!line.isBlank()) {
+                return line;
+            }
+        }
+        return null;
+    }
+
+    private List<String> normalizeRemotePaths(List<String> remotePaths) {
+        if (remotePaths == null || remotePaths.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> normalizedPaths = new ArrayList<>();
+        for (String remotePath : remotePaths) {
+            String normalized = normalizeRemotePath(remotePath);
+            if (normalized != null && !normalized.isBlank() && !normalizedPaths.contains(normalized)) {
+                normalizedPaths.add(normalized);
+            }
+        }
+        return List.copyOf(normalizedPaths);
+    }
+
+    private List<File> normalizeLocalPaths(List<File> localPaths) {
+        if (localPaths == null || localPaths.isEmpty()) {
+            return List.of();
+        }
+
+        List<File> normalizedPaths = new ArrayList<>();
+        for (File localPath : localPaths) {
+            if (localPath == null) {
+                continue;
+            }
+
+            File absolutePath = localPath.getAbsoluteFile();
+            if (!absolutePath.exists()) {
+                throw new IllegalArgumentException(Messages.format(
+                        "error.files.localMissing",
+                        absolutePath.getAbsolutePath()));
+            }
+            if (!normalizedPaths.contains(absolutePath)) {
+                normalizedPaths.add(absolutePath);
+            }
+        }
+        return List.copyOf(normalizedPaths);
     }
 
     private String requirePackageName(String value) {
