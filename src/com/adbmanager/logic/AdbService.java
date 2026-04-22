@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
@@ -39,13 +40,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.imageio.ImageIO;
 
 import com.adbmanager.logic.client.AdbBinaryResult;
 import com.adbmanager.logic.client.AdbClient;
+import com.adbmanager.logic.client.AdbExecutionControl;
 import com.adbmanager.logic.client.AdbResult;
 import com.adbmanager.logic.model.AppDetails;
 import com.adbmanager.logic.model.AppBackgroundMode;
@@ -66,6 +71,7 @@ import com.adbmanager.logic.model.DeviceFileEntry;
 import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.DeviceParser;
 import com.adbmanager.logic.model.DeviceSoundMode;
+import com.adbmanager.logic.model.FileTransferProgress;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.logic.model.KeyboardInputMethod;
 import com.adbmanager.logic.model.SystemState;
@@ -160,6 +166,7 @@ public class AdbService implements AdbModel {
     private final Map<String, ApplicationPresentation> applicationPresentationCache = new HashMap<>();
     private final Map<String, InstalledApp> applicationSummaryCache = new HashMap<>();
     private volatile List<Path> cachedAaptExecutables;
+    private volatile AdbExecutionControl currentFileTransferControl;
     private List<Device> devices = List.of();
     private List<InstalledApp> applications = List.of();
     private String selectedDeviceSerial;
@@ -1630,20 +1637,17 @@ public class AdbService implements AdbModel {
         String serial = device.serial();
         String currentPath = resolveRemoteDirectoryPath(serial, path);
 
-        AdbResult result = client.runForSerial(
+        AdbResult result = runToyboxCommand(
                 serial,
-                List.of(
-                        "shell",
-                        "toybox",
-                        "find",
-                        currentPath,
-                        "-mindepth",
-                        "1",
-                        "-maxdepth",
-                        "1",
-                        "-printf",
-                        FILE_EXPLORER_LIST_FORMAT,
-                        "-print"));
+                "find",
+                currentPath,
+                "-mindepth",
+                "1",
+                "-maxdepth",
+                "1",
+                "-printf",
+                FILE_EXPLORER_LIST_FORMAT,
+                "-print");
         assertOk(result, "adb -s " + serial + " shell toybox find " + currentPath);
         return new DeviceDirectoryListing(
                 currentPath,
@@ -1710,6 +1714,15 @@ public class AdbService implements AdbModel {
 
     @Override
     public void pullSelectedDevicePaths(List<String> remotePaths, File destinationDirectory) throws Exception {
+        pullSelectedDevicePaths(remotePaths, destinationDirectory, progress -> {
+        });
+    }
+
+    @Override
+    public void pullSelectedDevicePaths(
+            List<String> remotePaths,
+            File destinationDirectory,
+            Consumer<FileTransferProgress> progressCallback) throws Exception {
         Device device = requireConnectedSelectedDevice(
                 Messages.text("error.files.deviceRequired"),
                 Messages.text("error.files.deviceDisconnected"));
@@ -1727,17 +1740,72 @@ public class AdbService implements AdbModel {
             throw new IllegalArgumentException(Messages.text("error.files.noSelection"));
         }
 
+        List<RemoteToLocalTransferPlan> transferPlans = new ArrayList<>();
+        File stagingDirectory = requiresStagingDirectory(destinationDirectory)
+                ? Files.createTempDirectory("adbmanager-pull-").toFile()
+                : null;
+        long totalBytes = 0L;
         for (String remotePath : safePaths) {
             String source = resolveExistingRemotePath(device.serial(), remotePath);
-            AdbResult result = client.runForSerial(
-                    device.serial(),
-                    List.of("pull", source, destinationDirectory.getAbsolutePath()));
-            assertOk(result, "adb -s " + device.serial() + " pull " + source + " " + destinationDirectory.getAbsolutePath());
+            String sourceName = fileNameFromRemotePath(source);
+            File adbTargetDirectory = stagingDirectory == null ? destinationDirectory : stagingDirectory;
+            File transferPath = new File(adbTargetDirectory, sourceName);
+            File finalPath = new File(destinationDirectory, sourceName);
+            transferPlans.add(new RemoteToLocalTransferPlan(
+                    source,
+                    adbTargetDirectory,
+                    transferPath,
+                    finalPath));
+            totalBytes += Math.max(0L, measureRemotePathBytes(device.serial(), source));
+        }
+
+        AdbExecutionControl executionControl = new AdbExecutionControl();
+        currentFileTransferControl = executionControl;
+        try {
+            runTransferWithProgress(
+                    totalBytes,
+                    progressCallback,
+                    executionControl,
+                    () -> measureLocalTargetsBytes(transferPlans),
+                    () -> {
+                        for (RemoteToLocalTransferPlan transferPlan : transferPlans) {
+                            AdbResult result = client.runForSerialStreaming(
+                                    device.serial(),
+                                    List.of("pull",
+                                            transferPlan.remotePath(),
+                                            transferPlan.adbTargetDirectory().getAbsolutePath()),
+                                    chunk -> {
+                                    },
+                                    executionControl);
+                            assertOk(
+                                    result,
+                                    "adb -s " + device.serial() + " pull "
+                                            + transferPlan.remotePath() + " "
+                                            + transferPlan.adbTargetDirectory().getAbsolutePath());
+                            if (!transferPlan.transferPath().equals(transferPlan.finalPath())) {
+                                moveLocalPath(transferPlan.transferPath().toPath(), transferPlan.finalPath().toPath());
+                            }
+                        }
+                    });
+        } finally {
+            currentFileTransferControl = null;
+            if (stagingDirectory != null) {
+                deleteLocalPathIfExists(stagingDirectory.toPath());
+            }
         }
     }
 
     @Override
     public void pushToSelectedDeviceDirectory(List<File> localPaths, String remoteDirectory) throws Exception {
+        pushToSelectedDeviceDirectory(localPaths, remoteDirectory, progress -> {
+        });
+    }
+
+    @Override
+    public void pushToSelectedDeviceDirectory(
+            List<File> localPaths,
+            String remoteDirectory,
+            Consumer<FileTransferProgress> progressCallback) throws Exception {
         Device device = requireConnectedSelectedDevice(
                 Messages.text("error.files.deviceRequired"),
                 Messages.text("error.files.deviceDisconnected"));
@@ -1748,13 +1816,47 @@ public class AdbService implements AdbModel {
             throw new IllegalArgumentException(Messages.text("error.files.localSelectionRequired"));
         }
 
+        List<LocalToRemoteTransferPlan> transferPlans = new ArrayList<>();
+        long totalBytes = 0L;
         for (File localPath : safeLocalPaths) {
             String remoteTargetPath = joinRemotePath(targetDirectory, localPath.getName());
             ensureRemotePathDoesNotExist(serial, remoteTargetPath);
-            AdbResult result = client.runForSerial(
-                    serial,
-                    List.of("push", localPath.getAbsolutePath(), remoteTargetPath));
-            assertOk(result, "adb -s " + serial + " push " + localPath.getAbsolutePath() + " " + remoteTargetPath);
+            transferPlans.add(new LocalToRemoteTransferPlan(localPath, remoteTargetPath));
+            totalBytes += measureLocalPathBytes(localPath.toPath());
+        }
+
+        AdbExecutionControl executionControl = new AdbExecutionControl();
+        currentFileTransferControl = executionControl;
+        try {
+            runTransferWithProgress(
+                    totalBytes,
+                    progressCallback,
+                    executionControl,
+                    () -> measureRemoteTargetsBytes(serial, transferPlans.stream().map(LocalToRemoteTransferPlan::remotePath).toList()),
+                    () -> {
+                        for (LocalToRemoteTransferPlan transferPlan : transferPlans) {
+                            AdbResult result = client.runForSerialStreaming(
+                                    serial,
+                                    List.of("push", transferPlan.localPath().getAbsolutePath(), transferPlan.remotePath()),
+                                    chunk -> {
+                                    },
+                                    executionControl);
+                            assertOk(
+                                    result,
+                                    "adb -s " + serial + " push "
+                                            + transferPlan.localPath().getAbsolutePath() + " " + transferPlan.remotePath());
+                        }
+                    });
+        } finally {
+            currentFileTransferControl = null;
+        }
+    }
+
+    @Override
+    public void cancelCurrentFileTransfer() {
+        AdbExecutionControl executionControl = currentFileTransferControl;
+        if (executionControl != null) {
+            executionControl.cancel();
         }
     }
 
@@ -3888,7 +3990,7 @@ public class AdbService implements AdbModel {
     }
 
     private String resolveExplorerDefaultRoot(String serial) throws Exception {
-        AdbResult result = client.runForSerial(serial, List.of("shell", "toybox", "realpath", "/sdcard"));
+        AdbResult result = runToyboxCommand(serial, "realpath", "/sdcard");
         if (result.ok()) {
             String resolved = firstNonBlankLine(result.output());
             if (resolved != null && !resolved.isBlank()) {
@@ -3904,7 +4006,7 @@ public class AdbService implements AdbModel {
             throw new IllegalArgumentException(Messages.text("error.files.invalidPath"));
         }
 
-        AdbResult result = client.runForSerial(serial, List.of("shell", "toybox", "realpath", normalized));
+        AdbResult result = runToyboxCommand(serial, "realpath", normalized);
         if (result.ok()) {
             String resolved = firstNonBlankLine(result.output());
             if (resolved != null && !resolved.isBlank()) {
@@ -3916,12 +4018,12 @@ public class AdbService implements AdbModel {
     }
 
     private boolean isRemoteDirectory(String serial, String path) throws Exception {
-        AdbResult result = client.runForSerial(serial, List.of("shell", "toybox", "test", "-d", path));
+        AdbResult result = runToyboxCommand(serial, "test", "-d", path);
         return result.ok();
     }
 
     private boolean remotePathExists(String serial, String path) throws Exception {
-        AdbResult result = client.runForSerial(serial, List.of("shell", "toybox", "test", "-e", path));
+        AdbResult result = runToyboxCommand(serial, "test", "-e", path);
         return result.ok();
     }
 
@@ -3932,12 +4034,20 @@ public class AdbService implements AdbModel {
     }
 
     private void runToyboxMutation(String serial, String... args) throws Exception {
-        List<String> command = new ArrayList<>();
-        command.add("shell");
-        command.add("toybox");
-        command.addAll(List.of(args));
-        AdbResult result = client.runForSerial(serial, command);
-        assertOk(result, "adb -s " + serial + " " + String.join(" ", command));
+        AdbResult result = runToyboxCommand(serial, args);
+        assertOk(result, "adb -s " + serial + " shell toybox " + String.join(" ", args));
+    }
+
+    private AdbResult runToyboxCommand(String serial, String... args) throws Exception {
+        StringBuilder script = new StringBuilder("toybox");
+        for (String arg : args) {
+            script.append(' ').append(shellQuote(arg));
+        }
+        return client.runForSerial(serial, List.of("shell", script.toString()));
+    }
+
+    private String shellQuote(String value) {
+        return "'" + Objects.requireNonNullElse(value, "").replace("'", "'\\''") + "'";
     }
 
     private String normalizeRemotePath(String path) {
@@ -4474,7 +4584,7 @@ public class AdbService implements AdbModel {
             return -1L;
         }
 
-        AdbResult result = client.runForSerial(serial, List.of("shell", "du", "-k", path));
+        AdbResult result = runToyboxCommand(serial, "du", "-k", path);
         String output = result.output() == null ? "" : result.output().trim();
 
         if (!result.ok()) {
@@ -4496,6 +4606,245 @@ public class AdbService implements AdbModel {
             return Math.max(0L, kilobytes) * 1024L;
         } catch (NumberFormatException exception) {
             return -1L;
+        }
+    }
+
+    private long measureRemoteTargetsBytes(String serial, List<String> remotePaths) throws Exception {
+        long total = 0L;
+        for (String remotePath : remotePaths == null ? List.<String>of() : remotePaths) {
+            total += Math.max(0L, measureRemotePathBytes(serial, remotePath));
+        }
+        return total;
+    }
+
+    private long measureLocalTargetsBytes(List<RemoteToLocalTransferPlan> transferPlans) {
+        long total = 0L;
+        Set<Path> measuredPaths = new LinkedHashSet<>();
+        for (RemoteToLocalTransferPlan transferPlan : transferPlans == null ? List.<RemoteToLocalTransferPlan>of() : transferPlans) {
+            if (transferPlan == null) {
+                continue;
+            }
+
+            File preferredPath = transferPlan.finalPath().exists()
+                    ? transferPlan.finalPath()
+                    : transferPlan.transferPath();
+            if (preferredPath == null) {
+                continue;
+            }
+
+            Path normalizedPath = preferredPath.toPath().toAbsolutePath().normalize();
+            if (measuredPaths.add(normalizedPath)) {
+                total += Math.max(0L, measureLocalPathBytes(normalizedPath));
+            }
+        }
+        return total;
+    }
+
+    private long measureLocalPathBytes(Path path) {
+        if (path == null || !Files.exists(path)) {
+            return 0L;
+        }
+
+        try {
+            if (Files.isRegularFile(path)) {
+                return Math.max(0L, Files.size(path));
+            }
+
+            try (Stream<Path> stream = Files.walk(path)) {
+                return stream
+                        .filter(Files::isRegularFile)
+                        .mapToLong(file -> {
+                            try {
+                                return Files.size(file);
+                            } catch (IOException exception) {
+                                return 0L;
+                            }
+                        })
+                        .sum();
+            }
+        } catch (IOException exception) {
+            return 0L;
+        }
+    }
+
+    private void runTransferWithProgress(
+            long totalBytes,
+            Consumer<FileTransferProgress> progressCallback,
+            AdbExecutionControl executionControl,
+            TransferProgressSupplier progressSupplier,
+            TransferTask transferTask) throws Exception {
+        Consumer<FileTransferProgress> safeCallback = progressCallback == null ? progress -> {
+        } : progressCallback;
+        boolean indeterminate = totalBytes <= 0L;
+        safeCallback.accept(new FileTransferProgress(0L, totalBytes, 0L, indeterminate));
+
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        AtomicLong lastTransferredBytes = new AtomicLong(0L);
+        AtomicLong lastTimestampNanos = new AtomicLong(System.nanoTime());
+        AtomicLong lastSpeedBytesPerSecond = new AtomicLong(0L);
+
+        Runnable reporter = () -> {
+            try {
+                long transferredBytes = Math.max(0L, progressSupplier.getAsLong());
+                if (totalBytes > 0L) {
+                    transferredBytes = Math.min(totalBytes, transferredBytes);
+                }
+
+                long now = System.nanoTime();
+                long previousBytes = lastTransferredBytes.getAndSet(transferredBytes);
+                long previousTimestamp = lastTimestampNanos.getAndSet(now);
+                long elapsedNanos = Math.max(1L, now - previousTimestamp);
+                long deltaBytes = Math.max(0L, transferredBytes - previousBytes);
+                if (deltaBytes > 0L && executionControl != null) {
+                    executionControl.markActivity();
+                }
+                long bytesPerSecond = Math.round(deltaBytes * 1_000_000_000d / elapsedNanos);
+                lastSpeedBytesPerSecond.set(bytesPerSecond);
+
+                safeCallback.accept(new FileTransferProgress(
+                        transferredBytes,
+                        totalBytes,
+                        bytesPerSecond,
+                        indeterminate));
+            } catch (Exception ignored) {
+            }
+        };
+
+        ScheduledFuture<?> scheduledReporter = scheduler.scheduleAtFixedRate(reporter, 0L, 250L, TimeUnit.MILLISECONDS);
+        try {
+            transferTask.run();
+            reporter.run();
+            long finalTransferredBytes = totalBytes > 0L
+                    ? totalBytes
+                    : Math.max(0L, progressSupplier.getAsLong());
+            safeCallback.accept(new FileTransferProgress(
+                    finalTransferredBytes,
+                    totalBytes,
+                    lastSpeedBytesPerSecond.get(),
+                    indeterminate));
+        } finally {
+            scheduledReporter.cancel(true);
+            scheduler.shutdownNow();
+        }
+    }
+
+    @FunctionalInterface
+    private interface TransferProgressSupplier {
+        long getAsLong() throws Exception;
+    }
+
+    @FunctionalInterface
+    private interface TransferTask {
+        void run() throws Exception;
+    }
+
+    private record LocalToRemoteTransferPlan(File localPath, String remotePath) {
+    }
+
+    private record RemoteToLocalTransferPlan(
+            String remotePath,
+            File adbTargetDirectory,
+            File transferPath,
+            File finalPath) {
+    }
+
+    private boolean requiresStagingDirectory(File destinationDirectory) {
+        if (destinationDirectory == null) {
+            return false;
+        }
+
+        try {
+            Path normalizedPath = destinationDirectory.toPath().toAbsolutePath().normalize();
+            Path rootPath = normalizedPath.getRoot();
+            return rootPath != null && normalizedPath.equals(rootPath);
+        } catch (Exception exception) {
+            return false;
+        }
+    }
+
+    private void moveLocalPath(Path sourcePath, Path targetPath) throws Exception {
+        if (sourcePath == null || targetPath == null || !Files.exists(sourcePath)) {
+            return;
+        }
+
+        Path parentPath = targetPath.getParent();
+        if (parentPath != null) {
+            Files.createDirectories(parentPath);
+        }
+
+        deleteLocalPathIfExists(targetPath);
+        try {
+            Files.move(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException exception) {
+            if (isLocalPermissionDenied(exception)) {
+                throw new IllegalArgumentException(
+                        Messages.format("error.files.localPermissionDenied", targetPath.toString()),
+                        exception);
+            }
+            copyLocalPath(sourcePath, targetPath);
+            deleteLocalPathIfExists(sourcePath);
+        }
+    }
+
+    private void copyLocalPath(Path sourcePath, Path targetPath) throws Exception {
+        if (Files.isDirectory(sourcePath)) {
+            try (Stream<Path> stream = Files.walk(sourcePath)) {
+                stream.forEachOrdered(path -> {
+                    try {
+                        Path relativePath = sourcePath.relativize(path);
+                        Path resolvedTarget = targetPath.resolve(relativePath);
+                        if (Files.isDirectory(path)) {
+                            Files.createDirectories(resolvedTarget);
+                        } else {
+                            Path parentPath = resolvedTarget.getParent();
+                            if (parentPath != null) {
+                                Files.createDirectories(parentPath);
+                            }
+                            Files.copy(path, resolvedTarget, StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    } catch (IOException ioException) {
+                        throw new RuntimeException(ioException);
+                    }
+                });
+            } catch (RuntimeException runtimeException) {
+                if (runtimeException.getCause() instanceof IOException ioException) {
+                    throw ioException;
+                }
+                throw runtimeException;
+            }
+            return;
+        }
+
+        Path parentPath = targetPath.getParent();
+        if (parentPath != null) {
+            Files.createDirectories(parentPath);
+        }
+        Files.copy(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    private boolean isLocalPermissionDenied(IOException exception) {
+        return exception instanceof java.nio.file.AccessDeniedException;
+    }
+
+    private void deleteLocalPathIfExists(Path path) throws Exception {
+        if (path == null || !Files.exists(path)) {
+            return;
+        }
+
+        try (Stream<Path> stream = Files.walk(path)) {
+            stream.sorted(Comparator.reverseOrder())
+                    .forEachOrdered(currentPath -> {
+                        try {
+                            Files.deleteIfExists(currentPath);
+                        } catch (IOException ioException) {
+                            throw new RuntimeException(ioException);
+                        }
+                    });
+        } catch (RuntimeException runtimeException) {
+            if (runtimeException.getCause() instanceof IOException ioException) {
+                throw ioException;
+            }
+            throw runtimeException;
         }
     }
 

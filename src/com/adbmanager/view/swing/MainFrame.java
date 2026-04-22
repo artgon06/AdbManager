@@ -6,6 +6,8 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Cursor;
 import java.awt.Component;
+import java.awt.KeyEventDispatcher;
+import java.awt.KeyboardFocusManager;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.InputEvent;
@@ -98,6 +100,17 @@ public class MainFrame extends JFrame {
     private final SettingsPanel settingsPanel = new SettingsPanel();
     private final WirelessConnectionDialog wirelessDialog = new WirelessConnectionDialog(this);
     private final AppInstallDialog appInstallDialog = new AppInstallDialog(this);
+    private final KeyEventDispatcher tabNavigationDispatcher = event -> {
+        if (!isActive() || event.getID() != KeyEvent.KEY_PRESSED || event.getKeyCode() != KeyEvent.VK_TAB) {
+            return false;
+        }
+        if ((event.getModifiersEx() & InputEvent.CTRL_DOWN_MASK) == 0) {
+            return false;
+        }
+
+        cycleTabs((event.getModifiersEx() & InputEvent.SHIFT_DOWN_MASK) != 0 ? -1 : 1);
+        return true;
+    };
     private AppTheme currentTheme = AppTheme.LIGHT;
 
     public MainFrame() {
@@ -109,6 +122,12 @@ public class MainFrame extends JFrame {
 
     public void showWindow() {
         setVisible(true);
+    }
+
+    @Override
+    public void dispose() {
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(tabNavigationDispatcher);
+        super.dispose();
     }
 
     public void setCaptureAction(ActionListener actionListener) {
@@ -353,6 +372,14 @@ public class MainFrame extends JFrame {
 
     public void setFilesRefreshAction(ActionListener actionListener) {
         filesPanel.setRefreshAction(actionListener);
+    }
+
+    public void setFilesPathSubmitAction(ActionListener actionListener) {
+        filesPanel.setPathSubmitAction(actionListener);
+    }
+
+    public void setFilesTransferCancelAction(ActionListener actionListener) {
+        filesPanel.setTransferCancelAction(actionListener);
     }
 
     public void setFilesCreateFolderAction(ActionListener actionListener) {
@@ -810,8 +837,24 @@ public class MainFrame extends JFrame {
         filesPanel.setStatus(message, error);
     }
 
+    public void setFilesTransferProgress(boolean visible, boolean indeterminate, int percent, String progressText) {
+        filesPanel.setTransferProgress(visible, indeterminate, percent, progressText);
+    }
+
+    public void clearFilesTransferProgress() {
+        filesPanel.clearTransferProgress();
+    }
+
+    public void setFilesTransferCancelable(boolean cancelable) {
+        filesPanel.setTransferCancelable(cancelable);
+    }
+
     public String getCurrentFilesDirectory() {
         return filesPanel.getCurrentDirectoryPath();
+    }
+
+    public String getEnteredFilesDirectory() {
+        return filesPanel.getEnteredDirectoryPath();
     }
 
     public String getParentFilesDirectory() {
@@ -1400,6 +1443,8 @@ public class MainFrame extends JFrame {
     private void installTabNavigationShortcuts() {
         InputMap inputMap = getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         ActionMap actionMap = getRootPane().getActionMap();
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(tabNavigationDispatcher);
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(tabNavigationDispatcher);
 
         inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, InputEvent.CTRL_DOWN_MASK), "tabs.next");
         inputMap.put(

@@ -26,6 +26,7 @@ import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
@@ -65,7 +66,12 @@ public class FilesPanel extends JPanel {
     private final JButton renameButton = new JButton();
     private final JButton copyButton = new JButton();
     private final JButton deleteButton = new JButton();
+    private final JButton cancelTransferButton = new JButton("\u00d7");
     private final JLabel statusLabel = new JLabel(" ");
+    private final JPanel footerPanel = new JPanel();
+    private final JPanel statusRowPanel = new JPanel();
+    private final Component cancelTransferSpacer = Box.createHorizontalStrut(8);
+    private final JProgressBar transferProgressBar = new JProgressBar(0, 100);
 
     private final DeviceFilesTableModel tableModel = new DeviceFilesTableModel();
     private final JTable filesTable = new JTable(tableModel);
@@ -82,6 +88,7 @@ public class FilesPanel extends JPanel {
     private DeviceDirectoryListing currentListing = new DeviceDirectoryListing(null, null, List.of());
     private boolean deviceAvailable;
     private boolean busy;
+    private boolean transferCancelable;
     private Runnable selectionAction = () -> {
     };
     private Runnable openDirectoryAction = () -> {
@@ -102,6 +109,10 @@ public class FilesPanel extends JPanel {
 
     public void setRefreshAction(ActionListener actionListener) {
         refreshButton.addActionListener(actionListener);
+    }
+
+    public void setPathSubmitAction(ActionListener actionListener) {
+        pathField.addActionListener(actionListener);
     }
 
     public void setCreateFolderAction(ActionListener actionListener) {
@@ -164,6 +175,30 @@ public class FilesPanel extends JPanel {
         styleStatusLabel();
     }
 
+    public void setTransferCancelAction(ActionListener actionListener) {
+        cancelTransferButton.addActionListener(actionListener);
+    }
+
+    public void setTransferCancelable(boolean cancelable) {
+        transferCancelable = cancelable;
+        cancelTransferButton.setVisible(cancelable);
+        cancelTransferSpacer.setVisible(cancelable);
+        cancelTransferButton.setEnabled(cancelable);
+        styleTransferCancelButton();
+    }
+
+    public void setTransferProgress(boolean visible, boolean indeterminate, int percent, String progressText) {
+        transferProgressBar.setVisible(visible);
+        transferProgressBar.setIndeterminate(visible && indeterminate);
+        transferProgressBar.setValue(Math.max(0, Math.min(100, percent)));
+        transferProgressBar.setString((progressText == null || progressText.isBlank()) ? " " : progressText.trim());
+        transferProgressBar.setStringPainted(visible);
+    }
+
+    public void clearTransferProgress() {
+        setTransferProgress(false, false, 0, " ");
+    }
+
     public void setDirectoryListing(DeviceDirectoryListing listing) {
         currentListing = listing == null ? new DeviceDirectoryListing(null, null, List.of()) : listing;
         pathField.setText(currentListing.currentPath() == null ? "" : currentListing.currentPath());
@@ -181,6 +216,10 @@ public class FilesPanel extends JPanel {
 
     public String getCurrentDirectoryPath() {
         return currentListing.currentPath();
+    }
+
+    public String getEnteredDirectoryPath() {
+        return pathField.getText() == null ? "" : pathField.getText().trim();
     }
 
     public String getParentDirectoryPath() {
@@ -245,6 +284,7 @@ public class FilesPanel extends JPanel {
 
         tableModel.refreshTexts();
         contentPanel.setBorder(createSectionBorder(Messages.text("files.title")));
+        styleTransferCancelButton();
     }
 
     public void applyTheme(AppTheme theme) {
@@ -270,11 +310,17 @@ public class FilesPanel extends JPanel {
         pathField.setForeground(theme.textPrimary());
         pathField.setCaretColor(theme.textPrimary());
         pathField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
-        pathField.setEditable(false);
+        pathField.setEditable(true);
         pathField.setBackground(theme.secondarySurface());
         pathField.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(9, 10, 9, 10)));
+        transferProgressBar.setForeground(theme.actionBackground());
+        transferProgressBar.setBackground(theme.secondarySurface());
+        transferProgressBar.setBorder(BorderFactory.createLineBorder(theme.border(), 1));
+        transferProgressBar.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        statusRowPanel.setOpaque(false);
+        styleTransferCancelButton();
 
         styleTable();
         styleScrollPane(tableScrollPane);
@@ -289,6 +335,10 @@ public class FilesPanel extends JPanel {
 
         contentPanel.setBorder(createSectionBorder(Messages.text("files.title")));
         contentPanel.setOpaque(true);
+        footerPanel.setOpaque(false);
+        footerPanel.setLayout(new BoxLayout(footerPanel, BoxLayout.Y_AXIS));
+        statusRowPanel.setOpaque(false);
+        statusRowPanel.setLayout(new BoxLayout(statusRowPanel, BoxLayout.X_AXIS));
 
         buildToolbar();
         buildTable();
@@ -299,7 +349,20 @@ public class FilesPanel extends JPanel {
         add(contentPanel, BorderLayout.CENTER);
 
         statusLabel.setBorder(new EmptyBorder(10, 0, 0, 0));
-        add(statusLabel, BorderLayout.SOUTH);
+        cancelTransferButton.setVisible(false);
+        cancelTransferButton.setBorder(new EmptyBorder(10, 0, 0, 0));
+        cancelTransferButton.setAlignmentY(Component.CENTER_ALIGNMENT);
+        cancelTransferButton.getModel().addChangeListener(event -> styleTransferCancelButton());
+        statusRowPanel.add(cancelTransferButton);
+        cancelTransferSpacer.setVisible(false);
+        statusRowPanel.add(cancelTransferSpacer);
+        statusRowPanel.add(statusLabel);
+        transferProgressBar.setVisible(false);
+        transferProgressBar.setPreferredSize(new Dimension(0, 18));
+        footerPanel.add(statusRowPanel);
+        footerPanel.add(Box.createVerticalStrut(8));
+        footerPanel.add(transferProgressBar);
+        add(footerPanel, BorderLayout.SOUTH);
     }
 
     private void buildToolbar() {
@@ -313,6 +376,9 @@ public class FilesPanel extends JPanel {
         actionButtons.add(deleteButton);
 
         for (JButton button : actionButtons) {
+            if (button == createFolderButton) {
+                button.putClientProperty("iconSize", 19);
+            }
             configureButton(button);
             actionsPanel.add(button);
         }
@@ -377,7 +443,6 @@ public class FilesPanel extends JPanel {
         });
 
         contextMenu.add(openFolderMenuItem);
-        contextMenu.addSeparator();
         contextMenu.add(downloadMenuItem);
         contextMenu.add(renameMenuItem);
         contextMenu.add(copyMenuItem);
@@ -450,6 +515,8 @@ public class FilesPanel extends JPanel {
         boolean singleSelection = filesTable.getSelectedRowCount() == 1;
 
         filesTable.setEnabled(enabled);
+        pathField.setEnabled(deviceAvailable);
+        pathField.setEditable(enabled && hasListing);
         upButton.setEnabled(enabled && hasListing && currentListing.hasParent());
         refreshButton.setEnabled(enabled && hasListing);
         createFolderButton.setEnabled(enabled && hasListing);
@@ -481,6 +548,7 @@ public class FilesPanel extends JPanel {
     private void styleButton(JButton button, boolean primary, ToolbarIcon.Type iconType) {
         button.putClientProperty("primary", primary);
         button.putClientProperty("iconType", iconType);
+        int iconSize = button.getClientProperty("iconSize") instanceof Integer size ? size : 16;
         boolean enabled = button.isEnabled();
         boolean hovered = enabled && button.getModel().isRollover();
 
@@ -512,7 +580,42 @@ public class FilesPanel extends JPanel {
 
         button.setBackground(background);
         button.setForeground(foreground);
-        button.setIcon(new ToolbarIcon(iconType, 16, foreground));
+        button.setIcon(new ToolbarIcon(iconType, iconSize, foreground));
+    }
+
+    private void styleTransferCancelButton() {
+        boolean enabled = transferCancelable;
+        boolean hovered = enabled && cancelTransferButton.getModel().isRollover();
+
+        cancelTransferButton.setUI(new BasicButtonUI());
+        cancelTransferButton.setFocusPainted(false);
+        cancelTransferButton.setFocusable(false);
+        cancelTransferButton.setRolloverEnabled(true);
+        cancelTransferButton.setCursor(enabled
+                ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+                : Cursor.getDefaultCursor());
+        cancelTransferButton.setOpaque(true);
+        cancelTransferButton.setContentAreaFilled(true);
+        cancelTransferButton.setBorderPainted(true);
+        cancelTransferButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+        cancelTransferButton.setMargin(new Insets(0, 0, 0, 0));
+        cancelTransferButton.setPreferredSize(new Dimension(18, 18));
+        cancelTransferButton.setMinimumSize(new Dimension(18, 18));
+        cancelTransferButton.setMaximumSize(new Dimension(18, 18));
+        cancelTransferButton.setToolTipText(Messages.text("files.action.cancelTransfer"));
+
+        if (enabled) {
+            Color background = hovered
+                    ? ThemeUtils.blend(theme.surface(), new Color(214, 80, 80), 0.24d)
+                    : theme.surface();
+            cancelTransferButton.setBackground(background);
+            cancelTransferButton.setForeground(theme.textSecondary());
+            cancelTransferButton.setBorder(BorderFactory.createLineBorder(theme.border(), 1));
+        } else {
+            cancelTransferButton.setBackground(theme.background());
+            cancelTransferButton.setForeground(theme.textSecondary());
+            cancelTransferButton.setBorder(BorderFactory.createLineBorder(theme.disabledBorder(), 1));
+        }
     }
 
     private void styleTable() {
@@ -554,6 +657,11 @@ public class FilesPanel extends JPanel {
     private void styleContextMenu() {
         contextMenu.setBorder(BorderFactory.createLineBorder(theme.border(), 1));
         contextMenu.setBackground(theme.surface());
+        openFolderMenuItem.setIcon(new ToolbarIcon(ToolbarIcon.Type.FOLDER, 16, theme.textPrimary()));
+        downloadMenuItem.setIcon(new ToolbarIcon(ToolbarIcon.Type.DOWNLOAD, 16, theme.textPrimary()));
+        renameMenuItem.setIcon(new ToolbarIcon(ToolbarIcon.Type.EDIT, 16, theme.textPrimary()));
+        copyMenuItem.setIcon(new ToolbarIcon(ToolbarIcon.Type.COPY, 16, theme.textPrimary()));
+        deleteMenuItem.setIcon(new ToolbarIcon(ToolbarIcon.Type.UNINSTALL, 16, theme.textPrimary()));
         for (Component component : contextMenu.getComponents()) {
             if (component instanceof JMenuItem menuItem) {
                 menuItem.setOpaque(true);
@@ -561,6 +669,7 @@ public class FilesPanel extends JPanel {
                 menuItem.setForeground(menuItem.isEnabled() ? theme.textPrimary() : theme.textSecondary());
                 menuItem.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
                 menuItem.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+                menuItem.setIconTextGap(10);
             }
         }
     }

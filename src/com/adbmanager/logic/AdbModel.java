@@ -15,6 +15,7 @@ import com.adbmanager.logic.model.DeviceDirectoryListing;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.DeviceSoundMode;
+import com.adbmanager.logic.model.FileTransferProgress;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.logic.model.ControlState;
 import com.adbmanager.logic.model.SystemState;
@@ -73,7 +74,16 @@ public interface AdbModel {
     void deleteSelectedDevicePath(String sourcePath) throws Exception;
     void copySelectedDevicePath(String sourcePath, String destinationPath) throws Exception;
     void pullSelectedDevicePaths(List<String> remotePaths, File destinationDirectory) throws Exception;
+    void pullSelectedDevicePaths(
+            List<String> remotePaths,
+            File destinationDirectory,
+            Consumer<FileTransferProgress> progressCallback) throws Exception;
     void pushToSelectedDeviceDirectory(List<File> localPaths, String remoteDirectory) throws Exception;
+    void pushToSelectedDeviceDirectory(
+            List<File> localPaths,
+            String remoteDirectory,
+            Consumer<FileTransferProgress> progressCallback) throws Exception;
+    void cancelCurrentFileTransfer();
     WirelessPairingResult pairWirelessDevice(String host, int pairingPort, String pairingCode) throws Exception;
     WirelessPairingResult pairWirelessDeviceWithQr(String serviceName, String password, int timeoutSeconds) throws Exception;
     void connectWirelessDevice(String host, int port) throws Exception;

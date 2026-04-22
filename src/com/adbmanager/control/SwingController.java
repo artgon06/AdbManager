@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 
 import javax.imageio.ImageIO;
 import javax.swing.Timer;
@@ -34,6 +35,7 @@ import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DeviceFileEntry;
 import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.DeviceSoundMode;
+import com.adbmanager.logic.model.FileTransferProgress;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.logic.model.ScrcpyCamera;
 import com.adbmanager.logic.model.ScrcpyLaunchRequest;
@@ -59,6 +61,11 @@ public class SwingController {
     @FunctionalInterface
     private interface ApplicationTask {
         void run() throws Exception;
+    }
+
+    @FunctionalInterface
+    private interface FileTransferTask {
+        void run(java.util.function.Consumer<FileTransferProgress> progressCallback) throws Exception;
     }
 
     private final AdbModel model;
@@ -94,6 +101,8 @@ public class SwingController {
     private boolean autoRefreshOnFocus = true;
     private WirelessPairingQrPayload currentQrPayload;
     private SwingWorker<Void, WirelessEndpointDiscovery> wirelessEndpointDiscoveryWorker;
+    private SwingWorker<DeviceDirectoryListing, FileTransferProgress> filesTransferWorker;
+    private boolean cancellingFileTransfer;
     private String pendingPowerActionSerial;
     private long pendingPowerActionUntilMs;
 
@@ -133,6 +142,8 @@ public class SwingController {
         view.setSystemStatus("", false);
         view.setControlStatus("", false);
         view.setFilesStatus("", false);
+        view.clearFilesTransferProgress();
+        view.setFilesTransferCancelable(false);
         view.showHomeScreen();
         view.showWindow();
         saveUserConfigSafely();
@@ -199,6 +210,8 @@ public class SwingController {
         view.setInstallApplicationsAction(event -> openApplicationInstallDialog());
         view.setFilesNavigateUpAction(event -> navigateToFilesParentDirectory());
         view.setFilesRefreshAction(event -> refreshFilesDirectory(true, true, view.getCurrentFilesDirectory()));
+        view.setFilesPathSubmitAction(event -> refreshFilesDirectory(true, true, view.getEnteredFilesDirectory()));
+        view.setFilesTransferCancelAction(event -> cancelFilesTransfer());
         view.setFilesCreateFolderAction(event -> createFilesDirectory());
         view.setFilesUploadAction(event -> uploadFilesToCurrentDirectory());
         view.setFilesDownloadAction(event -> downloadSelectedFiles());
@@ -287,6 +300,8 @@ public class SwingController {
                     view.setSystemStatus("", false);
                     view.setControlStatus("", false);
                     view.setFilesStatus("", false);
+                    view.clearFilesTransferProgress();
+                    view.setFilesTransferCancelable(false);
                     view.setScrcpyAvailableApps(List.of());
                     view.setScrcpyAvailableCameras(List.of());
                     resetApplicationEnrichmentState();
@@ -611,6 +626,8 @@ public class SwingController {
             view.setSystemStatus("", false);
             view.setControlStatus("", false);
             view.setFilesStatus("", false);
+            view.clearFilesTransferProgress();
+            view.setFilesTransferCancelable(false);
             view.setScrcpyAvailableApps(List.of());
             view.setScrcpyAvailableCameras(List.of());
         }
@@ -654,6 +671,8 @@ public class SwingController {
         if (!filesAvailable) {
             view.clearFilesListing();
             view.setFilesStatus("", false);
+            view.clearFilesTransferProgress();
+            view.setFilesTransferCancelable(false);
         }
 
         if (view.isAppsScreenVisible()) {
@@ -720,6 +739,8 @@ public class SwingController {
             view.setFilesDeviceAvailable(false);
             view.clearFilesListing();
             view.setFilesStatus("", false);
+            view.clearFilesTransferProgress();
+            view.setFilesTransferCancelable(false);
             return;
         }
 
@@ -744,6 +765,8 @@ public class SwingController {
         loadingFiles = true;
         view.setFilesDeviceAvailable(true);
         view.setFilesStatus(Messages.text("files.status.loading"), false);
+        view.clearFilesTransferProgress();
+        view.setFilesTransferCancelable(false);
         updateFilesBusyState();
 
         new SwingWorker<DeviceDirectoryListing, Void>() {
@@ -839,11 +862,11 @@ public class SwingController {
             return;
         }
 
-        runFilesCommand(
+        runFilesTransferCommand(
                 Messages.text("error.files.upload"),
                 Messages.format("files.status.uploaded", files.size()),
                 true,
-                () -> model.pushToSelectedDeviceDirectory(files, currentDirectory));
+                progress -> model.pushToSelectedDeviceDirectory(files, currentDirectory, progress));
     }
 
     private void downloadSelectedFiles() {
@@ -858,11 +881,11 @@ public class SwingController {
             return;
         }
 
-        runFilesCommand(
+        runFilesTransferCommand(
                 Messages.text("error.files.download"),
                 Messages.format("files.status.downloaded", selectedPaths.size()),
                 false,
-                () -> model.pullSelectedDevicePaths(selectedPaths, destinationDirectory));
+                progress -> model.pullSelectedDevicePaths(selectedPaths, destinationDirectory, progress));
     }
 
     private void renameSelectedFile() {
@@ -993,6 +1016,109 @@ public class SwingController {
                 }
             }
         }.execute();
+    }
+
+    private void runFilesTransferCommand(
+            String errorMessage,
+            String successMessage,
+            boolean refreshAfter,
+            FileTransferTask task) {
+        Device selectedDevice = model.getSelectedDevice().orElse(null);
+        if (!isFilesAvailable(selectedDevice)) {
+            view.showError(Messages.text("error.files.deviceRequired"));
+            return;
+        }
+
+        String requestedSerial = selectedDevice.serial();
+        String currentDirectory = normalizePath(view.getCurrentFilesDirectory());
+        applyingFileAction = true;
+        cancellingFileTransfer = false;
+        view.setFilesStatus(Messages.text("files.status.executing"), false);
+        view.setFilesTransferProgress(true, true, 0, Messages.text("files.status.executing"));
+        view.setFilesTransferCancelable(true);
+        updateFilesBusyState();
+
+        filesTransferWorker = new SwingWorker<DeviceDirectoryListing, FileTransferProgress>() {
+            @Override
+            protected DeviceDirectoryListing doInBackground() throws Exception {
+                task.run(this::publish);
+                if (refreshAfter) {
+                    return model.listSelectedDeviceDirectory(currentDirectory);
+                }
+                return null;
+            }
+
+            @Override
+            protected void process(List<FileTransferProgress> chunks) {
+                if (!Objects.equals(requestedSerial, currentSelectedSerial) || chunks == null || chunks.isEmpty()) {
+                    return;
+                }
+
+                FileTransferProgress latestProgress = chunks.get(chunks.size() - 1);
+                view.setFilesTransferProgress(
+                        true,
+                        latestProgress.indeterminate(),
+                        latestProgress.percent(),
+                        formatFilesTransferProgress(latestProgress));
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    DeviceDirectoryListing listing = get();
+                    if (!Objects.equals(requestedSerial, currentSelectedSerial)) {
+                        return;
+                    }
+
+                    if (refreshAfter && listing != null) {
+                        filesLoadedSerial = requestedSerial;
+                        currentFilesDirectory = listing.currentPath();
+                        view.setFilesListing(listing);
+                    }
+                    view.setFilesStatus(successMessage, false);
+                    view.clearFilesTransferProgress();
+                    view.setFilesTransferCancelable(false);
+                } catch (CancellationException exception) {
+                    if (Objects.equals(requestedSerial, currentSelectedSerial)) {
+                        view.setFilesStatus(Messages.text("files.status.cancelled"), false);
+                        view.clearFilesTransferProgress();
+                        view.setFilesTransferCancelable(false);
+                    }
+                } catch (Exception e) {
+                    if (Objects.equals(requestedSerial, currentSelectedSerial)) {
+                        boolean cancelled = cancellingFileTransfer || isCancelled();
+                        if (cancelled) {
+                            view.setFilesStatus(Messages.text("files.status.cancelled"), false);
+                        } else {
+                            view.setFilesStatus(extractErrorMessage(e, errorMessage), true);
+                            handleError(errorMessage, e);
+                        }
+                        view.clearFilesTransferProgress();
+                        view.setFilesTransferCancelable(false);
+                    }
+                } finally {
+                    filesTransferWorker = null;
+                    cancellingFileTransfer = false;
+                    applyingFileAction = false;
+                    view.setFilesTransferCancelable(false);
+                    updateFilesBusyState();
+                }
+            }
+        };
+        filesTransferWorker.execute();
+    }
+
+    private void cancelFilesTransfer() {
+        if (filesTransferWorker == null || filesTransferWorker.isDone()) {
+            view.setFilesTransferCancelable(false);
+            return;
+        }
+
+        cancellingFileTransfer = true;
+        view.setFilesTransferCancelable(false);
+        view.setFilesStatus(Messages.text("files.status.canceling"), false);
+        model.cancelCurrentFileTransfer();
+        filesTransferWorker.cancel(true);
     }
 
     private void ensureApplicationsLoaded() {
@@ -1832,6 +1958,23 @@ public class SwingController {
 
     private void updateFilesBusyState() {
         view.setFilesBusy(loadingDevices || loadingFiles || applyingFileAction);
+    }
+
+    private String formatFilesTransferProgress(FileTransferProgress progress) {
+        if (progress == null) {
+            return " ";
+        }
+
+        String transferred = InstalledApp.formatBytes(progress.transferredBytes());
+        String total = progress.totalBytes() > 0L ? InstalledApp.formatBytes(progress.totalBytes()) : "?";
+        String speed = progress.bytesPerSecond() > 0L
+                ? InstalledApp.formatBytes(progress.bytesPerSecond()) + "/s"
+                : "-";
+
+        if (progress.indeterminate()) {
+            return transferred + " · " + speed;
+        }
+        return progress.percent() + "% · " + transferred + " / " + total + " · " + speed;
     }
 
     private String normalizePath(String path) {
