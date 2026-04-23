@@ -41,6 +41,8 @@ import com.adbmanager.view.Messages;
 
 public class AppInstallDialog extends JDialog {
 
+    private static final int MAX_LOG_CHARACTERS = 32768;
+
     private final JLabel titleLabel = new JLabel();
     private final WrappingTextArea subtitleLabel = new WrappingTextArea();
     private final ScrollableContentPanel contentPanel = new ScrollableContentPanel();
@@ -128,6 +130,10 @@ public class AppInstallDialog extends JDialog {
             logArea.append(System.lineSeparator());
         }
         logArea.append(message.trim());
+        int overflow = logArea.getDocument().getLength() - MAX_LOG_CHARACTERS;
+        if (overflow > 0) {
+            logArea.replaceRange("", 0, overflow);
+        }
         logArea.setCaretPosition(logArea.getDocument().getLength());
     }
 

@@ -8,7 +8,6 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
-import java.awt.Image;
 import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
@@ -145,6 +144,8 @@ public class AppsPanel extends JPanel {
 
     private final Map<String, JLabel> fieldLabels = new LinkedHashMap<>();
     private final Map<String, JLabel> valueLabels = new LinkedHashMap<>();
+    private final Map<String, Icon> fallbackIconCache = new LinkedHashMap<>();
+    private final Map<String, Icon> listIconCache = new LinkedHashMap<>();
     private final List<JCheckBox> filterCheckBoxes = new ArrayList<>();
     private final List<JCheckBox> permissionCheckBoxes = new ArrayList<>();
     private final List<JButton> actionButtons = new ArrayList<>();
@@ -234,6 +235,7 @@ public class AppsPanel extends JPanel {
     }
 
     public void setApplications(List<InstalledApp> applications, String selectedPackageName) {
+        clearIconCaches();
         syncingSelection = true;
         try {
             tableModel.setApplications(applications);
@@ -255,6 +257,7 @@ public class AppsPanel extends JPanel {
             return;
         }
 
+        clearIconCaches();
         String selectedPackage = getSelectedPackageName();
         syncingSelection = true;
         try {
@@ -379,7 +382,7 @@ public class AppsPanel extends JPanel {
         currentDetails = null;
         appNameTitleLabel.setText("-");
         appPackageTitleLabel.setText("-");
-        appIconLabel.setIcon(createFallbackIcon("-", "-"));
+        appIconLabel.setIcon(createFallbackIcon("-", "-", 64));
         appIconLabel.setText("");
 
         for (String fieldKey : valueLabels.keySet()) {
@@ -1253,10 +1256,9 @@ public class AppsPanel extends JPanel {
 
     private Icon createApplicationIcon(AppDetails details) {
         if (details.iconImage() != null) {
-            Image scaled = details.iconImage().getScaledInstance(64, 64, Image.SCALE_SMOOTH);
-            return new ImageIcon(scaled);
+            return createScaledIcon(details.iconImage(), 64);
         }
-        return createFallbackIcon(details.displayName(), details.app().packageName());
+        return createFallbackIcon(details.displayName(), details.app().packageName(), 64);
     }
 
     private Icon createListApplicationIcon(InstalledApp application) {
@@ -1264,31 +1266,41 @@ public class AppsPanel extends JPanel {
             return null;
         }
 
-        if (application.iconImage() != null) {
-            Image scaled = application.iconImage().getScaledInstance(18, 18, Image.SCALE_SMOOTH);
-            return new ImageIcon(scaled);
+        String cacheKey = buildListIconCacheKey(application);
+        Icon cachedIcon = listIconCache.get(cacheKey);
+        if (cachedIcon != null) {
+            return cachedIcon;
         }
 
-        Icon fallbackIcon = createFallbackIcon(application.displayName(), application.packageName());
-        if (fallbackIcon instanceof ImageIcon imageIcon) {
-            Image scaled = imageIcon.getImage().getScaledInstance(18, 18, Image.SCALE_SMOOTH);
-            return new ImageIcon(scaled);
+        Icon icon;
+        if (application.iconImage() != null) {
+            icon = createScaledIcon(application.iconImage(), 18);
+        } else {
+            icon = createFallbackIcon(application.displayName(), application.packageName(), 18);
         }
-        return fallbackIcon;
+        listIconCache.put(cacheKey, icon);
+        return icon;
     }
 
-    private Icon createFallbackIcon(String displayName, String packageName) {
-        int size = 64;
+    private Icon createFallbackIcon(String displayName, String packageName, int size) {
+        String cacheKey = size + "|" + Objects.requireNonNullElse(displayName, "") + "|"
+                + Objects.requireNonNullElse(packageName, "");
+        Icon cachedIcon = fallbackIconCache.get(cacheKey);
+        if (cachedIcon != null) {
+            return cachedIcon;
+        }
+
         BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = image.createGraphics();
         try {
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2d.setColor(fallbackIconColor(packageName));
-            g2d.fillRoundRect(0, 0, size, size, 18, 18);
+            int arc = Math.max(8, Math.round(size * 0.28f));
+            g2d.fillRoundRect(0, 0, size, size, arc, arc);
 
             String monogram = buildMonogram(displayName, packageName);
             g2d.setColor(Color.WHITE);
-            g2d.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 26));
+            g2d.setFont(new Font(Font.SANS_SERIF, Font.BOLD, Math.max(10, Math.round(size * 0.42f))));
             java.awt.FontMetrics metrics = g2d.getFontMetrics();
             int textX = (size - metrics.stringWidth(monogram)) / 2;
             int textY = (size - metrics.getHeight()) / 2 + metrics.getAscent();
@@ -1296,7 +1308,49 @@ public class AppsPanel extends JPanel {
         } finally {
             g2d.dispose();
         }
-        return new ImageIcon(image);
+        Icon icon = new ImageIcon(image);
+        fallbackIconCache.put(cacheKey, icon);
+        return icon;
+    }
+
+    private Icon createScaledIcon(BufferedImage image, int targetSize) {
+        if (image == null) {
+            return null;
+        }
+
+        int width = Math.max(1, image.getWidth());
+        int height = Math.max(1, image.getHeight());
+        if (width <= targetSize && height <= targetSize) {
+            return new ImageIcon(image);
+        }
+
+        double scale = Math.min(targetSize / (double) width, targetSize / (double) height);
+        int scaledWidth = Math.max(1, (int) Math.round(width * scale));
+        int scaledHeight = Math.max(1, (int) Math.round(height * scale));
+        BufferedImage scaled = new BufferedImage(scaledWidth, scaledHeight, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2d = scaled.createGraphics();
+        try {
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g2d.drawImage(image, 0, 0, scaledWidth, scaledHeight, null);
+        } finally {
+            g2d.dispose();
+        }
+        return new ImageIcon(scaled);
+    }
+
+    private String buildListIconCacheKey(InstalledApp application) {
+        return Objects.requireNonNullElse(application.packageName(), "")
+                + "|"
+                + Objects.requireNonNullElse(application.displayName(), "")
+                + "|"
+                + System.identityHashCode(application.iconImage());
+    }
+
+    private void clearIconCaches() {
+        listIconCache.clear();
+        fallbackIconCache.clear();
     }
 
     private void configureCopyableValueLabel(JLabel valueLabel) {

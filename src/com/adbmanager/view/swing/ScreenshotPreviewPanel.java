@@ -26,11 +26,17 @@ public class ScreenshotPreviewPanel extends JPanel {
     }
 
     public void setScreenshot(BufferedImage screenshot) {
+        if (this.screenshot != null && this.screenshot != screenshot) {
+            this.screenshot.flush();
+        }
         this.screenshot = screenshot;
         repaint();
     }
 
     public void clearScreenshot() {
+        if (screenshot != null) {
+            screenshot.flush();
+        }
         screenshot = null;
         repaint();
     }

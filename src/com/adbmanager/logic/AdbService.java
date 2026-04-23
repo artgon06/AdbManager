@@ -18,6 +18,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.HashMap;
@@ -85,6 +86,9 @@ public class AdbService implements AdbModel {
     private static final String PRIMARY_USER_ID = "0";
     private static final int APK_SIZE_BATCH_SIZE = 24;
     private static final int APP_SUMMARY_BATCH_SIZE = 50;
+    private static final int MAX_APPLICATION_PRESENTATION_CACHE_ENTRIES = 384;
+    private static final int MAX_APPLICATION_SUMMARY_CACHE_ENTRIES = 1024;
+    private static final int MAX_APPLICATION_ICON_SIZE = 64;
     private static final Duration LOCAL_TOOL_TIMEOUT = Duration.ofSeconds(20);
     private static final int DEFAULT_TCPIP_PORT = 5555;
     private static final String PACKAGE_BATCH_BEGIN_MARKER = "__ADBMANAGER_PKG_BEGIN__";
@@ -163,8 +167,10 @@ public class AdbService implements AdbModel {
     private final AppDetailsParser appDetailsParser = new AppDetailsParser();
     private final HostPlatform hostPlatform = HostPlatform.current();
     private final Aapt2ExecutableService aapt2ExecutableService = new Aapt2ExecutableService(hostPlatform);
-    private final Map<String, ApplicationPresentation> applicationPresentationCache = new HashMap<>();
-    private final Map<String, InstalledApp> applicationSummaryCache = new HashMap<>();
+    private final Map<String, ApplicationPresentation> applicationPresentationCache =
+            createBoundedCache(MAX_APPLICATION_PRESENTATION_CACHE_ENTRIES);
+    private final Map<String, InstalledApp> applicationSummaryCache =
+            createBoundedCache(MAX_APPLICATION_SUMMARY_CACHE_ENTRIES);
     private volatile List<Path> cachedAaptExecutables;
     private volatile AdbExecutionControl currentFileTransferControl;
     private List<Device> devices = List.of();
@@ -173,6 +179,15 @@ public class AdbService implements AdbModel {
 
     public AdbService(AdbClient client) {
         this.client = client;
+    }
+
+    private static <K, V> Map<K, V> createBoundedCache(int maxEntries) {
+        return Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+                return size() > maxEntries;
+            }
+        });
     }
 
     @Override
@@ -2904,7 +2919,10 @@ public class AdbService implements AdbModel {
         if (application == null) {
             return;
         }
-        applicationSummaryCache.put(presentationCacheKey(application.packageName(), application.apkPath()), application);
+        InstalledApp normalizedApplication = normalizeApplicationSummary(application);
+        applicationSummaryCache.put(
+                presentationCacheKey(normalizedApplication.packageName(), normalizedApplication.apkPath()),
+                normalizedApplication);
     }
 
     private Map<String, String> parseAppOps(String output) {
@@ -3025,8 +3043,9 @@ public class AdbService implements AdbModel {
             String packageName,
             String sourceDir) {
         String cacheKey = presentationCacheKey(packageName, sourceDir);
-        if (applicationPresentationCache.containsKey(cacheKey)) {
-            return applicationPresentationCache.get(cacheKey);
+        ApplicationPresentation cachedPresentation = applicationPresentationCache.get(cacheKey);
+        if (cachedPresentation != null) {
+            return cachedPresentation;
         }
 
         ApplicationPresentation persistentPresentation = loadPresentationFromPersistentCache(cacheKey);
@@ -3038,8 +3057,8 @@ public class AdbService implements AdbModel {
         try {
             List<Path> aaptExecutables = locateAaptExecutables();
             if (aaptExecutables.isEmpty() || sourceDir == null || sourceDir.isBlank() || "-".equals(sourceDir)) {
-                applicationPresentationCache.put(cacheKey, presentation);
-                return presentation;
+                applicationPresentationCache.put(cacheKey, normalizePresentation(presentation));
+                return applicationPresentationCache.get(cacheKey);
             }
 
             Path localApk = Files.createTempFile("adbmanager-", ".apk");
@@ -3059,11 +3078,11 @@ public class AdbService implements AdbModel {
             presentation = ApplicationPresentation.empty();
         }
 
-        applicationPresentationCache.put(cacheKey, presentation);
+        applicationPresentationCache.put(cacheKey, normalizePresentation(presentation));
         if (!presentation.displayName().isBlank() || presentation.iconImage() != null) {
             savePresentationToPersistentCache(cacheKey, presentation);
         }
-        return presentation;
+        return applicationPresentationCache.get(cacheKey);
     }
 
     private synchronized List<Path> locateAaptExecutables() {
@@ -3232,7 +3251,7 @@ public class AdbService implements AdbModel {
         }
 
         String label = selectPreferredBadgingLabel(labelsByQualifier);
-        return new ApplicationPresentation(label, loadIconFromApk(aaptExecutable, localApk, iconPath));
+        return normalizePresentation(new ApplicationPresentation(label, loadIconFromApk(aaptExecutable, localApk, iconPath)));
     }
 
     private boolean isRasterAsset(String assetPath) {
@@ -3265,6 +3284,61 @@ public class AdbService implements AdbModel {
         }
 
         return null;
+    }
+
+    private ApplicationPresentation normalizePresentation(ApplicationPresentation presentation) {
+        if (presentation == null) {
+            return ApplicationPresentation.empty();
+        }
+        return new ApplicationPresentation(
+                presentation.displayName(),
+                scaleApplicationIcon(presentation.iconImage()));
+    }
+
+    private InstalledApp normalizeApplicationSummary(InstalledApp application) {
+        if (application == null) {
+            return null;
+        }
+        return new InstalledApp(
+                application.packageName(),
+                application.displayName(),
+                application.apkPath(),
+                application.storageBytes(),
+                application.systemApp(),
+                application.disabled(),
+                scaleApplicationIcon(application.iconImage()));
+    }
+
+    private BufferedImage scaleApplicationIcon(BufferedImage image) {
+        if (image == null) {
+            return null;
+        }
+
+        int width = image.getWidth();
+        int height = image.getHeight();
+        if (width <= 0 || height <= 0) {
+            return null;
+        }
+        if (width <= MAX_APPLICATION_ICON_SIZE && height <= MAX_APPLICATION_ICON_SIZE) {
+            return image;
+        }
+
+        double scale = Math.min(
+                MAX_APPLICATION_ICON_SIZE / (double) width,
+                MAX_APPLICATION_ICON_SIZE / (double) height);
+        int scaledWidth = Math.max(1, (int) Math.round(width * scale));
+        int scaledHeight = Math.max(1, (int) Math.round(height * scale));
+        BufferedImage scaledImage = new BufferedImage(scaledWidth, scaledHeight, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = scaledImage.createGraphics();
+        try {
+            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.drawImage(image, 0, 0, scaledWidth, scaledHeight, null);
+        } finally {
+            graphics.dispose();
+        }
+        return scaledImage;
     }
 
     private BufferedImage loadRasterIcon(Path apkPath, String entryName) {
@@ -3842,7 +3916,7 @@ public class AdbService implements AdbModel {
                     ? Files.readString(labelFile, StandardCharsets.UTF_8).trim()
                     : "";
             BufferedImage iconImage = Files.isRegularFile(iconFile) ? ImageIO.read(iconFile.toFile()) : null;
-            ApplicationPresentation presentation = new ApplicationPresentation(displayName, iconImage);
+            ApplicationPresentation presentation = normalizePresentation(new ApplicationPresentation(displayName, iconImage));
             applicationPresentationCache.put(cacheKey, presentation);
             return presentation;
         } catch (IOException ignored) {
@@ -3865,12 +3939,13 @@ public class AdbService implements AdbModel {
             String fileBase = persistentPresentationFileBase(cacheKey);
             Path labelFile = cacheDirectory.resolve(fileBase + ".txt");
             Path iconFile = cacheDirectory.resolve(fileBase + ".png");
+            ApplicationPresentation normalizedPresentation = normalizePresentation(presentation);
 
-            if (!presentation.displayName().isBlank()) {
-                Files.writeString(labelFile, presentation.displayName(), StandardCharsets.UTF_8);
+            if (!normalizedPresentation.displayName().isBlank()) {
+                Files.writeString(labelFile, normalizedPresentation.displayName(), StandardCharsets.UTF_8);
             }
-            if (presentation.iconImage() != null) {
-                ImageIO.write(presentation.iconImage(), "png", iconFile.toFile());
+            if (normalizedPresentation.iconImage() != null) {
+                ImageIO.write(normalizedPresentation.iconImage(), "png", iconFile.toFile());
             }
         } catch (IOException ignored) {
         }

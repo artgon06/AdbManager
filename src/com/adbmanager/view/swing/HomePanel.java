@@ -177,12 +177,18 @@ public class HomePanel extends JPanel {
     }
 
     public void setScreenshot(BufferedImage image) {
+        if (currentScreenshot != null && currentScreenshot != image) {
+            currentScreenshot.flush();
+        }
         currentScreenshot = image;
         screenshotPreviewPanel.setScreenshot(image);
         setSaveCaptureEnabled(image != null);
     }
 
     public void clearScreenshot() {
+        if (currentScreenshot != null) {
+            currentScreenshot.flush();
+        }
         currentScreenshot = null;
         screenshotPreviewPanel.clearScreenshot();
         setSaveCaptureEnabled(false);
