@@ -11,7 +11,6 @@ AdbManager es una aplicacion Java para trabajar con dispositivos Android mediant
 - Guardado de la ultima captura en la ruta que elijas.
 - Cambio de tema claro y oscuro.
 - Pantalla de ajustes con informacion de version y enlace al repositorio.
-- Modo CLI disponible para mantener compatibilidad con el flujo anterior.
 
 ## Requisitos
 
@@ -41,15 +40,9 @@ Lanzar interfaz grafica:
 java -cp bin com.adbmanager.App
 ```
 
-Lanzar modo consola:
-
-```powershell
-java -cp bin com.adbmanager.App --cli
-```
-
 ## Estructura
 
 - `src/com/adbmanager/logic`: modelo y acceso a `adb`.
-- `src/com/adbmanager/view`: mensajes y salida de consola.
+- `src/com/adbmanager/view`: mensajes y recursos de la interfaz.
 - `src/com/adbmanager/view/swing`: interfaz grafica Swing.
-- `src/com/adbmanager/control`: controladores de consola y de la UI.
+- `src/com/adbmanager/control`: controladores de la UI.
