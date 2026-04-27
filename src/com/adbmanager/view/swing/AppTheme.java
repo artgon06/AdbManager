@@ -18,19 +18,19 @@ public enum AppTheme {
             new Color(235, 239, 246),
             new Color(96, 105, 118)),
     DARK(
-            new Color(20, 23, 29),
-            new Color(24, 28, 34),
-            new Color(34, 39, 47),
-            new Color(70, 78, 91),
-            new Color(236, 239, 244),
-            new Color(160, 168, 180),
-            new Color(42, 62, 106),
-            new Color(236, 239, 244),
-            new Color(96, 146, 255),
+            new Color(13, 13, 14),
+            new Color(24, 24, 25),
+            new Color(39, 39, 40),
+            new Color(58, 58, 60),
+            new Color(244, 244, 245),
+            new Color(174, 174, 178),
+            new Color(48, 48, 50),
+            new Color(244, 244, 245),
+            new Color(31, 122, 255),
             Color.WHITE,
-            new Color(72, 80, 94),
-            new Color(44, 50, 60),
-            new Color(184, 190, 201));
+            new Color(74, 74, 76),
+            new Color(44, 44, 46),
+            new Color(188, 188, 192));
 
     // Window background and the outer canvas behind cards and content sections.
     private final Color background;

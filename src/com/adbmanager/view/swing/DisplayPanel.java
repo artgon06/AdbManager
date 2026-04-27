@@ -57,10 +57,14 @@ public class DisplayPanel extends JPanel {
     private static final String FIELD_SUPPORTED_REFRESH_RATES = "supportedRefreshRates";
 
     private final JLabel titleLabel = new JLabel();
+    private final JPanel headerPanel = new JPanel(new BorderLayout());
+    private final JPanel headerActionsPanel = new JPanel(new GridLayout(1, 2, 10, 0));
     private final JPanel metricsPanel = new JPanel(new BorderLayout());
     private final JPanel metricsContent = new JPanel();
     private final JPanel controlsPanel = new JPanel(new BorderLayout());
     private final JPanel controlsContent = new JPanel();
+    private final JPanel suggestionsCard = new JPanel(new BorderLayout(12, 0));
+    private final JPanel darkModePanel = new JPanel(new BorderLayout(12, 0));
     private final JPanel scrcpyPanelContainer = new JPanel(new BorderLayout());
     private final ScrcpyLauncherPanel scrcpyPanel = new ScrcpyLauncherPanel();
     private final JLabel inputTitleLabel = new JLabel();
@@ -134,6 +138,10 @@ public class DisplayPanel extends JPanel {
 
     public void setScrcpyStartAppToggleAction(ActionListener actionListener) {
         scrcpyPanel.setStartAppToggleAction(actionListener);
+    }
+
+    public ScrcpyLauncherPanel getScrcpyLauncherPanel() {
+        return scrcpyPanel;
     }
 
     public Integer getRequestedWidth() {
@@ -295,9 +303,9 @@ public class DisplayPanel extends JPanel {
         darkModeTitleLabel.setText(Messages.text("display.deviceDarkMode.title"));
         applyButton.setText(Messages.text("display.override.apply"));
         resetButton.setText(Messages.text("display.override.reset"));
-        metricsPanel.setBorder(createSectionBorder(Messages.text("display.metrics.title")));
-        controlsPanel.setBorder(createSectionBorder(Messages.text("display.override.title")));
-        scrcpyPanelContainer.setBorder(createSectionBorder(Messages.text("display.scrcpy.title")));
+        metricsPanel.setBorder(BorderFactory.createEmptyBorder());
+        controlsPanel.setBorder(BorderFactory.createEmptyBorder());
+        scrcpyPanelContainer.setBorder(BorderFactory.createEmptyBorder());
         scrcpyPanel.refreshTexts();
 
         if (currentDetails == null) {
@@ -310,6 +318,8 @@ public class DisplayPanel extends JPanel {
     public void applyTheme(AppTheme theme) {
         this.theme = theme;
         setBackground(theme.background());
+        headerPanel.setBackground(theme.background());
+        headerActionsPanel.setBackground(theme.background());
         titleLabel.setForeground(theme.textPrimary());
         titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
 
@@ -317,6 +327,8 @@ public class DisplayPanel extends JPanel {
         metricsContent.setBackground(theme.background());
         controlsPanel.setBackground(theme.background());
         controlsContent.setBackground(theme.background());
+        suggestionsCard.setBackground(theme.background());
+        darkModePanel.setBackground(theme.background());
         suggestionButtonsPanel.setBackground(theme.background());
         scrcpyPanelContainer.setBackground(theme.background());
 
@@ -352,26 +364,38 @@ public class DisplayPanel extends JPanel {
         styleInputField(densityField);
         styleInputField(timeoutField);
         styleActionButtons();
+        styleSuggestionsCard();
 
         for (JButton suggestionButton : suggestionButtons) {
             styleSuggestionButton(suggestionButton);
         }
 
-        metricsPanel.setBorder(createSectionBorder(Messages.text("display.metrics.title")));
-        controlsPanel.setBorder(createSectionBorder(Messages.text("display.override.title")));
-        scrcpyPanelContainer.setBorder(createSectionBorder(Messages.text("display.scrcpy.title")));
+        metricsPanel.setBorder(BorderFactory.createEmptyBorder());
+        controlsPanel.setBorder(BorderFactory.createEmptyBorder());
+        scrcpyPanelContainer.setBorder(BorderFactory.createEmptyBorder());
         scrcpyPanel.applyTheme(theme);
         repaint();
     }
 
     private void buildPanel() {
         setLayout(new BorderLayout());
-        setBorder(new EmptyBorder(18, 18, 18, 18));
-        add(titleLabel, BorderLayout.NORTH);
+        setBorder(new EmptyBorder(28, 32, 28, 32));
+
+        configureActionButton(resetButton);
+        configureActionButton(applyButton);
+        resetButton.setPreferredSize(new Dimension(92, 38));
+        applyButton.setPreferredSize(new Dimension(92, 38));
+        headerActionsPanel.setOpaque(false);
+        headerActionsPanel.add(resetButton);
+        headerActionsPanel.add(applyButton);
+        headerPanel.setOpaque(false);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        headerPanel.add(headerActionsPanel, BorderLayout.EAST);
+        add(headerPanel, BorderLayout.NORTH);
 
         JPanel content = new JPanel(new GridBagLayout());
         content.setOpaque(false);
-        content.setBorder(new EmptyBorder(16, 0, 0, 0));
+        content.setBorder(new EmptyBorder(26, 0, 0, 0));
 
         JPanel leftColumn = new JPanel(new GridBagLayout());
         leftColumn.setOpaque(false);
@@ -396,65 +420,29 @@ public class DisplayPanel extends JPanel {
         controlsConstraints.fill = GridBagConstraints.BOTH;
         leftColumn.add(controlsPanel, controlsConstraints);
 
-        scrcpyPanelContainer.add(scrcpyPanel, BorderLayout.CENTER);
-
         content.add(leftColumn, buildLeftConstraints());
-        content.add(scrcpyPanelContainer, buildRightConstraints());
 
         add(content, BorderLayout.CENTER);
     }
 
     private void buildMetricsPanel() {
-        metricsContent.setLayout(new BoxLayout(metricsContent, BoxLayout.Y_AXIS));
-        metricsContent.setBorder(new EmptyBorder(14, 14, 14, 14));
-        metricsContent.add(createInfoRow(FIELD_DEVICE_TYPE));
-        metricsContent.add(createInfoRow(FIELD_CURRENT_RESOLUTION));
-        metricsContent.add(createInfoRow(FIELD_PHYSICAL_RESOLUTION));
-        metricsContent.add(createInfoRow(FIELD_DENSITY));
-        metricsContent.add(createInfoRow(FIELD_PHYSICAL_DENSITY));
-        metricsContent.add(createInfoRow(FIELD_SMALLEST_WIDTH));
-        metricsContent.add(createInfoRow(FIELD_SCREEN_TIMEOUT));
-        metricsContent.add(createInfoRow(FIELD_REFRESH_RATE));
-        metricsContent.add(createInfoRow(FIELD_SUPPORTED_REFRESH_RATES));
-        metricsContent.add(Box.createVerticalGlue());
+        metricsContent.setLayout(new GridBagLayout());
+        metricsContent.setBorder(new EmptyBorder(0, 0, 18, 0));
+        addInfoTile(FIELD_DEVICE_TYPE, 0, 0, 1, new Insets(0, 0, 18, 34));
+        addDarkModeTile(2, 0, new Insets(0, 0, 18, 0));
+        addInfoTile(FIELD_CURRENT_RESOLUTION, 0, 1, 1, new Insets(0, 0, 18, 34));
+        addInfoTile(FIELD_PHYSICAL_RESOLUTION, 1, 1, 1, new Insets(0, 0, 18, 34));
+        addInfoTile(FIELD_SMALLEST_WIDTH, 2, 1, 1, new Insets(0, 0, 18, 0));
+        addInfoTile(FIELD_DENSITY, 0, 2, 1, new Insets(0, 0, 18, 34));
+        addInfoTile(FIELD_PHYSICAL_DENSITY, 1, 2, 1, new Insets(0, 0, 18, 34));
+        addInfoTile(FIELD_SCREEN_TIMEOUT, 2, 2, 1, new Insets(0, 0, 18, 0));
+        addInfoTile(FIELD_REFRESH_RATE, 0, 3, 1, new Insets(0, 0, 0, 34));
+        addInfoTile(FIELD_SUPPORTED_REFRESH_RATES, 1, 3, 2, new Insets(0, 0, 0, 0));
         metricsPanel.add(metricsContent, BorderLayout.CENTER);
     }
 
-    private void buildControlsPanel() {
-        controlsContent.setLayout(new BoxLayout(controlsContent, BoxLayout.Y_AXIS));
-        controlsContent.setBorder(new EmptyBorder(14, 14, 14, 14));
-        controlsContent.setAlignmentX(LEFT_ALIGNMENT);
-        inputTitleLabel.setAlignmentX(LEFT_ALIGNMENT);
-        suggestionButtonsPanel.setAlignmentX(LEFT_ALIGNMENT);
-        suggestionButtonsPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 84));
-
-        JPanel formPanel = new JPanel(new GridBagLayout());
-        formPanel.setOpaque(false);
-        addInlineFormField(formPanel, widthLabel, widthField, 0);
-        addInlineFormField(formPanel, heightLabel, heightField, 1);
-        addInlineFormField(formPanel, densityLabel, densityField, 2);
-        formPanel.setAlignmentX(LEFT_ALIGNMENT);
-        formPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
-
-        JPanel timeoutPanel = new JPanel(new GridBagLayout());
-        timeoutPanel.setOpaque(false);
-        addInlineFormField(timeoutPanel, timeoutLabel, timeoutField, 0);
-        timeoutPanel.setAlignmentX(LEFT_ALIGNMENT);
-        timeoutPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
-
-        ratioPanel.setOpaque(false);
-        ratioPanel.setAlignmentX(LEFT_ALIGNMENT);
-        ratioPanel.setLayout(new BoxLayout(ratioPanel, BoxLayout.X_AXIS));
-        ratioPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
-        ratioPanel.add(originalAspectLabel);
-        ratioPanel.add(Box.createHorizontalStrut(18));
-        ratioPanel.add(customAspectLabel);
-        ratioPanel.add(Box.createHorizontalGlue());
-
-        JPanel darkModePanel = new JPanel(new BorderLayout(12, 0));
+    private void addDarkModeTile(int gridX, int gridY, Insets insets) {
         darkModePanel.setOpaque(false);
-        darkModePanel.setAlignmentX(LEFT_ALIGNMENT);
-        darkModePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         darkModeToggle.setOpaque(false);
         darkModeToggle.setFocusPainted(false);
         darkModeToggle.setFocusable(false);
@@ -466,30 +454,72 @@ public class DisplayPanel extends JPanel {
         darkModePanel.add(darkModeTitleLabel, BorderLayout.WEST);
         darkModePanel.add(darkModeToggle, BorderLayout.EAST);
 
-        JPanel actionsPanel = new JPanel(new GridLayout(1, 2, 12, 0));
-        actionsPanel.setOpaque(false);
-        actionsPanel.setAlignmentX(LEFT_ALIGNMENT);
-        actionsPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
-        configureActionButton(applyButton);
-        configureActionButton(resetButton);
-        actionsPanel.add(applyButton);
-        actionsPanel.add(resetButton);
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = gridX;
+        constraints.gridy = gridY;
+        constraints.weightx = 1.0;
+        constraints.weighty = 0.0;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        constraints.anchor = GridBagConstraints.NORTHWEST;
+        constraints.insets = insets;
+        metricsContent.add(darkModePanel, constraints);
+    }
 
-        controlsContent.add(inputTitleLabel);
-        controlsContent.add(Box.createVerticalStrut(12));
-        controlsContent.add(suggestionButtonsPanel);
-        controlsContent.add(Box.createVerticalStrut(16));
-        controlsContent.add(formPanel);
-        controlsContent.add(Box.createVerticalStrut(10));
-        controlsContent.add(timeoutPanel);
-        controlsContent.add(Box.createVerticalStrut(10));
-        controlsContent.add(ratioPanel);
-        controlsContent.add(Box.createVerticalStrut(16));
-        controlsContent.add(darkModePanel);
-        controlsContent.add(Box.createVerticalStrut(16));
-        controlsContent.add(actionsPanel);
-        controlsContent.add(Box.createVerticalGlue());
+    private void addInfoTile(String fieldKey, int gridX, int gridY, int gridWidth, Insets insets) {
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = gridX;
+        constraints.gridy = gridY;
+        constraints.gridwidth = gridWidth;
+        constraints.weightx = gridWidth;
+        constraints.weighty = 0.0;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        constraints.anchor = GridBagConstraints.NORTHWEST;
+        constraints.insets = insets;
+        metricsContent.add(createInfoRow(fieldKey), constraints);
+    }
+
+    private void buildControlsPanel() {
+        controlsContent.setLayout(new GridBagLayout());
+        controlsContent.setBorder(new EmptyBorder(0, 0, 0, 0));
+        inputTitleLabel.setAlignmentX(LEFT_ALIGNMENT);
+        suggestionButtonsPanel.setOpaque(false);
+
+        JPanel formPanel = new JPanel(new GridBagLayout());
+        formPanel.setOpaque(false);
+        formPanel.setBorder(new EmptyBorder(18, 0, 0, 0));
+        addInlineFormField(formPanel, widthLabel, widthField, 0);
+        addInlineFormField(formPanel, heightLabel, heightField, 1);
+        addInlineFormField(formPanel, densityLabel, densityField, 2);
+        addInlineFormField(formPanel, timeoutLabel, timeoutField, 3);
+
+        ratioPanel.setOpaque(false);
+        ratioPanel.setLayout(new BoxLayout(ratioPanel, BoxLayout.X_AXIS));
+        ratioPanel.setBorder(new EmptyBorder(16, 0, 0, 0));
+        ratioPanel.add(originalAspectLabel);
+        ratioPanel.add(Box.createHorizontalStrut(18));
+        ratioPanel.add(customAspectLabel);
+        ratioPanel.add(Box.createHorizontalGlue());
+
+        suggestionsCard.add(suggestionButtonsPanel, BorderLayout.CENTER);
+
+        addControlContent(inputTitleLabel, 0, 0.0, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 10, 0));
+        addControlContent(suggestionsCard, 1, 0.0, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0));
+        addControlContent(formPanel, 2, 0.0, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0));
+        addControlContent(ratioPanel, 3, 0.0, GridBagConstraints.HORIZONTAL, new Insets(0, 0, 0, 0));
+        addControlContent(Box.createGlue(), 4, 1.0, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0));
         controlsPanel.add(controlsContent, BorderLayout.CENTER);
+    }
+
+    private void addControlContent(Component component, int gridY, double weightY, int fill, Insets insets) {
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = 0;
+        constraints.gridy = gridY;
+        constraints.weightx = 1.0;
+        constraints.weighty = weightY;
+        constraints.fill = fill;
+        constraints.anchor = GridBagConstraints.NORTHWEST;
+        constraints.insets = insets;
+        controlsContent.add(component, constraints);
     }
 
     private void addInlineFormField(JPanel formPanel, JLabel label, JTextField field, int pairIndex) {
@@ -503,24 +533,36 @@ public class DisplayPanel extends JPanel {
         GridBagConstraints fieldConstraints = new GridBagConstraints();
         fieldConstraints.gridx = pairIndex * 2 + 1;
         fieldConstraints.gridy = 0;
-        fieldConstraints.weightx = 1.0;
-        fieldConstraints.fill = GridBagConstraints.HORIZONTAL;
-        fieldConstraints.insets = new Insets(0, 0, 0, pairIndex == 2 ? 0 : 12);
+        fieldConstraints.weightx = 0.0;
+        fieldConstraints.fill = GridBagConstraints.NONE;
+        fieldConstraints.insets = new Insets(0, 0, 0, pairIndex == 3 ? 0 : 12);
         formPanel.add(field, fieldConstraints);
+
+        if (pairIndex == 3) {
+            GridBagConstraints glueConstraints = new GridBagConstraints();
+            glueConstraints.gridx = 8;
+            glueConstraints.gridy = 0;
+            glueConstraints.weightx = 1.0;
+            glueConstraints.fill = GridBagConstraints.HORIZONTAL;
+            formPanel.add(Box.createHorizontalGlue(), glueConstraints);
+        }
     }
 
     private JPanel createInfoRow(String fieldKey) {
-        JPanel rowPanel = new JPanel(new BorderLayout(14, 0));
-        rowPanel.setBorder(BorderFactory.createEmptyBorder(6, 0, 6, 0));
+        JPanel rowPanel = new JPanel();
+        rowPanel.setLayout(new BoxLayout(rowPanel, BoxLayout.Y_AXIS));
+        rowPanel.setBorder(BorderFactory.createEmptyBorder(2, 0, 2, 0));
         JLabel keyLabel = new JLabel();
         JLabel valueLabel = new JLabel("-");
-        valueLabel.setHorizontalAlignment(JLabel.RIGHT);
+        keyLabel.setAlignmentX(LEFT_ALIGNMENT);
+        valueLabel.setAlignmentX(LEFT_ALIGNMENT);
         rowPanels.add(rowPanel);
         fieldLabels.put(fieldKey, keyLabel);
         valueLabels.put(fieldKey, valueLabel);
         dynamicValueLabels.add(valueLabel);
-        rowPanel.add(keyLabel, BorderLayout.WEST);
-        rowPanel.add(valueLabel, BorderLayout.CENTER);
+        rowPanel.add(keyLabel);
+        rowPanel.add(Box.createVerticalStrut(5));
+        rowPanel.add(valueLabel);
         return rowPanel;
     }
 
@@ -679,6 +721,18 @@ public class DisplayPanel extends JPanel {
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(8, 10, 8, 10)));
         field.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+        field.setColumns(5);
+        field.setPreferredSize(new Dimension(84, 36));
+        field.setMinimumSize(new Dimension(72, 36));
+        field.setMaximumSize(new Dimension(96, 36));
+    }
+
+    private void styleSuggestionsCard() {
+        suggestionsCard.setOpaque(true);
+        suggestionsCard.setBackground(ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.58d));
+        suggestionsCard.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(theme.border(), 1),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
     }
 
     private void styleActionButtons() {
@@ -692,6 +746,16 @@ public class DisplayPanel extends JPanel {
 
     private void styleActionButton(JButton button, boolean primary) {
         boolean hovered = button.isEnabled() && button.getModel().isRollover();
+        if (button == applyButton) {
+            button.setIcon(new ToolbarIcon(ToolbarIcon.Type.ENABLE, 16,
+                    button.isEnabled() ? theme.actionForeground() : theme.textSecondary()));
+        } else if (button == resetButton) {
+            button.setIcon(new ToolbarIcon(ToolbarIcon.Type.REFRESH, 16,
+                    button.isEnabled() ? theme.textPrimary() : theme.textSecondary()));
+        } else {
+            button.setIcon(null);
+        }
+        button.setIconTextGap(8);
         if (button.isEnabled()) {
             java.awt.Color background = primary
                     ? theme.actionBackground()
@@ -721,7 +785,7 @@ public class DisplayPanel extends JPanel {
         constraints.weightx = 1.0;
         constraints.weighty = 1.0;
         constraints.fill = GridBagConstraints.BOTH;
-        constraints.insets = new Insets(0, 0, 0, 8);
+        constraints.insets = new Insets(0, 0, 0, 0);
         return constraints;
     }
 

@@ -1,6 +1,7 @@
 package com.adbmanager.view.swing;
 
 import java.awt.BasicStroke;
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -10,7 +11,6 @@ import java.awt.image.BufferedImage;
 
 import javax.swing.BorderFactory;
 import javax.swing.JPanel;
-import javax.swing.border.TitledBorder;
 
 import com.adbmanager.view.Messages;
 
@@ -42,13 +42,7 @@ public class ScreenshotPreviewPanel extends JPanel {
     }
 
     public void refreshTexts() {
-        setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(theme.border(), 2),
-                Messages.text("home.preview.title"),
-                TitledBorder.LEFT,
-                TitledBorder.TOP,
-                new Font(Font.SANS_SERIF, Font.BOLD, 16),
-                theme.textPrimary()));
+        setBorder(BorderFactory.createLineBorder(theme.border(), 2));
         repaint();
     }
 
@@ -67,25 +61,27 @@ public class ScreenshotPreviewPanel extends JPanel {
         g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 
         int inset = 24;
-        int availableWidth = getWidth() - (inset * 2);
-        int availableHeight = getHeight() - (inset * 2) - 20;
+        int sideLabelWidth = 34;
+        int availableWidth = getWidth() - (inset * 2) - sideLabelWidth;
+        int availableHeight = getHeight() - (inset * 2);
 
         if (screenshot == null) {
             drawPlaceholder(g2d, inset, availableWidth, availableHeight);
         } else {
             drawScreenshot(g2d, inset, availableWidth, availableHeight);
         }
+        drawSideTitle(g2d);
 
         g2d.dispose();
     }
 
     private void drawPlaceholder(Graphics2D g2d, int inset, int availableWidth, int availableHeight) {
         g2d.setColor(theme.placeholderBackground());
-        g2d.fillRoundRect(inset, inset + 12, availableWidth, availableHeight, 18, 18);
+        g2d.fillRoundRect(inset, inset, availableWidth, availableHeight, 18, 18);
 
         g2d.setColor(theme.border());
         g2d.setStroke(new BasicStroke(2f));
-        g2d.drawRoundRect(inset, inset + 12, availableWidth, availableHeight, 18, 18);
+        g2d.drawRoundRect(inset, inset, availableWidth, availableHeight, 18, 18);
 
         g2d.setColor(theme.placeholderForeground());
         g2d.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
@@ -102,12 +98,28 @@ public class ScreenshotPreviewPanel extends JPanel {
 
         int drawWidth = Math.max(1, (int) Math.round(screenshot.getWidth() * scale));
         int drawHeight = Math.max(1, (int) Math.round(screenshot.getHeight() * scale));
-        int x = (getWidth() - drawWidth) / 2;
-        int y = (getHeight() - drawHeight) / 2 + 10;
+        int x = 24 + (availableWidth - drawWidth) / 2;
+        int y = (getHeight() - drawHeight) / 2;
 
         g2d.drawImage(screenshot, x, y, drawWidth, drawHeight, null);
         g2d.setColor(theme.border());
         g2d.drawRoundRect(x, y, drawWidth, drawHeight, 12, 12);
+    }
+
+    private void drawSideTitle(Graphics2D g2d) {
+        String title = Messages.text("home.preview.title").toUpperCase();
+        Graphics2D rotated = (Graphics2D) g2d.create();
+        rotated.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        rotated.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+        rotated.setColor(new Color(
+                theme.textSecondary().getRed(),
+                theme.textSecondary().getGreen(),
+                theme.textSecondary().getBlue(),
+                190));
+        int textWidth = rotated.getFontMetrics().stringWidth(title);
+        rotated.rotate(Math.PI / 2d);
+        rotated.drawString(title, 24, -getWidth() + 18 + ((getHeight() - textWidth) / 2));
+        rotated.dispose();
     }
 
     private void drawCenteredString(Graphics2D g2d, String text, int width, int baselineY) {

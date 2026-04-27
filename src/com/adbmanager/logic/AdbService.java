@@ -1613,9 +1613,9 @@ public class AdbService implements AdbModel {
 
     @Override
     public void performSelectedDevicePowerAction(DevicePowerAction action) throws Exception {
-        Device device = requireConnectedSelectedDevice(
-                Messages.text("error.display.deviceRequired"),
-                Messages.text("error.display.deviceDisconnected"));
+        Device device = requirePowerActionDevice(
+                Messages.text("error.power.deviceRequired"),
+                Messages.text("error.power.deviceUnavailable"));
         DevicePowerAction safeAction = action == null ? DevicePowerAction.REBOOT_ANDROID : action;
 
         List<String> command = switch (safeAction) {
@@ -1623,8 +1623,8 @@ public class AdbService implements AdbModel {
             case REBOOT_ANDROID -> List.of("reboot");
             case REBOOT_RECOVERY -> List.of("reboot", "recovery");
             case REBOOT_BOOTLOADER -> List.of("reboot", "bootloader");
-            case REBOOT_FASTBOOTD -> List.of("shell", "reboot", "fastboot");
-            case REBOOT_DOWNLOAD -> List.of("shell", "reboot", "download");
+            case REBOOT_FASTBOOTD -> List.of("reboot", "fastboot");
+            case REBOOT_DOWNLOAD -> List.of("reboot", "download");
         };
 
         AdbResult result = client.runForSerial(device.serial(), command);
@@ -3997,6 +3997,16 @@ public class AdbService implements AdbModel {
                 .orElseThrow(() -> new IllegalStateException(missingSelectionMessage));
         if (!Messages.STATUS_CONNECTED.equals(device.state())) {
             throw new IllegalStateException(disconnectedMessage);
+        }
+        return device;
+    }
+
+    private Device requirePowerActionDevice(String missingSelectionMessage, String unavailableMessage) {
+        Device device = getSelectedDevice()
+                .orElseThrow(() -> new IllegalStateException(missingSelectionMessage));
+        if (!Messages.STATUS_CONNECTED.equals(device.state())
+                && !Messages.STATUS_RECOVERY.equals(device.state())) {
+            throw new IllegalStateException(unavailableMessage);
         }
         return device;
     }

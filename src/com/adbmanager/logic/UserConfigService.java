@@ -49,7 +49,7 @@ public final class UserConfigService {
     }
 
     public UserConfig read() throws IOException {
-        UserConfig defaults = UserConfig.defaults(AppTheme.LIGHT, Messages.getLanguage());
+        UserConfig defaults = UserConfig.defaults(AppTheme.DARK, Messages.getLanguage());
         Path file = configFile();
         Files.createDirectories(file.getParent());
 
@@ -98,7 +98,7 @@ public final class UserConfigService {
     }
 
     public void save(UserConfig config) throws IOException {
-        UserConfig safeConfig = config == null ? UserConfig.defaults(AppTheme.LIGHT, Messages.getLanguage()) : config;
+        UserConfig safeConfig = config == null ? UserConfig.defaults(AppTheme.DARK, Messages.getLanguage()) : config;
         Path file = configFile();
         Files.createDirectories(file.getParent());
         StringBuilder builder = new StringBuilder();

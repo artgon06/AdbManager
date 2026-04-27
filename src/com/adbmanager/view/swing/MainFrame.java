@@ -23,6 +23,8 @@ import java.util.LinkedHashMap;
 import javax.swing.AbstractAction;
 import javax.swing.ActionMap;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
@@ -38,7 +40,9 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
+import javax.swing.Timer;
 import javax.swing.KeyStroke;
+import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
@@ -63,24 +67,34 @@ public class MainFrame extends JFrame {
 
     private static final String HOME_TAB = "home";
     private static final String DISPLAY_TAB = "display";
+    private static final String MIRRORING_TAB = "mirroring";
     private static final String CONTROL_TAB = "control";
     private static final String APPS_TAB = "apps";
     private static final String FILES_TAB = "files";
     private static final String SYSTEM_TAB = "system";
     private static final String SETTINGS_TAB = "settings";
     private static final int TOP_BAR_HEIGHT = 56;
+    private static final int SIDE_BAR_WIDTH = 172;
+    private static final int SIDE_BAR_COLLAPSED_WIDTH = 64;
 
     private final java.awt.CardLayout cardLayout = new java.awt.CardLayout();
     private final JPanel contentPanel = new JPanel(cardLayout);
     private final JPanel topBar = new JPanel(new BorderLayout());
-    private final JPanel navigationTabsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-    private final JPanel deviceSelectorPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
+    private final JPanel sideBar = new JPanel(new BorderLayout());
+    private final JPanel navigationTabsPanel = new JPanel();
+    private final JPanel settingsNavigationPanel = new JPanel(new BorderLayout());
+    private final JPanel deviceSelectorPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+    private final JPanel brandPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 10));
+    private final JPanel topBarRightSpacer = new JPanel();
+    private final JLabel appTitleLabel = new JLabel();
+    private final JButton sidebarToggleButton = new JButton();
     private final ButtonGroup navigationGroup = new ButtonGroup();
     private final DeviceComboBoxRenderer deviceRenderer = new DeviceComboBoxRenderer();
     private final JComboBox<Device> deviceSelector = new JComboBox<>();
     private final JLabel deviceLabel = new JLabel();
     private final JToggleButton homeButton = new JToggleButton();
     private final JToggleButton displayButton = new JToggleButton();
+    private final JToggleButton mirroringButton = new JToggleButton();
     private final JToggleButton controlButton = new JToggleButton();
     private final JToggleButton appsButton = new JToggleButton();
     private final JToggleButton filesButton = new JToggleButton();
@@ -93,6 +107,7 @@ public class MainFrame extends JFrame {
     private final Map<DevicePowerAction, JMenuItem> powerMenuItems = new LinkedHashMap<>();
     private final HomePanel homePanel = new HomePanel();
     private final DisplayPanel displayPanel = new DisplayPanel();
+    private final MirroringPanel mirroringPanel = new MirroringPanel(displayPanel.getScrcpyLauncherPanel());
     private final ControlPanel controlPanel = new ControlPanel();
     private final AppsPanel appsPanel = new AppsPanel();
     private final FilesPanel filesPanel = new FilesPanel();
@@ -112,12 +127,15 @@ public class MainFrame extends JFrame {
         return true;
     };
     private AppTheme currentTheme = AppTheme.LIGHT;
+    private boolean sidebarCollapsed;
+    private int sidebarCurrentWidth = SIDE_BAR_WIDTH;
+    private Timer sidebarAnimationTimer;
 
     public MainFrame() {
         super();
         buildFrame();
         setLanguage(Messages.getLanguage());
-        setTheme(AppTheme.LIGHT);
+        setTheme(AppTheme.DARK);
     }
 
     public void showWindow() {
@@ -156,6 +174,10 @@ public class MainFrame extends JFrame {
 
     public void setDisplayAction(ActionListener actionListener) {
         displayButton.addActionListener(actionListener);
+    }
+
+    public void setMirroringAction(ActionListener actionListener) {
+        mirroringButton.addActionListener(actionListener);
     }
 
     public void setControlAction(ActionListener actionListener) {
@@ -501,13 +523,16 @@ public class MainFrame extends JFrame {
 
     public void setLanguage(Language language) {
         setTitle(Messages.appTitle());
+        appTitleLabel.setText(Messages.appName());
         if (settingsPanel.getSelectedLanguage() != language) {
             setSelectedLanguage(language);
         }
 
         deviceLabel.setText(Messages.text("main.device.label"));
+        refreshNavigationTexts();
         homeButton.setToolTipText(Messages.text("navigation.home.tooltip"));
         displayButton.setToolTipText(Messages.text("navigation.display.tooltip"));
+        mirroringButton.setToolTipText(Messages.text("navigation.mirroring.tooltip"));
         controlButton.setToolTipText(Messages.text("navigation.control.tooltip"));
         appsButton.setToolTipText(Messages.text("navigation.apps.tooltip"));
         filesButton.setToolTipText(Messages.text("navigation.files.tooltip"));
@@ -522,6 +547,7 @@ public class MainFrame extends JFrame {
 
         homePanel.refreshTexts();
         displayPanel.refreshTexts();
+        mirroringPanel.refreshTexts();
         controlPanel.refreshTexts();
         appsPanel.refreshTexts();
         filesPanel.refreshTexts();
@@ -536,6 +562,7 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, HOME_TAB);
         homeButton.setSelected(true);
         displayButton.setSelected(false);
+        mirroringButton.setSelected(false);
         controlButton.setSelected(false);
         appsButton.setSelected(false);
         filesButton.setSelected(false);
@@ -548,6 +575,20 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, DISPLAY_TAB);
         homeButton.setSelected(false);
         displayButton.setSelected(true);
+        mirroringButton.setSelected(false);
+        controlButton.setSelected(false);
+        appsButton.setSelected(false);
+        filesButton.setSelected(false);
+        systemButton.setSelected(false);
+        settingsButton.setSelected(false);
+        updateNavigationStyles();
+    }
+
+    public void showMirroringScreen() {
+        cardLayout.show(contentPanel, MIRRORING_TAB);
+        homeButton.setSelected(false);
+        displayButton.setSelected(false);
+        mirroringButton.setSelected(true);
         controlButton.setSelected(false);
         appsButton.setSelected(false);
         filesButton.setSelected(false);
@@ -560,6 +601,7 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, CONTROL_TAB);
         homeButton.setSelected(false);
         displayButton.setSelected(false);
+        mirroringButton.setSelected(false);
         controlButton.setSelected(true);
         appsButton.setSelected(false);
         filesButton.setSelected(false);
@@ -572,6 +614,7 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, APPS_TAB);
         homeButton.setSelected(false);
         displayButton.setSelected(false);
+        mirroringButton.setSelected(false);
         controlButton.setSelected(false);
         appsButton.setSelected(true);
         filesButton.setSelected(false);
@@ -584,6 +627,7 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, FILES_TAB);
         homeButton.setSelected(false);
         displayButton.setSelected(false);
+        mirroringButton.setSelected(false);
         controlButton.setSelected(false);
         appsButton.setSelected(false);
         filesButton.setSelected(true);
@@ -596,6 +640,7 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, SYSTEM_TAB);
         homeButton.setSelected(false);
         displayButton.setSelected(false);
+        mirroringButton.setSelected(false);
         controlButton.setSelected(false);
         appsButton.setSelected(false);
         filesButton.setSelected(false);
@@ -608,6 +653,7 @@ public class MainFrame extends JFrame {
         cardLayout.show(contentPanel, SETTINGS_TAB);
         homeButton.setSelected(false);
         displayButton.setSelected(false);
+        mirroringButton.setSelected(false);
         controlButton.setSelected(false);
         appsButton.setSelected(false);
         filesButton.setSelected(false);
@@ -1138,8 +1184,16 @@ public class MainFrame extends JFrame {
         topBar.setBackground(theme.surface());
         topBar.setPreferredSize(new Dimension(0, TOP_BAR_HEIGHT));
         topBar.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, theme.border()));
+        sideBar.setBackground(theme.surface());
+        sideBar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, theme.border()));
+        brandPanel.setBackground(theme.surface());
+        topBarRightSpacer.setBackground(theme.surface());
+        topBarRightSpacer.setPreferredSize(new Dimension(brandPanel.getPreferredSize().width, TOP_BAR_HEIGHT));
         navigationTabsPanel.setBackground(theme.surface());
+        settingsNavigationPanel.setBackground(theme.surface());
         deviceSelectorPanel.setBackground(theme.surface());
+        appTitleLabel.setForeground(theme.textPrimary());
+        appTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
 
         deviceLabel.setForeground(theme.textSecondary());
         deviceLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
@@ -1154,6 +1208,7 @@ public class MainFrame extends JFrame {
 
         homePanel.applyTheme(theme);
         displayPanel.applyTheme(theme);
+        mirroringPanel.applyTheme(theme);
         controlPanel.applyTheme(theme);
         appsPanel.applyTheme(theme);
         filesPanel.applyTheme(theme);
@@ -1163,15 +1218,18 @@ public class MainFrame extends JFrame {
         appInstallDialog.applyTheme(theme);
         styleNavigationButton(homeButton);
         styleNavigationButton(displayButton);
+        styleNavigationButton(mirroringButton);
         styleNavigationButton(controlButton);
         styleNavigationButton(appsButton);
         styleNavigationButton(filesButton);
         styleNavigationButton(systemButton);
         styleNavigationButton(settingsButton);
+        styleTopBarIconButton(sidebarToggleButton);
         styleWirelessButton();
         styleTcpipButton();
         styleRefreshButton();
         stylePowerMenu();
+        applySidebarMode();
 
         revalidate();
         repaint();
@@ -1210,6 +1268,10 @@ public class MainFrame extends JFrame {
         return displayButton.isSelected();
     }
 
+    public boolean isMirroringScreenVisible() {
+        return mirroringButton.isSelected();
+    }
+
     public boolean isControlScreenVisible() {
         return controlButton.isSelected();
     }
@@ -1237,11 +1299,13 @@ public class MainFrame extends JFrame {
     private void addTopBar() {
         configureNavigationButton(homeButton, ToolbarIcon.Type.HOME);
         configureNavigationButton(displayButton, ToolbarIcon.Type.DISPLAY);
+        configureNavigationButton(mirroringButton, ToolbarIcon.Type.MIRRORING);
         configureNavigationButton(controlButton, ToolbarIcon.Type.CONTROL);
         configureNavigationButton(appsButton, ToolbarIcon.Type.APPS);
         configureNavigationButton(filesButton, ToolbarIcon.Type.FOLDER);
         configureNavigationButton(systemButton, ToolbarIcon.Type.SYSTEM);
         configureNavigationButton(settingsButton, ToolbarIcon.Type.SETTINGS);
+        configureTopBarIconButton(sidebarToggleButton, ToolbarIcon.Type.SIDEBAR);
         configureWirelessButton();
         configureTcpipButton();
         configureRefreshButton();
@@ -1254,34 +1318,59 @@ public class MainFrame extends JFrame {
 
         navigationGroup.add(homeButton);
         navigationGroup.add(displayButton);
+        navigationGroup.add(mirroringButton);
         navigationGroup.add(controlButton);
         navigationGroup.add(appsButton);
         navigationGroup.add(filesButton);
         navigationGroup.add(systemButton);
         navigationGroup.add(settingsButton);
-        navigationTabsPanel.add(homeButton);
-        navigationTabsPanel.add(displayButton);
-        navigationTabsPanel.add(controlButton);
-        navigationTabsPanel.add(appsButton);
-        navigationTabsPanel.add(filesButton);
-        navigationTabsPanel.add(systemButton);
-        navigationTabsPanel.add(settingsButton);
 
-        deviceSelectorPanel.add(deviceLabel);
+        navigationTabsPanel.setLayout(new BoxLayout(navigationTabsPanel, BoxLayout.Y_AXIS));
+        navigationTabsPanel.setBorder(new EmptyBorder(12, 12, 12, 12));
+        navigationTabsPanel.add(homeButton);
+        navigationTabsPanel.add(Box.createVerticalStrut(2));
+        navigationTabsPanel.add(displayButton);
+        navigationTabsPanel.add(Box.createVerticalStrut(2));
+        navigationTabsPanel.add(mirroringButton);
+        navigationTabsPanel.add(Box.createVerticalStrut(2));
+        navigationTabsPanel.add(controlButton);
+        navigationTabsPanel.add(Box.createVerticalStrut(2));
+        navigationTabsPanel.add(appsButton);
+        navigationTabsPanel.add(Box.createVerticalStrut(2));
+        navigationTabsPanel.add(filesButton);
+        navigationTabsPanel.add(Box.createVerticalStrut(2));
+        navigationTabsPanel.add(systemButton);
+
+        settingsNavigationPanel.setOpaque(false);
+        settingsNavigationPanel.setBorder(new EmptyBorder(12, 12, 16, 12));
+        settingsNavigationPanel.add(settingsButton, BorderLayout.NORTH);
+
+        sideBar.setPreferredSize(new Dimension(SIDE_BAR_WIDTH, 0));
+        sideBar.add(navigationTabsPanel, BorderLayout.CENTER);
+        sideBar.add(settingsNavigationPanel, BorderLayout.SOUTH);
+
+        sidebarToggleButton.addActionListener(event -> toggleSidebarMode());
+
+        deviceSelectorPanel.add(wirelessButton);
         deviceSelectorPanel.add(deviceSelector);
         deviceSelectorPanel.add(tcpipButton);
-        deviceSelectorPanel.add(wirelessButton);
         deviceSelectorPanel.add(refreshButton);
 
-        topBar.add(navigationTabsPanel, BorderLayout.WEST);
-        topBar.add(deviceSelectorPanel, BorderLayout.EAST);
+        brandPanel.add(sidebarToggleButton);
+        brandPanel.add(appTitleLabel);
+        topBar.add(brandPanel, BorderLayout.WEST);
+        topBar.add(deviceSelectorPanel, BorderLayout.CENTER);
+        topBar.add(topBarRightSpacer, BorderLayout.EAST);
 
         getContentPane().add(topBar, BorderLayout.NORTH);
+        getContentPane().add(sideBar, BorderLayout.WEST);
+        applySidebarMode();
     }
 
     private void addContent() {
         contentPanel.add(homePanel, HOME_TAB);
         contentPanel.add(displayPanel, DISPLAY_TAB);
+        contentPanel.add(mirroringPanel, MIRRORING_TAB);
         contentPanel.add(controlPanel, CONTROL_TAB);
         contentPanel.add(appsPanel, APPS_TAB);
         contentPanel.add(filesPanel, FILES_TAB);
@@ -1298,11 +1387,77 @@ public class MainFrame extends JFrame {
         button.setFocusPainted(false);
         button.setRolloverEnabled(true);
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        button.setHorizontalAlignment(SwingConstants.CENTER);
+        button.setHorizontalAlignment(SwingConstants.LEFT);
+        button.setIconTextGap(10);
         button.setMargin(new java.awt.Insets(0, 0, 0, 0));
-        button.setPreferredSize(new Dimension(TOP_BAR_HEIGHT, TOP_BAR_HEIGHT));
-        button.setText("");
         button.addChangeListener(event -> updateNavigationStyles());
+    }
+
+    private void applySidebarMode() {
+        sidebarCurrentWidth = sidebarCollapsed ? SIDE_BAR_COLLAPSED_WIDTH : SIDE_BAR_WIDTH;
+        applySidebarWidth(sidebarCurrentWidth);
+    }
+
+    private void toggleSidebarMode() {
+        sidebarCollapsed = !sidebarCollapsed;
+        refreshNavigationTexts();
+        updateNavigationStyles();
+        int targetWidth = sidebarCollapsed ? SIDE_BAR_COLLAPSED_WIDTH : SIDE_BAR_WIDTH;
+        if (sidebarAnimationTimer != null && sidebarAnimationTimer.isRunning()) {
+            sidebarAnimationTimer.stop();
+        }
+
+        sidebarAnimationTimer = new Timer(12, event -> {
+            int delta = targetWidth - sidebarCurrentWidth;
+            if (Math.abs(delta) <= 2) {
+                sidebarCurrentWidth = targetWidth;
+                applySidebarWidth(sidebarCurrentWidth);
+                ((Timer) event.getSource()).stop();
+                return;
+            }
+
+            sidebarCurrentWidth += Math.max(2, Math.abs(delta) / 5) * Integer.signum(delta);
+            applySidebarWidth(sidebarCurrentWidth);
+        });
+        sidebarAnimationTimer.start();
+    }
+
+    private void applySidebarWidth(int width) {
+        sideBar.setPreferredSize(new Dimension(width, 0));
+        sideBar.setMinimumSize(new Dimension(width, 0));
+        navigationTabsPanel.setBorder(new EmptyBorder(12, sidebarCollapsed ? 9 : 12, 12, sidebarCollapsed ? 9 : 12));
+        settingsNavigationPanel.setBorder(new EmptyBorder(12, sidebarCollapsed ? 9 : 12, 16, sidebarCollapsed ? 9 : 12));
+        refreshNavigationTexts();
+        updateNavigationStyles();
+        sideBar.revalidate();
+        sideBar.repaint();
+    }
+
+    private void refreshNavigationTexts() {
+        setNavigationButtonText(homeButton, "navigation.home");
+        setNavigationButtonText(displayButton, "navigation.display");
+        setNavigationButtonText(mirroringButton, "navigation.mirroring");
+        setNavigationButtonText(controlButton, "navigation.control");
+        setNavigationButtonText(appsButton, "navigation.apps");
+        setNavigationButtonText(filesButton, "navigation.files");
+        setNavigationButtonText(systemButton, "navigation.system");
+        setNavigationButtonText(settingsButton, "navigation.settings");
+    }
+
+    private void setNavigationButtonText(JToggleButton button, String key) {
+        button.setText(sidebarCollapsed ? "" : Messages.text(key));
+    }
+
+    private void configureTopBarIconButton(JButton button, ToolbarIcon.Type iconType) {
+        button.putClientProperty("iconType", iconType);
+        button.setUI(new BasicButtonUI());
+        button.setFocusable(false);
+        button.setFocusPainted(false);
+        button.setRolloverEnabled(true);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        button.setPreferredSize(new Dimension(36, 36));
+        button.setMargin(new java.awt.Insets(0, 0, 0, 0));
+        button.getModel().addChangeListener(event -> styleTopBarIconButton(button));
     }
 
     private void configureRefreshButton() {
@@ -1311,7 +1466,7 @@ public class MainFrame extends JFrame {
         refreshButton.setFocusPainted(false);
         refreshButton.setRolloverEnabled(true);
         refreshButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        refreshButton.setPreferredSize(new Dimension(TOP_BAR_HEIGHT, TOP_BAR_HEIGHT));
+        refreshButton.setPreferredSize(new Dimension(36, 36));
         refreshButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
         refreshButton.getModel().addChangeListener(event -> styleRefreshButton());
 
@@ -1325,7 +1480,7 @@ public class MainFrame extends JFrame {
         wirelessButton.setFocusPainted(false);
         wirelessButton.setRolloverEnabled(true);
         wirelessButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        wirelessButton.setPreferredSize(new Dimension(TOP_BAR_HEIGHT, TOP_BAR_HEIGHT));
+        wirelessButton.setPreferredSize(new Dimension(36, 36));
         wirelessButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
         wirelessButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 24));
         wirelessButton.getModel().addChangeListener(event -> styleWirelessButton());
@@ -1337,7 +1492,7 @@ public class MainFrame extends JFrame {
         tcpipButton.setFocusPainted(false);
         tcpipButton.setRolloverEnabled(true);
         tcpipButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        tcpipButton.setPreferredSize(new Dimension(TOP_BAR_HEIGHT, TOP_BAR_HEIGHT));
+        tcpipButton.setPreferredSize(new Dimension(36, 36));
         tcpipButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
         tcpipButton.getModel().addChangeListener(event -> styleTcpipButton());
     }
@@ -1356,6 +1511,7 @@ public class MainFrame extends JFrame {
     private void updateNavigationStyles() {
         styleNavigationButton(homeButton);
         styleNavigationButton(displayButton);
+        styleNavigationButton(mirroringButton);
         styleNavigationButton(controlButton);
         styleNavigationButton(appsButton);
         styleNavigationButton(filesButton);
@@ -1366,22 +1522,47 @@ public class MainFrame extends JFrame {
     private void styleNavigationButton(JToggleButton button) {
         boolean selected = button.isSelected();
         boolean hovered = button.getModel().isRollover() && button.isEnabled();
-        java.awt.Color baseBackground = selected ? currentTheme.secondarySurface() : currentTheme.surface();
+        int width = sidebarCollapsed ? SIDE_BAR_COLLAPSED_WIDTH - 18 : SIDE_BAR_WIDTH - 24;
+        Dimension size = new Dimension(width, 34);
+        button.setPreferredSize(size);
+        button.setMaximumSize(size);
+        button.setMinimumSize(size);
+        button.setHorizontalAlignment(sidebarCollapsed ? SwingConstants.CENTER : SwingConstants.LEFT);
+        button.setIconTextGap(sidebarCollapsed ? 0 : 10);
+        java.awt.Color baseBackground = selected
+                ? currentTheme.secondarySurface()
+                : currentTheme.surface();
         button.setOpaque(true);
         button.setContentAreaFilled(true);
         button.setBackground(hovered && !selected
                 ? ThemeUtils.blend(baseBackground, currentTheme.selectionBackground(), 0.22d)
                 : baseBackground);
-        button.setForeground(selected ? currentTheme.actionBackground() : currentTheme.textSecondary());
-        button.setBorder(BorderFactory.createMatteBorder(
-                0,
-                0,
-                3,
-                0,
-                selected ? currentTheme.actionBackground() : button.getBackground()));
+        button.setForeground(selected ? currentTheme.textPrimary() : currentTheme.textSecondary());
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(selected ? currentTheme.secondarySurface() : currentTheme.surface(), 1),
+                BorderFactory.createEmptyBorder(0, sidebarCollapsed ? 0 : 10, 0, sidebarCollapsed ? 0 : 10)));
         button.setIcon(new ToolbarIcon(
                 (ToolbarIcon.Type) button.getClientProperty("iconType"),
-                20,
+                18,
+                selected ? currentTheme.actionBackground() : button.getForeground()));
+    }
+
+    private void styleTopBarIconButton(JButton button) {
+        boolean hovered = button.getModel().isRollover() && button.isEnabled();
+        java.awt.Color background = hovered
+                ? ThemeUtils.blend(currentTheme.surface(), currentTheme.selectionBackground(), 0.25d)
+                : currentTheme.surface();
+        button.setOpaque(true);
+        button.setContentAreaFilled(true);
+        button.setBackground(background);
+        button.setForeground(button.isEnabled() ? currentTheme.textSecondary() : currentTheme.disabledBorder());
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(currentTheme.border(), 1),
+                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
+        button.setText("");
+        button.setIcon(new ToolbarIcon(
+                (ToolbarIcon.Type) button.getClientProperty("iconType"),
+                18,
                 button.getForeground()));
     }
 
@@ -1395,7 +1576,9 @@ public class MainFrame extends JFrame {
         refreshButton.setForeground(refreshButton.isEnabled()
                 ? currentTheme.actionBackground()
                 : currentTheme.textSecondary());
-        refreshButton.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, refreshButton.getBackground()));
+        refreshButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(currentTheme.border(), 1),
+                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
         refreshButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.REFRESH, 20, refreshButton.getForeground()));
     }
 
@@ -1409,7 +1592,9 @@ public class MainFrame extends JFrame {
         wirelessButton.setForeground(wirelessButton.isEnabled()
                 ? currentTheme.actionBackground()
                 : currentTheme.textSecondary());
-        wirelessButton.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, wirelessButton.getBackground()));
+        wirelessButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(currentTheme.border(), 1),
+                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
         wirelessButton.setText("+");
     }
 
@@ -1423,7 +1608,9 @@ public class MainFrame extends JFrame {
         tcpipButton.setForeground(tcpipButton.isEnabled()
                 ? currentTheme.actionBackground()
                 : currentTheme.textSecondary());
-        tcpipButton.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, tcpipButton.getBackground()));
+        tcpipButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(currentTheme.border(), 1),
+                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
         tcpipButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.WIRELESS, 18, tcpipButton.getForeground()));
         tcpipButton.setText("");
     }
@@ -1466,15 +1653,16 @@ public class MainFrame extends JFrame {
     }
 
     private void cycleTabs(int delta) {
-        int nextIndex = Math.floorMod(currentTabIndex() + delta, 7);
+        int nextIndex = Math.floorMod(currentTabIndex() + delta, 8);
         switch (nextIndex) {
             case 0 -> homeButton.doClick();
             case 1 -> displayButton.doClick();
-            case 2 -> controlButton.doClick();
-            case 3 -> appsButton.doClick();
-            case 4 -> filesButton.doClick();
-            case 5 -> systemButton.doClick();
-            case 6 -> settingsButton.doClick();
+            case 2 -> mirroringButton.doClick();
+            case 3 -> controlButton.doClick();
+            case 4 -> appsButton.doClick();
+            case 5 -> filesButton.doClick();
+            case 6 -> systemButton.doClick();
+            case 7 -> settingsButton.doClick();
             default -> homeButton.doClick();
         }
     }
@@ -1483,20 +1671,23 @@ public class MainFrame extends JFrame {
         if (displayButton.isSelected()) {
             return 1;
         }
-        if (controlButton.isSelected()) {
+        if (mirroringButton.isSelected()) {
             return 2;
         }
-        if (appsButton.isSelected()) {
+        if (controlButton.isSelected()) {
             return 3;
         }
-        if (filesButton.isSelected()) {
+        if (appsButton.isSelected()) {
             return 4;
         }
-        if (systemButton.isSelected()) {
+        if (filesButton.isSelected()) {
             return 5;
         }
-        if (settingsButton.isSelected()) {
+        if (systemButton.isSelected()) {
             return 6;
+        }
+        if (settingsButton.isSelected()) {
+            return 7;
         }
         return 0;
     }

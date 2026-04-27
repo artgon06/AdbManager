@@ -23,7 +23,10 @@ public class ToolbarIcon implements Icon {
 
     public enum Type {
         HOME("M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"),
+        SIDEBAR("M3 6h18v2H3z M3 11h18v2H3z M3 16h18v2H3z"),
         DISPLAY("M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 16H7V5h10v12z"),
+        MIRRORING("M5 5h10v10H5z M9 17h10V9h-2v6H9z"),
+        CAMERA("M9 4l-2 2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-3l-2-2H9z M12 17c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"),
         CONTROL("M3 17h6v2H3v-2zm0-6h10v2H3v-2zm0-6h14v2H3V5zm11 12h7v2h-7v-2zm4-6h3v2h-3v-2zm-6-6h9v2h-9V5z"),
         APPS("M4 8h4V4H4v4zm6 0h4V4h-4v4zm6 0h4V4h-4v4z M4 14h4v-4H4v4zm6 0h4v-4h-4v4zm6 0h4v-4h-4v4z M4 20h4v-4H4v4zm6 0h4v-4h-4v4zm6 0h4v-4h-4v4z"),
         FILES("M6 2h9l5 5v15H6z M14 2v6h6"),
@@ -57,6 +60,9 @@ public class ToolbarIcon implements Icon {
         ARROW_DOWN("M12 20 5 12h4V4h6v8h4z"),
         ARROW_LEFT("M4 12l8-7v4h8v6h-8v4z"),
         ARROW_RIGHT("M20 12l-8 7v-4H4V9h8V5z"),
+        MEDIA_PREVIOUS("M6 5h2v14H6z M9 12l9 7V5z"),
+        MEDIA_PLAY_PAUSE("M6 5h4v14H6z M14 5h4v14h-4z"),
+        MEDIA_NEXT("M18 5h-2v14h2z M15 12 6 5v14z"),
         ADD("M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z");
 
         private final Shape shape;

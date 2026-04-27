@@ -39,6 +39,12 @@ final class SwingControllerContext {
         return selectedDevice != null && Messages.STATUS_CONNECTED.equals(selectedDevice.state());
     }
 
+    boolean isPowerAvailable(Device selectedDevice) {
+        return selectedDevice != null
+                && (Messages.STATUS_CONNECTED.equals(selectedDevice.state())
+                        || Messages.STATUS_RECOVERY.equals(selectedDevice.state()));
+    }
+
     boolean isSystemAvailable(Device selectedDevice) {
         return selectedDevice != null && Messages.STATUS_CONNECTED.equals(selectedDevice.state());
     }

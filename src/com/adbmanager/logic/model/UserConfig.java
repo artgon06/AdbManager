@@ -14,7 +14,7 @@ public record UserConfig(
         ScrcpyLaunchRequest scrcpyLaunchRequest) {
 
     public UserConfig {
-        theme = Objects.requireNonNullElse(theme, AppTheme.LIGHT);
+        theme = Objects.requireNonNullElse(theme, AppTheme.DARK);
         language = Objects.requireNonNullElse(language, Language.ENGLISH);
         customAdbPath = customAdbPath == null ? "" : customAdbPath.trim();
         scrcpyLaunchRequest = Objects.requireNonNullElse(scrcpyLaunchRequest, defaultScrcpyLaunchRequest());

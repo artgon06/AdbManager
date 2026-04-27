@@ -45,6 +45,10 @@ final class DisplayController {
 
     void showScreen() {
         view().showDisplayScreen();
+    }
+
+    void showMirroringScreen() {
+        view().showMirroringScreen();
         refreshVisibleState();
     }
 
@@ -76,7 +80,7 @@ final class DisplayController {
 
     void reloadApplicationsIfVisible() {
         state().scrcpyApplicationsLoadedSerial = null;
-        if (view().isDisplayScreenVisible() && view().shouldLoadScrcpyApplications()) {
+        if (view().isMirroringScreenVisible() && view().shouldLoadScrcpyApplications()) {
             loadScrcpyApplications();
         }
     }

@@ -1,13 +1,13 @@
 package com.adbmanager.view.swing;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
@@ -63,7 +63,12 @@ public class HomePanel extends JPanel {
     private final JPanel factsPanel = new JPanel(new GridBagLayout());
     private final Map<String, FactCard> factCards = new LinkedHashMap<>();
 
-    private final JPanel metricsPanel = new JPanel(new GridLayout(1, 2, 12, 0));
+    private final JPanel metricsPanel = new JPanel(new GridBagLayout());
+    private final JPanel batteryPanel = new JPanel();
+    private final JLabel batteryTitleLabel = new JLabel();
+    private final JLabel batteryValueLabel = new JLabel("-");
+    private final JLabel batteryFooterLabel = new JLabel();
+    private final JProgressBar batteryProgressBar = new JProgressBar(0, 100);
     private final JPanel ramPanel = new JPanel();
     private final JLabel ramTitleLabel = new JLabel();
     private final JLabel ramValueLabel = new JLabel("-");
@@ -113,6 +118,7 @@ public class HomePanel extends JPanel {
         setFactValue(FIELD_ARCHITECTURE, details.architecture());
         setFactValue(FIELD_BATTERY, details.batteryLabel());
         setFactValue(FIELD_SERIAL, details.serial());
+        setBatteryMetric(details.batteryLabel());
 
         if (details.hasRamInfo()) {
             ramValueLabel.setText(details.usedRamLabel());
@@ -147,6 +153,7 @@ public class HomePanel extends JPanel {
 
         resetMetric(ramValueLabel, ramFooterLabel, ramProgressBar);
         resetMetric(storageValueLabel, storageFooterLabel, storageProgressBar);
+        resetMetric(batteryValueLabel, batteryFooterLabel, batteryProgressBar);
     }
 
     public void setCaptureAction(ActionListener actionListener) {
@@ -200,8 +207,10 @@ public class HomePanel extends JPanel {
 
     public void refreshTexts() {
         powerButton.setToolTipText(Messages.text("navigation.power.tooltip"));
-        captureButton.setText(Messages.text("home.capture"));
-        saveScreenshotButton.setText(Messages.text("home.saveCapture"));
+        captureButton.setText("");
+        captureButton.setToolTipText(Messages.text("home.capture"));
+        saveScreenshotButton.setText("");
+        saveScreenshotButton.setToolTipText(Messages.text("home.saveCapture"));
 
         factCards.get(FIELD_STATE).setTitle(Messages.text("home.field.state"));
         factCards.get(FIELD_TYPE).setTitle(Messages.text("home.field.deviceType"));
@@ -216,8 +225,9 @@ public class HomePanel extends JPanel {
 
         ramTitleLabel.setText(Messages.text("home.ram.inUse"));
         storageTitleLabel.setText(Messages.text("home.storage.inUse"));
+        batteryTitleLabel.setText(Messages.text("home.field.battery"));
 
-        summaryPanel.setBorder(createSectionBorder(Messages.text("home.summary.title")));
+        summaryPanel.setBorder(BorderFactory.createEmptyBorder());
         screenshotPreviewPanel.refreshTexts();
 
         if (currentDetails == null) {
@@ -253,10 +263,13 @@ public class HomePanel extends JPanel {
             factCard.applyTheme(theme);
         }
 
-        styleMetricCard(ramPanel, ramTitleLabel, ramValueLabel, ramFooterLabel, ramProgressBar);
-        styleMetricCard(storagePanel, storageTitleLabel, storageValueLabel, storageFooterLabel, storageProgressBar);
+        styleMetricCard(batteryPanel, batteryTitleLabel, batteryValueLabel, batteryFooterLabel, batteryProgressBar,
+                new Color(40, 205, 98));
+        styleMetricCard(ramPanel, ramTitleLabel, ramValueLabel, ramFooterLabel, ramProgressBar, new Color(40, 205, 98));
+        styleMetricCard(storagePanel, storageTitleLabel, storageValueLabel, storageFooterLabel, storageProgressBar,
+                new Color(255, 69, 78));
 
-        summaryPanel.setBorder(createSectionBorder(Messages.text("home.summary.title")));
+        summaryPanel.setBorder(BorderFactory.createEmptyBorder());
         screenshotPreviewPanel.applyTheme(theme);
         updateActionButtonsStyle();
         repaint();
@@ -324,14 +337,37 @@ public class HomePanel extends JPanel {
 
     private JPanel buildMetricsPanel() {
         metricsPanel.removeAll();
-        metricsPanel.add(createMetricPanel(ramPanel, ramTitleLabel, ramValueLabel, ramProgressBar, ramFooterLabel));
-        metricsPanel.add(createMetricPanel(
+        addMetricCard(createMetricPanel(
+                batteryPanel,
+                batteryTitleLabel,
+                batteryValueLabel,
+                batteryProgressBar,
+                batteryFooterLabel), 0, 0, 1, new Insets(0, 0, 10, 10));
+        addMetricCard(createMetricPanel(
+                ramPanel,
+                ramTitleLabel,
+                ramValueLabel,
+                ramProgressBar,
+                ramFooterLabel), 1, 0, 1, new Insets(0, 0, 10, 0));
+        addMetricCard(createMetricPanel(
                 storagePanel,
                 storageTitleLabel,
                 storageValueLabel,
                 storageProgressBar,
-                storageFooterLabel));
+                storageFooterLabel), 0, 1, 2, new Insets(0, 0, 0, 0));
         return metricsPanel;
+    }
+
+    private void addMetricCard(JPanel panel, int gridX, int gridY, int gridWidth, Insets insets) {
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = gridX;
+        constraints.gridy = gridY;
+        constraints.gridwidth = gridWidth;
+        constraints.weightx = gridWidth;
+        constraints.weighty = 1.0;
+        constraints.fill = GridBagConstraints.BOTH;
+        constraints.insets = insets;
+        metricsPanel.add(panel, constraints);
     }
 
     private JPanel createMetricPanel(
@@ -396,23 +432,20 @@ public class HomePanel extends JPanel {
         captureButton.setRolloverEnabled(true);
         captureButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         captureButton.getModel().addChangeListener(event -> styleActionButton(captureButton, true));
-        captureButton.setPreferredSize(new Dimension(180, 42));
+        captureButton.setPreferredSize(new Dimension(42, 42));
         topActionsPanel.add(captureButton);
-
-        JPanel bottomActionsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        bottomActionsPanel.setOpaque(false);
+        topActionsPanel.add(Box.createHorizontalStrut(10));
 
         saveScreenshotButton.setUI(new BasicButtonUI());
         saveScreenshotButton.setFocusPainted(false);
         saveScreenshotButton.setRolloverEnabled(true);
         saveScreenshotButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         saveScreenshotButton.getModel().addChangeListener(event -> styleActionButton(saveScreenshotButton, false));
-        saveScreenshotButton.setPreferredSize(new Dimension(180, 42));
-        bottomActionsPanel.add(saveScreenshotButton);
+        saveScreenshotButton.setPreferredSize(new Dimension(42, 42));
+        topActionsPanel.add(saveScreenshotButton);
 
         capturePanel.add(topActionsPanel, BorderLayout.NORTH);
         capturePanel.add(screenshotPreviewPanel, BorderLayout.CENTER);
-        capturePanel.add(bottomActionsPanel, BorderLayout.SOUTH);
     }
 
     private GridBagConstraints buildSummaryConstraints() {
@@ -472,6 +505,13 @@ public class HomePanel extends JPanel {
         button.setContentAreaFilled(true);
         button.setBorderPainted(true);
         button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 15));
+        button.setIcon(new ToolbarIcon(
+                button == captureButton ? ToolbarIcon.Type.CAMERA : ToolbarIcon.Type.EXPORT,
+                18,
+                enabled
+                        ? (primary ? theme.actionForeground() : theme.textPrimary())
+                        : theme.textSecondary()));
+        button.setIconTextGap(0);
 
         if (enabled) {
             java.awt.Color background = primary
@@ -507,7 +547,9 @@ public class HomePanel extends JPanel {
 
     private void styleSurfaceCard(JPanel panel, boolean elevated) {
         panel.setOpaque(true);
-        panel.setBackground(theme.background());
+        panel.setBackground(elevated
+                ? theme.background()
+                : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.52d));
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(elevated ? 14 : 12, elevated ? 14 : 12, elevated ? 14 : 12, elevated ? 14 : 12)));
@@ -518,7 +560,8 @@ public class HomePanel extends JPanel {
             JLabel titleLabel,
             JLabel valueLabel,
             JLabel footerLabel,
-            JProgressBar progressBar) {
+            JProgressBar progressBar,
+            Color accentColor) {
         styleSurfaceCard(panel, false);
 
         titleLabel.setForeground(theme.textSecondary());
@@ -531,7 +574,7 @@ public class HomePanel extends JPanel {
         footerLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
 
         progressBar.setBackground(ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.72d));
-        progressBar.setForeground(theme.actionBackground());
+        progressBar.setForeground(accentColor);
         progressBar.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(1, 1, 1, 1)));
@@ -543,6 +586,35 @@ public class HomePanel extends JPanel {
         footerLabel.setText(Messages.format("home.metric.total", "-"));
         progressBar.setValue(0);
         progressBar.setString(Messages.text("common.noData"));
+    }
+
+    private void setBatteryMetric(String batteryLabel) {
+        String normalized = batteryLabel == null || batteryLabel.isBlank() ? "-" : batteryLabel.trim();
+        batteryValueLabel.setText(normalized);
+        batteryFooterLabel.setText(" ");
+        Integer percent = parseBatteryPercent(normalized);
+        if (percent == null) {
+            batteryProgressBar.setValue(0);
+            batteryProgressBar.setString(Messages.text("common.noData"));
+            return;
+        }
+        batteryProgressBar.setValue(Math.max(0, Math.min(100, percent)));
+        batteryProgressBar.setString(percent + "%");
+    }
+
+    private Integer parseBatteryPercent(String label) {
+        if (label == null) {
+            return null;
+        }
+        String digits = label.replaceAll("[^0-9]", "");
+        if (digits.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(digits);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
     private void setFactValue(String key, String value) {

@@ -49,7 +49,7 @@ public class ControlPanel extends JPanel {
 
     private final JLabel titleLabel = new JLabel();
     private final JLabel subtitleLabel = new JLabel();
-    private final ScrollableContentPanel content = new ScrollableContentPanel();
+    private final ScrollableContentPanel content = new ScrollableContentPanel(24, 96, true, true);
     private final JScrollPane scrollPane = new JScrollPane(content);
 
     private final JPanel quickActionsPanel = new JPanel();
@@ -92,7 +92,9 @@ public class ControlPanel extends JPanel {
     private final JButton tvHomeButton = new JButton();
     private final JButton tvRecentsButton = new JButton();
     private final JButton tvMenuButton = new JButton();
+    private final JButton tvPreviousButton = new JButton();
     private final JButton tvPlayPauseButton = new JButton();
+    private final JButton tvNextButton = new JButton();
     private final JButton tvChannelUpButton = new JButton();
     private final JButton tvChannelDownButton = new JButton();
     private final JButton tvGuideButton = new JButton();
@@ -151,7 +153,9 @@ public class ControlPanel extends JPanel {
                 tvHomeButton,
                 tvRecentsButton,
                 tvMenuButton,
+                tvPreviousButton,
                 tvPlayPauseButton,
+                tvNextButton,
                 tvChannelUpButton,
                 tvChannelDownButton,
                 tvGuideButton,
@@ -348,7 +352,9 @@ public class ControlPanel extends JPanel {
         tvHomeButton.setText(Messages.text("control.tv.home"));
         tvRecentsButton.setText(Messages.text("control.tv.recents"));
         tvMenuButton.setText(Messages.text("control.tv.menu"));
+        tvPreviousButton.setText(Messages.text("control.tv.previous"));
         tvPlayPauseButton.setText(Messages.text("control.tv.playPause"));
+        tvNextButton.setText(Messages.text("control.tv.next"));
         tvChannelUpButton.setText(Messages.text("control.tv.channelUp"));
         tvChannelDownButton.setText(Messages.text("control.tv.channelDown"));
         tvGuideButton.setText(Messages.text("control.tv.guide"));
@@ -431,23 +437,16 @@ public class ControlPanel extends JPanel {
         buildTextInputPanel();
         buildTvRemotePanel();
 
-        JPanel leftColumn = new JPanel();
+        JPanel leftColumn = new JPanel(new GridBagLayout());
         leftColumn.setOpaque(false);
-        leftColumn.setLayout(new BoxLayout(leftColumn, BoxLayout.Y_AXIS));
-        leftColumn.add(quickActionsPanel);
-        leftColumn.add(Box.createVerticalStrut(12));
-        leftColumn.add(mediaPanel);
-        leftColumn.add(Box.createVerticalStrut(12));
-        leftColumn.add(soundModePanel);
-        leftColumn.add(Box.createVerticalStrut(12));
-        leftColumn.add(textInputPanel);
-        leftColumn.add(Box.createVerticalGlue());
+        addColumnPanel(leftColumn, quickActionsPanel, 0, 0.28d, new Insets(0, 0, 12, 0));
+        addColumnPanel(leftColumn, mediaPanel, 1, 0.30d, new Insets(0, 0, 12, 0));
+        addColumnPanel(leftColumn, soundModePanel, 2, 0.20d, new Insets(0, 0, 12, 0));
+        addColumnPanel(leftColumn, textInputPanel, 3, 0.22d, new Insets(0, 0, 0, 0));
 
-        JPanel rightColumn = new JPanel();
+        JPanel rightColumn = new JPanel(new GridBagLayout());
         rightColumn.setOpaque(false);
-        rightColumn.setLayout(new BoxLayout(rightColumn, BoxLayout.Y_AXIS));
-        rightColumn.add(tvRemotePanel);
-        rightColumn.add(Box.createVerticalGlue());
+        addColumnPanel(rightColumn, tvRemotePanel, 0, 1.0d, new Insets(0, 0, 0, 0));
 
         GridBagConstraints leftConstraints = new GridBagConstraints();
         leftConstraints.gridx = 0;
@@ -472,6 +471,17 @@ public class ControlPanel extends JPanel {
 
         statusLabel.setBorder(new EmptyBorder(12, 0, 0, 0));
         add(statusLabel, BorderLayout.SOUTH);
+    }
+
+    private void addColumnPanel(JPanel column, JPanel panel, int row, double weightY, Insets insets) {
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = 0;
+        constraints.gridy = row;
+        constraints.weightx = 1.0;
+        constraints.weighty = weightY;
+        constraints.fill = GridBagConstraints.BOTH;
+        constraints.insets = insets;
+        column.add(panel, constraints);
     }
 
     private void buildQuickActionsPanel() {
@@ -612,7 +622,9 @@ public class ControlPanel extends JPanel {
         tvHomeButton.setActionCommand("KEYCODE_HOME");
         tvRecentsButton.setActionCommand("KEYCODE_APP_SWITCH");
         tvMenuButton.setActionCommand("KEYCODE_MENU");
+        tvPreviousButton.setActionCommand("KEYCODE_MEDIA_PREVIOUS");
         tvPlayPauseButton.setActionCommand("KEYCODE_MEDIA_PLAY_PAUSE");
+        tvNextButton.setActionCommand("KEYCODE_MEDIA_NEXT");
         tvChannelUpButton.setActionCommand("KEYCODE_CHANNEL_UP");
         tvChannelDownButton.setActionCommand("KEYCODE_CHANNEL_DOWN");
         tvGuideButton.setActionCommand("KEYCODE_GUIDE");
@@ -628,7 +640,9 @@ public class ControlPanel extends JPanel {
         configureActionButton(tvHomeButton, false, ToolbarIcon.Type.HOME);
         configureActionButton(tvRecentsButton, false, ToolbarIcon.Type.APPS);
         configureActionButton(tvMenuButton, false, ToolbarIcon.Type.SETTINGS);
-        configureActionButton(tvPlayPauseButton, false, ToolbarIcon.Type.REFRESH);
+        configureActionButton(tvPreviousButton, false, ToolbarIcon.Type.MEDIA_PREVIOUS);
+        configureActionButton(tvPlayPauseButton, false, ToolbarIcon.Type.MEDIA_PLAY_PAUSE);
+        configureActionButton(tvNextButton, false, ToolbarIcon.Type.MEDIA_NEXT);
         configureActionButton(tvChannelUpButton, false, ToolbarIcon.Type.ADD);
         configureActionButton(tvChannelDownButton, false, ToolbarIcon.Type.CLEAR_CACHE);
         configureActionButton(tvGuideButton, false, ToolbarIcon.Type.DISPLAY);
@@ -639,7 +653,9 @@ public class ControlPanel extends JPanel {
         tvRemotePanel.add(Box.createVerticalStrut(12));
         tvRemotePanel.add(buildTvRow(List.of(tvBackButton, tvHomeButton, tvRecentsButton, tvMenuButton)));
         tvRemotePanel.add(Box.createVerticalStrut(10));
-        tvRemotePanel.add(buildTvRow(List.of(tvPlayPauseButton, tvMuteButton, tvInfoButton, tvGuideButton)));
+        tvRemotePanel.add(buildTvRow(List.of(tvPreviousButton, tvPlayPauseButton, tvNextButton, tvMuteButton)));
+        tvRemotePanel.add(Box.createVerticalStrut(10));
+        tvRemotePanel.add(buildTvRow(List.of(tvInfoButton, tvGuideButton)));
         tvRemotePanel.add(Box.createVerticalStrut(10));
         tvRemotePanel.add(buildTvRow(List.of(tvChannelUpButton, tvChannelDownButton)));
     }
@@ -801,6 +817,11 @@ public class ControlPanel extends JPanel {
         slider.setOpaque(false);
         slider.setForeground(slider.isEnabled() ? theme.actionBackground() : theme.textSecondary());
         slider.setBackground(theme.background());
+        slider.setPaintTicks(false);
+        slider.setPaintLabels(false);
+        slider.setBorder(BorderFactory.createEmptyBorder(2, 0, 2, 0));
+        slider.setPreferredSize(new Dimension(0, 36));
+        slider.setUI(new ThemedSliderUI(slider, theme));
     }
 
     private void styleActionButton(JButton button, boolean primary) {

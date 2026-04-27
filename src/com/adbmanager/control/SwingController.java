@@ -102,6 +102,7 @@ public class SwingController {
         view().setPowerAction(event -> executePowerAction(DevicePowerAction.fromActionCommand(event.getActionCommand())));
         view().setHomeAction(event -> view().showHomeScreen());
         view().setDisplayAction(event -> displayController.showScreen());
+        view().setMirroringAction(event -> displayController.showMirroringScreen());
         view().setControlAction(event -> showControlScreen());
         view().setApplyDisplayAction(event -> displayController.applyDisplayOverride());
         view().setResetDisplayAction(event -> displayController.resetDisplayOverride());
@@ -234,7 +235,7 @@ public class SwingController {
                     view().setDeviceSelectorEnabled(true);
                     view().setRefreshEnabled(true);
                     Device selectedDevice = model().getSelectedDevice().orElse(null);
-                    view().setPowerActionsEnabled(context.isDisplayAvailable(selectedDevice));
+                    view().setPowerActionsEnabled(context.isPowerAvailable(selectedDevice));
                 }
             }
         }.execute();
@@ -407,7 +408,7 @@ public class SwingController {
 
     private void executePowerAction(DevicePowerAction action) {
         Device selectedDevice = model().getSelectedDevice().orElse(null);
-        if (!context.isDisplayAvailable(selectedDevice)) {
+        if (!context.isPowerAvailable(selectedDevice)) {
             view().showError(Messages.text("error.power.deviceRequired"));
             return;
         }
@@ -445,7 +446,7 @@ public class SwingController {
                 } catch (Exception exception) {
                     context.handleError(Messages.text("error.power.action"), exception);
                     Device currentDevice = model().getSelectedDevice().orElse(null);
-                    view().setPowerActionsEnabled(context.isDisplayAvailable(currentDevice));
+                    view().setPowerActionsEnabled(context.isPowerAvailable(currentDevice));
                     view().setRefreshEnabled(true);
                     view().setDeviceSelectorEnabled(true);
                 }
@@ -535,7 +536,7 @@ public class SwingController {
         view().setApplicationsEnabled(applicationsAvailable);
         view().setApplicationActionsEnabled(applicationsAvailable && view().getCurrentApplicationDetails() != null);
         view().setDisplayControlsEnabled(displayAvailable);
-        view().setPowerActionsEnabled(displayAvailable);
+        view().setPowerActionsEnabled(context.isPowerAvailable(selectedDevice));
         view().setTcpipEnabled(context.isTcpipAvailable(selectedDevice));
         view().setScrcpyDeviceAvailable(displayAvailable);
         view().setSystemDeviceAvailable(systemAvailable);
@@ -571,7 +572,7 @@ public class SwingController {
         if (view().isControlScreenVisible() && controlAvailable) {
             controlController.refreshState(false);
         }
-        if (view().isDisplayScreenVisible()) {
+        if (view().isMirroringScreenVisible()) {
             displayController.refreshVisibleState();
         }
     }
