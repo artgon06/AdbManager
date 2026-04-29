@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run AdbManager",
+      "type": "java",
+      "request": "launch",
+      "mainClass": "com.adbmanager.App",
+      "preLaunchTask": "Build AdbManager",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
