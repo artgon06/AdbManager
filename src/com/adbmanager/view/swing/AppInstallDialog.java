@@ -2,7 +2,6 @@ package com.adbmanager.view.swing;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
-import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
@@ -34,7 +33,6 @@ import javax.swing.JTextArea;
 import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.plaf.basic.BasicButtonUI;
 
 import com.adbmanager.logic.model.AppInstallRequest;
 import com.adbmanager.view.Messages;
@@ -188,7 +186,7 @@ public class AppInstallDialog extends JDialog {
         }
 
         titleLabel.setForeground(theme.textPrimary());
-        titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
+        titleLabel.setFont(new Font("Inter", Font.BOLD, 28));
 
         for (JPanel panel : surfacePanels) {
             panel.setBackground(theme.background());
@@ -197,12 +195,12 @@ public class AppInstallDialog extends JDialog {
                     BorderFactory.createEmptyBorder(12, 12, 12, 12)));
         }
 
-        subtitleLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 14), theme.textSecondary());
-        optionsNoteLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
+        subtitleLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 14), theme.textSecondary());
+        optionsNoteLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 13), theme.textSecondary());
 
         for (JLabel label : List.of(filesLabel, optionsLabel, logLabel)) {
             label.setForeground(theme.textPrimary());
-            label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 15));
+            label.setFont(new Font("Inter", Font.BOLD, 15));
         }
 
         styleTextArea(filesArea, false);
@@ -461,7 +459,7 @@ public class AppInstallDialog extends JDialog {
         textArea.setCaretColor(theme.textPrimary());
         textArea.setDisabledTextColor(theme.textSecondary());
         textArea.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
-        textArea.setFont(new Font(monospace ? Font.MONOSPACED : Font.SANS_SERIF, Font.PLAIN, monospace ? 12 : 13));
+        textArea.setFont(new Font(monospace ? Font.MONOSPACED : "Inter", Font.PLAIN, monospace ? 12 : 13));
     }
 
     private void styleScrollPane(JScrollPane scrollPane) {
@@ -483,40 +481,15 @@ public class AppInstallDialog extends JDialog {
         checkBox.setBackground(theme.background());
         checkBox.setForeground(checkBox.isEnabled() ? theme.textPrimary() : theme.textSecondary());
         checkBox.setFocusPainted(false);
-        checkBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        checkBox.setFont(new Font("Inter", Font.PLAIN, 14));
     }
 
     private void styleButton(JButton button, boolean primary) {
-        boolean enabled = button.isEnabled();
-        boolean hovered = enabled && button.getModel().isRollover();
-        button.setUI(new BasicButtonUI());
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(true);
-        button.setFocusPainted(false);
-        button.setFocusable(false);
-        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
-        button.setPreferredSize(new Dimension(primary ? 0 : 180, 40));
-
-        if (enabled) {
-            java.awt.Color background = primary
-                    ? theme.actionBackground()
-                    : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.84d);
-            if (hovered) {
-                background = ThemeUtils.blend(background, theme.selectionBackground(), primary ? 0.18d : 0.22d);
-            }
-            button.setBackground(background);
-            button.setForeground(primary ? theme.actionForeground() : theme.textPrimary());
-            button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(primary ? background : theme.border(), 1),
-                    BorderFactory.createEmptyBorder(8, 12, 8, 12)));
-        } else {
-            button.setBackground(theme.surface());
-            button.setForeground(theme.textSecondary());
-            button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(theme.disabledBorder(), 1),
-                    BorderFactory.createEmptyBorder(8, 12, 8, 12)));
+        boolean iconOnly = button.getIcon() != null && (button.getText() == null || button.getText().isBlank());
+        boolean hasIconAndText = button.getIcon() != null && button.getText() != null && !button.getText().isBlank();
+        ButtonStyler.applyStandard(button, theme, primary, iconOnly, hasIconAndText);
+        if (!primary) {
+            button.setPreferredSize(new Dimension(180, 32));
         }
     }
 
@@ -524,6 +497,6 @@ public class AppInstallDialog extends JDialog {
         statusLabel.setForeground(Boolean.TRUE.equals(statusLabel.getClientProperty("error"))
                 ? new java.awt.Color(214, 80, 80)
                 : theme.actionBackground());
-        statusLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        statusLabel.setFont(new Font("Inter", Font.BOLD, 13));
     }
 }

@@ -17,7 +17,6 @@ import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -25,7 +24,6 @@ import javax.swing.JProgressBar;
 import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
-import javax.swing.plaf.basic.BasicButtonUI;
 
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.view.Messages;
@@ -252,9 +250,9 @@ public class HomePanel extends JPanel {
 
         heroTextPanel.setOpaque(false);
         heroTitleLabel.setForeground(theme.textPrimary());
-        heroTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
+        heroTitleLabel.setFont(new Font("Inter", Font.BOLD, 28));
         heroSubtitleLabel.setForeground(theme.textSecondary());
-        heroSubtitleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        heroSubtitleLabel.setFont(new Font("Inter", Font.PLAIN, 14));
 
         styleChip(stateChipLabel);
         styleChip(platformChipLabel);
@@ -418,30 +416,27 @@ public class HomePanel extends JPanel {
         JPanel topActionsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         topActionsPanel.setOpaque(false);
 
-        powerButton.setUI(new BasicButtonUI());
         powerButton.setFocusPainted(false);
         powerButton.setRolloverEnabled(true);
         powerButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         powerButton.getModel().addChangeListener(event -> stylePowerButton());
-        powerButton.setPreferredSize(new Dimension(42, 42));
+        powerButton.setPreferredSize(new Dimension(32, 32));
         topActionsPanel.add(powerButton);
         topActionsPanel.add(Box.createHorizontalStrut(10));
 
-        captureButton.setUI(new BasicButtonUI());
         captureButton.setFocusPainted(false);
         captureButton.setRolloverEnabled(true);
         captureButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         captureButton.getModel().addChangeListener(event -> styleActionButton(captureButton, true));
-        captureButton.setPreferredSize(new Dimension(42, 42));
+        captureButton.setPreferredSize(new Dimension(32, 32));
         topActionsPanel.add(captureButton);
         topActionsPanel.add(Box.createHorizontalStrut(10));
 
-        saveScreenshotButton.setUI(new BasicButtonUI());
         saveScreenshotButton.setFocusPainted(false);
         saveScreenshotButton.setRolloverEnabled(true);
         saveScreenshotButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         saveScreenshotButton.getModel().addChangeListener(event -> styleActionButton(saveScreenshotButton, false));
-        saveScreenshotButton.setPreferredSize(new Dimension(42, 42));
+        saveScreenshotButton.setPreferredSize(new Dimension(32, 32));
         topActionsPanel.add(saveScreenshotButton);
 
         capturePanel.add(topActionsPanel, BorderLayout.NORTH);
@@ -478,61 +473,25 @@ public class HomePanel extends JPanel {
 
     private void stylePowerButton() {
         boolean enabled = powerButton.isEnabled();
-        boolean hovered = enabled && powerButton.getModel().isRollover();
-        powerButton.setOpaque(true);
-        powerButton.setContentAreaFilled(true);
-        powerButton.setBorderPainted(true);
         powerButton.setText("");
         powerButton.setIcon(new ToolbarIcon(
                 ToolbarIcon.Type.POWER,
                 18,
                 enabled ? theme.actionBackground() : theme.textSecondary()));
-
-        java.awt.Color background = ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.84d);
-        if (hovered) {
-            background = ThemeUtils.blend(background, theme.selectionBackground(), 0.24d);
-        }
-        powerButton.setBackground(background);
-        powerButton.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(enabled ? theme.border() : theme.disabledBorder(), 1),
-                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
+        ButtonStyler.applyStandard(powerButton, theme, false, true, false);
     }
 
     private void styleActionButton(JButton button, boolean primary) {
         boolean enabled = button.isEnabled();
-        boolean hovered = enabled && button.getModel().isRollover();
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(true);
-        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 15));
+        button.setFont(new Font("Inter", Font.BOLD, 15));
         button.setIcon(new ToolbarIcon(
                 button == captureButton ? ToolbarIcon.Type.CAMERA : ToolbarIcon.Type.EXPORT,
                 18,
                 enabled
                         ? (primary ? theme.actionForeground() : theme.textPrimary())
                         : theme.textSecondary()));
-        button.setIconTextGap(0);
-
-        if (enabled) {
-            java.awt.Color background = primary
-                    ? theme.actionBackground()
-                    : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.82d);
-            if (hovered) {
-                background = ThemeUtils.blend(background, theme.selectionBackground(), primary ? 0.18d : 0.26d);
-            }
-            button.setBackground(background);
-            button.setForeground(primary ? theme.actionForeground() : theme.textPrimary());
-            button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(primary ? background : theme.border(), 1),
-                    BorderFactory.createEmptyBorder(8, 18, 8, 18)));
-            return;
-        }
-
-        button.setBackground(theme.secondarySurface());
-        button.setForeground(theme.textSecondary());
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(theme.disabledBorder(), 1),
-                BorderFactory.createEmptyBorder(8, 18, 8, 18)));
+        // determine flags: these buttons in HomePanel are icon-only
+        ButtonStyler.applyStandard(button, theme, primary, true, false);
     }
 
     private void styleChip(JLabel label) {
@@ -542,7 +501,7 @@ public class HomePanel extends JPanel {
         label.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(6, 10, 6, 10)));
-        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        label.setFont(new Font("Inter", Font.BOLD, 12));
     }
 
     private void styleSurfaceCard(JPanel panel, boolean elevated) {
@@ -565,20 +524,20 @@ public class HomePanel extends JPanel {
         styleSurfaceCard(panel, false);
 
         titleLabel.setForeground(theme.textSecondary());
-        titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        titleLabel.setFont(new Font("Inter", Font.BOLD, 12));
 
         valueLabel.setForeground(theme.textPrimary());
-        valueLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 18));
+        valueLabel.setFont(new Font("Inter", Font.BOLD, 18));
 
         footerLabel.setForeground(theme.textSecondary());
-        footerLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        footerLabel.setFont(new Font("Inter", Font.PLAIN, 12));
 
         progressBar.setBackground(ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.72d));
         progressBar.setForeground(accentColor);
         progressBar.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(1, 1, 1, 1)));
-        progressBar.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+        progressBar.setFont(new Font("Inter", Font.BOLD, 11));
     }
 
     private void resetMetric(JLabel valueLabel, JLabel footerLabel, JProgressBar progressBar) {
@@ -673,8 +632,8 @@ public class HomePanel extends JPanel {
                 title,
                 TitledBorder.LEFT,
                 TitledBorder.TOP,
-                new Font(Font.SANS_SERIF, Font.BOLD, 18),
-                theme.textPrimary());
+                new Font("Inter", Font.BOLD, 18),
+                        theme.textPrimary());
     }
 
     private String asHtml(String text, int width) {
@@ -722,9 +681,9 @@ public class HomePanel extends JPanel {
         private void applyTheme(AppTheme theme) {
             styleSurfaceCard(panel, false);
             titleLabel.setForeground(theme.textSecondary());
-            titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+            titleLabel.setFont(new Font("Inter", Font.BOLD, 11));
             valueLabel.setForeground(theme.textPrimary());
-            valueLabel.setFont(new Font(Font.SANS_SERIF, wide ? Font.PLAIN : Font.BOLD, wide ? 13 : 15));
+            valueLabel.setFont(new Font("Inter", wide ? Font.PLAIN : Font.BOLD, wide ? 13 : 15));
         }
     }
 }

@@ -30,10 +30,9 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.KeyStroke;
-import javax.swing.SwingUtilities;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
-import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
 
 import com.adbmanager.logic.model.AdbToolInfo;
@@ -288,9 +287,9 @@ public class WirelessConnectionDialog extends JDialog {
         secondaryTabsPanel.setBackground(theme.background());
 
         titleLabel.setForeground(theme.textPrimary());
-        titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
+        titleLabel.setFont(new Font("Inter", Font.BOLD, 28));
         subtitleLabel.setForeground(theme.textSecondary());
-        subtitleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        subtitleLabel.setFont(new Font("Inter", Font.PLAIN, 14));
 
         for (JPanel panel : surfacePanels) {
             panel.setOpaque(true);
@@ -309,18 +308,18 @@ public class WirelessConnectionDialog extends JDialog {
 
         for (JLabel label : secondaryLabels) {
             label.setForeground(theme.textSecondary());
-            label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+            label.setFont(new Font("Inter", Font.BOLD, 13));
         }
 
         for (JLabel label : primaryLabels) {
             label.setForeground(theme.textPrimary());
-            label.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+            label.setFont(new Font("Inter", Font.PLAIN, 14));
         }
 
         for (WrappingTextArea wrappingTextArea : wrappingTextAreas) {
-            wrappingTextArea.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
+            wrappingTextArea.applyTheme(theme, new Font("Inter", Font.PLAIN, 13), theme.textSecondary());
         }
-        adbLocationValueLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 14), theme.textPrimary());
+        adbLocationValueLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 14), theme.textPrimary());
 
         stylePrimaryTabButton(connectTabButton);
         stylePrimaryTabButton(pairTabButton);
@@ -354,7 +353,7 @@ public class WirelessConnectionDialog extends JDialog {
         qrPreviewLabel.setOpaque(true);
         qrPreviewLabel.setBackground(java.awt.Color.WHITE);
         qrPreviewLabel.setForeground(theme.placeholderForeground());
-        qrPreviewLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+        qrPreviewLabel.setFont(new Font("Inter", Font.BOLD, 14));
         qrPreviewLabel.setHorizontalAlignment(SwingConstants.CENTER);
         qrPreviewLabel.setVerticalAlignment(SwingConstants.CENTER);
         qrPreviewLabel.setBorder(BorderFactory.createCompoundBorder(
@@ -364,7 +363,7 @@ public class WirelessConnectionDialog extends JDialog {
         statusLabel.setForeground(Boolean.TRUE.equals(statusLabel.getClientProperty("error"))
                 ? new java.awt.Color(214, 80, 80)
                 : theme.textSecondary());
-        statusLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        statusLabel.setFont(new Font("Inter", Font.BOLD, 13));
 
         revalidate();
         repaint();
@@ -660,7 +659,7 @@ public class WirelessConnectionDialog extends JDialog {
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(selected ? theme.actionBackground() : theme.border(), 1),
                 BorderFactory.createEmptyBorder(12, 14, 12, 14)));
-        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+        button.setFont(new Font("Inter", Font.BOLD, 14));
     }
 
     private void styleSecondaryTabButton(JToggleButton button) {
@@ -679,7 +678,7 @@ public class WirelessConnectionDialog extends JDialog {
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(selected ? theme.actionBackground() : theme.border(), 1),
                 BorderFactory.createEmptyBorder(10, 12, 10, 12)));
-        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        button.setFont(new Font("Inter", Font.BOLD, 13));
     }
 
     private void refreshTabStyles() {
@@ -700,44 +699,15 @@ public class WirelessConnectionDialog extends JDialog {
         field.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(9, 10, 9, 10)));
-        field.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        field.setFont(new Font("Inter", Font.PLAIN, 14));
     }
 
     private void styleActionButton(JButton button, boolean primary) {
-        button.setUI(new BasicButtonUI());
         button.setFocusable(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
         button.setRolloverEnabled(true);
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
-        button.setMargin(new Insets(0, 0, 0, 0));
-        if (!Boolean.TRUE.equals(button.getClientProperty("hoverListenerInstalled"))) {
-            button.putClientProperty("hoverListenerInstalled", Boolean.TRUE);
-            button.getModel().addChangeListener(event -> styleActionButton(button, primary));
-        }
-
-        if (button.isEnabled()) {
-            boolean hovered = button.getModel().isRollover();
-            java.awt.Color background = primary
-                    ? theme.actionBackground()
-                    : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.84d);
-            if (hovered) {
-                background = ThemeUtils.blend(background, theme.selectionBackground(), primary ? 0.16d : 0.24d);
-            }
-            button.setBackground(background);
-            button.setForeground(primary ? theme.actionForeground() : theme.textPrimary());
-            button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(primary ? background : theme.border(), 1),
-                    BorderFactory.createEmptyBorder(10, 14, 10, 14)));
-            return;
-        }
-
-        button.setBackground(theme.secondarySurface());
-        button.setForeground(theme.textSecondary());
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(theme.disabledBorder(), 1),
-                BorderFactory.createEmptyBorder(10, 14, 10, 14)));
+        // text-only action buttons in this dialog
+        ButtonStyler.applyStandard(button, theme, primary, false, false);
     }
 
     private void updateActionAvailability(boolean busy) {

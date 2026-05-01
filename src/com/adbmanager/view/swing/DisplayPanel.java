@@ -2,14 +2,14 @@ package com.adbmanager.view.swing;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
-import java.awt.Cursor;
 import java.awt.event.ActionListener;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -33,7 +33,6 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.plaf.basic.BasicButtonUI;
 
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DisplayInfo;
@@ -321,7 +320,7 @@ public class DisplayPanel extends JPanel {
         headerPanel.setBackground(theme.background());
         headerActionsPanel.setBackground(theme.background());
         titleLabel.setForeground(theme.textPrimary());
-        titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
+        titleLabel.setFont(new Font("Inter", Font.BOLD, 28));
 
         metricsPanel.setBackground(theme.background());
         metricsContent.setBackground(theme.background());
@@ -338,26 +337,26 @@ public class DisplayPanel extends JPanel {
 
         for (JLabel keyLabel : fieldLabels.values()) {
             keyLabel.setForeground(theme.textSecondary());
-            keyLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+            keyLabel.setFont(new Font("Inter", Font.BOLD, 13));
         }
 
         for (JLabel valueLabel : dynamicValueLabels) {
             valueLabel.setForeground(theme.textPrimary());
-            valueLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+            valueLabel.setFont(new Font("Inter", Font.PLAIN, 15));
         }
 
         inputTitleLabel.setForeground(theme.textPrimary());
-        inputTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
+        inputTitleLabel.setFont(new Font("Inter", Font.BOLD, 16));
         originalAspectLabel.setForeground(theme.textSecondary());
-        originalAspectLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        originalAspectLabel.setFont(new Font("Inter", Font.PLAIN, 14));
         customAspectLabel.setForeground(theme.textSecondary());
-        customAspectLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        customAspectLabel.setFont(new Font("Inter", Font.PLAIN, 14));
         styleFormLabel(widthLabel);
         styleFormLabel(heightLabel);
         styleFormLabel(densityLabel);
         styleFormLabel(timeoutLabel);
         darkModeTitleLabel.setForeground(theme.textPrimary());
-        darkModeTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
+        darkModeTitleLabel.setFont(new Font("Inter", Font.BOLD, 16));
         styleDarkModeToggle();
         styleInputField(widthField);
         styleInputField(heightField);
@@ -594,7 +593,7 @@ public class DisplayPanel extends JPanel {
 
         JLabel suggestionsLabel = new JLabel(Messages.text("display.override.suggestions"));
         suggestionsLabel.setForeground(theme.textSecondary());
-        suggestionsLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        suggestionsLabel.setFont(new Font("Inter", Font.BOLD, 13));
         suggestionsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         suggestionButtonsPanel.add(suggestionsLabel);
 
@@ -614,7 +613,7 @@ public class DisplayPanel extends JPanel {
         if (suggestionButtons.isEmpty()) {
             JLabel emptyLabel = new JLabel(Messages.text("display.override.suggestions.empty"));
             emptyLabel.setForeground(theme.textSecondary());
-            emptyLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+            emptyLabel.setFont(new Font("Inter", Font.PLAIN, 14));
             suggestionButtonsPanel.add(emptyLabel);
         }
 
@@ -683,7 +682,6 @@ public class DisplayPanel extends JPanel {
     }
 
     private void configureActionButton(JButton button) {
-        button.setUI(new BasicButtonUI());
         button.setFocusPainted(false);
         button.setFocusable(false);
         button.setRolloverEnabled(true);
@@ -699,7 +697,7 @@ public class DisplayPanel extends JPanel {
 
     private void styleFormLabel(JLabel label) {
         label.setForeground(theme.textSecondary());
-        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        label.setFont(new Font("Inter", Font.BOLD, 13));
     }
 
     private void styleDarkModeToggle() {
@@ -720,7 +718,7 @@ public class DisplayPanel extends JPanel {
         field.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(8, 10, 8, 10)));
-        field.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+        field.setFont(new Font("Inter", Font.PLAIN, 15));
         field.setColumns(5);
         field.setPreferredSize(new Dimension(84, 36));
         field.setMinimumSize(new Dimension(72, 36));
@@ -745,7 +743,6 @@ public class DisplayPanel extends JPanel {
     }
 
     private void styleActionButton(JButton button, boolean primary) {
-        boolean hovered = button.isEnabled() && button.getModel().isRollover();
         if (button == applyButton) {
             button.setIcon(new ToolbarIcon(ToolbarIcon.Type.ENABLE, 16,
                     button.isEnabled() ? theme.actionForeground() : theme.textSecondary()));
@@ -756,26 +753,9 @@ public class DisplayPanel extends JPanel {
             button.setIcon(null);
         }
         button.setIconTextGap(8);
-        if (button.isEnabled()) {
-            java.awt.Color background = primary
-                    ? theme.actionBackground()
-                    : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.84d);
-            if (hovered) {
-                background = ThemeUtils.blend(background, theme.selectionBackground(), primary ? 0.18d : 0.24d);
-            }
-            button.setBackground(background);
-            button.setForeground(primary ? theme.actionForeground() : theme.textPrimary());
-            button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(primary ? background : theme.border(), 1),
-                    BorderFactory.createEmptyBorder(8, 14, 8, 14)));
-            return;
-        }
-
-        button.setBackground(theme.secondarySurface());
-        button.setForeground(theme.textSecondary());
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(theme.disabledBorder(), 1),
-                BorderFactory.createEmptyBorder(8, 14, 8, 14)));
+        boolean iconOnly = button.getIcon() != null && (button.getText() == null || button.getText().isBlank());
+        boolean hasIconAndText = button.getIcon() != null && button.getText() != null && !button.getText().isBlank();
+        ButtonStyler.applyStandard(button, theme, primary, iconOnly, hasIconAndText);
     }
 
     private GridBagConstraints buildLeftConstraints() {
@@ -806,8 +786,8 @@ public class DisplayPanel extends JPanel {
                 title,
                 TitledBorder.LEFT,
                 TitledBorder.TOP,
-                new Font(Font.SANS_SERIF, Font.BOLD, 18),
-                theme.textPrimary());
+                new Font("Inter", Font.BOLD, 18),
+                        theme.textPrimary());
     }
 
     private Integer parsePositiveInteger(String value) {

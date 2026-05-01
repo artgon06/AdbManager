@@ -1,11 +1,11 @@
 package com.adbmanager.view.swing;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.Cursor;
-import java.awt.Component;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.event.ActionEvent;
@@ -16,9 +16,9 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.LinkedHashMap;
 
 import javax.swing.AbstractAction;
 import javax.swing.ActionMap;
@@ -27,34 +27,33 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.DefaultComboBoxModel;
+import javax.swing.InputMap;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
-import javax.swing.InputMap;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JToggleButton;
+import javax.swing.KeyStroke;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
-import javax.swing.KeyStroke;
 import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
 
-import com.adbmanager.logic.model.DeviceDirectoryListing;
+import com.adbmanager.logic.model.AppDetails;
+import com.adbmanager.logic.model.ControlState;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
+import com.adbmanager.logic.model.DeviceDirectoryListing;
 import com.adbmanager.logic.model.DeviceFileEntry;
 import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.DeviceSoundMode;
-import com.adbmanager.logic.model.AppDetails;
-import com.adbmanager.logic.model.ControlState;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.logic.model.ScrcpyCamera;
 import com.adbmanager.logic.model.ScrcpyLaunchRequest;
@@ -1193,10 +1192,10 @@ public class MainFrame extends JFrame {
         settingsNavigationPanel.setBackground(theme.surface());
         deviceSelectorPanel.setBackground(theme.surface());
         appTitleLabel.setForeground(theme.textPrimary());
-        appTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 16));
+        appTitleLabel.setFont(new Font("Inter", Font.BOLD, 16));
 
         deviceLabel.setForeground(theme.textSecondary());
-        deviceLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+        deviceLabel.setFont(new Font("Inter", Font.BOLD, 14));
 
         ThemedComboBoxUI.apply(deviceSelector, theme);
         deviceSelector.setPreferredSize(new Dimension(360, 38));
@@ -1450,24 +1449,20 @@ public class MainFrame extends JFrame {
 
     private void configureTopBarIconButton(JButton button, ToolbarIcon.Type iconType) {
         button.putClientProperty("iconType", iconType);
-        button.setUI(new BasicButtonUI());
         button.setFocusable(false);
         button.setFocusPainted(false);
         button.setRolloverEnabled(true);
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        button.setPreferredSize(new Dimension(36, 36));
-        button.setMargin(new java.awt.Insets(0, 0, 0, 0));
+        button.setPreferredSize(new Dimension(32, 32));
         button.getModel().addChangeListener(event -> styleTopBarIconButton(button));
     }
 
     private void configureRefreshButton() {
-        refreshButton.setUI(new BasicButtonUI());
         refreshButton.setFocusable(false);
         refreshButton.setFocusPainted(false);
         refreshButton.setRolloverEnabled(true);
         refreshButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        refreshButton.setPreferredSize(new Dimension(36, 36));
-        refreshButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
+        refreshButton.setPreferredSize(new Dimension(32, 32));
         refreshButton.getModel().addChangeListener(event -> styleRefreshButton());
 
         deviceSelector.setFocusable(false);
@@ -1475,25 +1470,21 @@ public class MainFrame extends JFrame {
     }
 
     private void configureWirelessButton() {
-        wirelessButton.setUI(new BasicButtonUI());
         wirelessButton.setFocusable(false);
         wirelessButton.setFocusPainted(false);
         wirelessButton.setRolloverEnabled(true);
         wirelessButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        wirelessButton.setPreferredSize(new Dimension(36, 36));
-        wirelessButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
-        wirelessButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 24));
+        wirelessButton.setPreferredSize(new Dimension(32, 32));
+        wirelessButton.setFont(new Font("Inter", Font.BOLD, 24));
         wirelessButton.getModel().addChangeListener(event -> styleWirelessButton());
     }
 
     private void configureTcpipButton() {
-        tcpipButton.setUI(new BasicButtonUI());
         tcpipButton.setFocusable(false);
         tcpipButton.setFocusPainted(false);
         tcpipButton.setRolloverEnabled(true);
         tcpipButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        tcpipButton.setPreferredSize(new Dimension(36, 36));
-        tcpipButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
+        tcpipButton.setPreferredSize(new Dimension(32, 32));
         tcpipButton.getModel().addChangeListener(event -> styleTcpipButton());
     }
 
@@ -1548,70 +1539,30 @@ public class MainFrame extends JFrame {
     }
 
     private void styleTopBarIconButton(JButton button) {
-        boolean hovered = button.getModel().isRollover() && button.isEnabled();
-        java.awt.Color background = hovered
-                ? ThemeUtils.blend(currentTheme.surface(), currentTheme.selectionBackground(), 0.25d)
-                : currentTheme.surface();
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBackground(background);
-        button.setForeground(button.isEnabled() ? currentTheme.textSecondary() : currentTheme.disabledBorder());
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(currentTheme.border(), 1),
-                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
+        // top-bar icon buttons are icon-only
+        ButtonStyler.applyStandard(button, currentTheme, false, true, false);
         button.setText("");
         button.setIcon(new ToolbarIcon(
-                (ToolbarIcon.Type) button.getClientProperty("iconType"),
-                18,
-                button.getForeground()));
+            (ToolbarIcon.Type) button.getClientProperty("iconType"),
+            18,
+            button.isEnabled() ? currentTheme.textSecondary() : currentTheme.disabledBorder()));
     }
 
     private void styleRefreshButton() {
-        boolean hovered = refreshButton.getModel().isRollover() && refreshButton.isEnabled();
-        refreshButton.setOpaque(true);
-        refreshButton.setContentAreaFilled(true);
-        refreshButton.setBackground(hovered
-                ? ThemeUtils.blend(currentTheme.surface(), currentTheme.selectionBackground(), 0.24d)
-                : currentTheme.surface());
-        refreshButton.setForeground(refreshButton.isEnabled()
-                ? currentTheme.actionBackground()
-                : currentTheme.textSecondary());
-        refreshButton.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(currentTheme.border(), 1),
-                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
-        refreshButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.REFRESH, 20, refreshButton.getForeground()));
+        ButtonStyler.applyStandard(refreshButton, currentTheme, false, true, false);
+        refreshButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.REFRESH, 20,
+            refreshButton.isEnabled() ? currentTheme.actionBackground() : currentTheme.textSecondary()));
     }
 
     private void styleWirelessButton() {
-        boolean hovered = wirelessButton.getModel().isRollover() && wirelessButton.isEnabled();
-        wirelessButton.setOpaque(true);
-        wirelessButton.setContentAreaFilled(true);
-        wirelessButton.setBackground(hovered
-                ? ThemeUtils.blend(currentTheme.surface(), currentTheme.selectionBackground(), 0.24d)
-                : currentTheme.surface());
-        wirelessButton.setForeground(wirelessButton.isEnabled()
-                ? currentTheme.actionBackground()
-                : currentTheme.textSecondary());
-        wirelessButton.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(currentTheme.border(), 1),
-                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
+        ButtonStyler.applyStandard(wirelessButton, currentTheme, false, true, false);
         wirelessButton.setText("+");
     }
 
     private void styleTcpipButton() {
-        boolean hovered = tcpipButton.getModel().isRollover() && tcpipButton.isEnabled();
-        tcpipButton.setOpaque(true);
-        tcpipButton.setContentAreaFilled(true);
-        tcpipButton.setBackground(hovered
-                ? ThemeUtils.blend(currentTheme.surface(), currentTheme.selectionBackground(), 0.24d)
-                : currentTheme.surface());
-        tcpipButton.setForeground(tcpipButton.isEnabled()
-                ? currentTheme.actionBackground()
-                : currentTheme.textSecondary());
-        tcpipButton.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(currentTheme.border(), 1),
-                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
-        tcpipButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.WIRELESS, 18, tcpipButton.getForeground()));
+        ButtonStyler.applyStandard(tcpipButton, currentTheme, false, true, false);
+        tcpipButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.WIRELESS, 18,
+            tcpipButton.isEnabled() ? currentTheme.actionBackground() : currentTheme.textSecondary()));
         tcpipButton.setText("");
     }
 
@@ -1623,7 +1574,7 @@ public class MainFrame extends JFrame {
             menuItem.setBackground(currentTheme.surface());
             menuItem.setForeground(menuItem.isEnabled() ? currentTheme.textPrimary() : currentTheme.textSecondary());
             menuItem.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-            menuItem.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+            menuItem.setFont(new Font("Inter", Font.PLAIN, 14));
         }
     }
 

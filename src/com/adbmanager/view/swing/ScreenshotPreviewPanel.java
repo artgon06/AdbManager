@@ -84,10 +84,10 @@ public class ScreenshotPreviewPanel extends JPanel {
         g2d.drawRoundRect(inset, inset, availableWidth, availableHeight, 18, 18);
 
         g2d.setColor(theme.placeholderForeground());
-        g2d.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
+        g2d.setFont(new Font("Inter", Font.BOLD, 22));
         drawCenteredString(g2d, Messages.text("home.preview.empty.title"), getWidth(), getHeight() / 2 - 10);
 
-        g2d.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+        g2d.setFont(new Font("Inter", Font.PLAIN, 15));
         drawCenteredString(g2d, Messages.text("home.preview.empty.subtitle"), getWidth(), getHeight() / 2 + 24);
     }
 
@@ -110,7 +110,7 @@ public class ScreenshotPreviewPanel extends JPanel {
         String title = Messages.text("home.preview.title").toUpperCase();
         Graphics2D rotated = (Graphics2D) g2d.create();
         rotated.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        rotated.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 11));
+        rotated.setFont(new Font("Inter", Font.BOLD, 11));
         rotated.setColor(new Color(
                 theme.textSecondary().getRed(),
                 theme.textSecondary().getGreen(),
