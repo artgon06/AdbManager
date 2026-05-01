@@ -1285,8 +1285,8 @@ public class MainFrame extends JFrame {
 
     private void buildFrame() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setMinimumSize(new Dimension(1240, 820));
-        setSize(new Dimension(1440, 900));
+        setMinimumSize(new Dimension(900, 700));
+        setSize(new Dimension(1200, 800));
         setLocationRelativeTo(null);
         getContentPane().setLayout(new BorderLayout());
 
