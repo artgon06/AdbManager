@@ -26,7 +26,6 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
-import javax.swing.plaf.basic.BasicButtonUI;
 
 import com.adbmanager.logic.model.AndroidUser;
 import com.adbmanager.logic.model.KeyboardInputMethod;
@@ -243,9 +242,9 @@ public class SystemPanel extends JPanel {
         }
 
         titleLabel.setForeground(theme.textPrimary());
-        titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
+        titleLabel.setFont(new Font("Inter", Font.BOLD, 28));
         subtitleLabel.setForeground(theme.textSecondary());
-        subtitleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        subtitleLabel.setFont(new Font("Inter", Font.PLAIN, 14));
 
         styleSection(usersPanel, Messages.text("system.users.title"));
         styleSection(localesPanel, Messages.text("system.locales.title"));
@@ -260,17 +259,17 @@ public class SystemPanel extends JPanel {
                 currentKeyboardLabel,
                 keyboardSelectionLabel)) {
             label.setForeground(theme.textSecondary());
-            label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+            label.setFont(new Font("Inter", Font.BOLD, 13));
         }
 
         for (JLabel valueLabel : List.of(currentUserValueLabel, currentKeyboardValueLabel)) {
             valueLabel.setForeground(theme.textPrimary());
-            valueLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+            valueLabel.setFont(new Font("Inter", Font.PLAIN, 14));
         }
 
-        appLanguagesHintLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
-        gesturesHintLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
-        keyboardHintLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
+        appLanguagesHintLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 13), theme.textSecondary());
+        gesturesHintLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 13), theme.textSecondary());
+        keyboardHintLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 13), theme.textSecondary());
 
         styleTextArea(usersArea);
         styleScrollPane(usersScrollPane);
@@ -542,8 +541,8 @@ public class SystemPanel extends JPanel {
                         title,
                         TitledBorder.LEFT,
                         TitledBorder.TOP,
-                        new Font(Font.SANS_SERIF, Font.BOLD, 18),
-                        theme.textPrimary()),
+                        new Font("Inter", Font.BOLD, 18),
+                                theme.textPrimary()),
                 BorderFactory.createEmptyBorder(14, 14, 14, 14)));
     }
 
@@ -552,7 +551,7 @@ public class SystemPanel extends JPanel {
         textArea.setDisabledTextColor(theme.textSecondary());
         textArea.setBackground(theme.secondarySurface());
         textArea.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
-        textArea.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        textArea.setFont(new Font("Inter", Font.PLAIN, 14));
     }
 
     private void styleScrollPane(JScrollPane scrollPane) {
@@ -576,7 +575,7 @@ public class SystemPanel extends JPanel {
         textField.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(10, 10, 10, 10)));
-        textField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        textField.setFont(new Font("Inter", Font.PLAIN, 14));
         textField.setPreferredSize(new Dimension(0, 42));
         textField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
     }
@@ -588,7 +587,7 @@ public class SystemPanel extends JPanel {
         comboBox.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(4, 8, 4, 8)));
-        comboBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        comboBox.setFont(new Font("Inter", Font.PLAIN, 14));
         comboBox.setBackground(theme.secondarySurface());
         comboBox.setForeground(theme.textPrimary());
     }
@@ -598,11 +597,10 @@ public class SystemPanel extends JPanel {
         checkBox.setBackground(theme.background());
         checkBox.setForeground(checkBox.isEnabled() ? theme.textPrimary() : theme.textSecondary());
         checkBox.setFocusPainted(false);
-        checkBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        checkBox.setFont(new Font("Inter", Font.PLAIN, 14));
     }
 
     private void configureButton(JButton button) {
-        button.setUI(new BasicButtonUI());
         button.setFocusPainted(false);
         button.setFocusable(false);
         button.setRolloverEnabled(true);
@@ -612,38 +610,15 @@ public class SystemPanel extends JPanel {
 
     private void styleButton(JButton button, boolean primary) {
         button.putClientProperty("primary", primary);
-        boolean enabled = button.isEnabled();
-        boolean hovered = enabled && button.getModel().isRollover();
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(true);
-        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
-
-        if (enabled) {
-            java.awt.Color background = primary
-                    ? theme.actionBackground()
-                    : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.84d);
-            if (hovered) {
-                background = ThemeUtils.blend(background, theme.selectionBackground(), primary ? 0.18d : 0.22d);
-            }
-            button.setBackground(background);
-            button.setForeground(primary ? theme.actionForeground() : theme.textPrimary());
-            button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(primary ? background : theme.border(), 1),
-                    BorderFactory.createEmptyBorder(8, 12, 8, 12)));
-        } else {
-            button.setBackground(theme.surface());
-            button.setForeground(theme.textSecondary());
-            button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(theme.disabledBorder(), 1),
-                    BorderFactory.createEmptyBorder(8, 12, 8, 12)));
-        }
+        boolean iconOnly = button.getIcon() != null && (button.getText() == null || button.getText().isBlank());
+        boolean hasIconAndText = button.getIcon() != null && button.getText() != null && !button.getText().isBlank();
+        ButtonStyler.applyStandard(button, theme, primary, iconOnly, hasIconAndText);
     }
 
     private void styleStatusLabel() {
         boolean error = Boolean.TRUE.equals(statusLabel.getClientProperty("error"));
         statusLabel.setForeground(error ? new java.awt.Color(214, 80, 80) : theme.actionBackground());
-        statusLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        statusLabel.setFont(new Font("Inter", Font.BOLD, 13));
     }
 
     private String formatUser(AndroidUser user) {
@@ -674,8 +649,8 @@ public class SystemPanel extends JPanel {
                 title,
                 TitledBorder.LEFT,
                 TitledBorder.TOP,
-                new Font(Font.SANS_SERIF, Font.BOLD, 18),
-                theme.textPrimary());
+                new Font("Inter", Font.BOLD, 18),
+                        theme.textPrimary());
     }
 
     private final class UserRenderer extends DefaultListCellRenderer {

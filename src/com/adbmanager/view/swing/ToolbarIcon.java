@@ -109,7 +109,14 @@ public class ToolbarIcon implements Icon {
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
         g2d.scale(size / (double) VIEWBOX_SIZE, size / (double) VIEWBOX_SIZE);
-        g2d.setColor(color);
+        java.awt.Color paintColor = null;
+        if (component != null) {
+            paintColor = component.getForeground();
+        }
+        if (paintColor == null) {
+            paintColor = color != null ? color : Color.BLACK;
+        }
+        g2d.setColor(paintColor);
         g2d.fill(type.shape());
         g2d.dispose();
     }

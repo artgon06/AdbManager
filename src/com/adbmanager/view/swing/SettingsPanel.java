@@ -5,7 +5,6 @@ import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Font;
 import java.awt.GridLayout;
-import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusAdapter;
@@ -27,7 +26,6 @@ import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
-import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
 
 import com.adbmanager.view.Messages;
@@ -216,12 +214,12 @@ public class SettingsPanel extends JPanel {
         applySectionTheme(adbPanel, Messages.text("settings.adb.title"), theme);
 
         appNameValue.setForeground(theme.textPrimary());
-        appNameValue.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 26));
-        aboutSummaryLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 14), theme.textSecondary());
+        appNameValue.setFont(new Font("Inter", Font.BOLD, 26));
+        aboutSummaryLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 14), theme.textSecondary());
         creditsTitleLabel.setForeground(theme.textPrimary());
-        creditsTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 15));
-        scrcpyCreditLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
-        deviceCatalogCreditLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
+        creditsTitleLabel.setFont(new Font("Inter", Font.BOLD, 15));
+        scrcpyCreditLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 13), theme.textSecondary());
+        deviceCatalogCreditLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 13), theme.textSecondary());
 
         versionBadge.setOpaque(true);
         versionBadge.setBackground(ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.88d));
@@ -229,7 +227,7 @@ public class SettingsPanel extends JPanel {
         versionBadge.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(6, 12, 6, 12)));
-        versionBadge.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        versionBadge.setFont(new Font("Inter", Font.BOLD, 13));
 
         styleLinkButton(theme);
         styleLinkButton(scrcpyRepositoryButton, theme);
@@ -250,20 +248,20 @@ public class SettingsPanel extends JPanel {
         adbPathField.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(10, 12, 10, 12)));
-        adbPathField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
-        adbHintLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
+        adbPathField.setFont(new Font("Inter", Font.PLAIN, 14));
+        adbHintLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 13), theme.textSecondary());
 
         autoRefreshOnFocusCheckBox.setOpaque(true);
         autoRefreshOnFocusCheckBox.setBackground(theme.background());
         autoRefreshOnFocusCheckBox.setForeground(theme.textPrimary());
         autoRefreshOnFocusCheckBox.setFocusPainted(false);
-        autoRefreshOnFocusCheckBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+        autoRefreshOnFocusCheckBox.setFont(new Font("Inter", Font.PLAIN, 15));
 
         useCustomAdbPathCheckBox.setOpaque(true);
         useCustomAdbPathCheckBox.setBackground(theme.background());
         useCustomAdbPathCheckBox.setForeground(theme.textPrimary());
         useCustomAdbPathCheckBox.setFocusPainted(false);
-        useCustomAdbPathCheckBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+        useCustomAdbPathCheckBox.setFont(new Font("Inter", Font.PLAIN, 15));
     }
 
     private void buildPanel() {
@@ -273,8 +271,8 @@ public class SettingsPanel extends JPanel {
         JPanel headerPanel = new JPanel();
         headerPanel.setOpaque(false);
         headerPanel.setLayout(new BoxLayout(headerPanel, BoxLayout.Y_AXIS));
-        titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
-        subtitleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        titleLabel.setFont(new Font("Inter", Font.BOLD, 28));
+        subtitleLabel.setFont(new Font("Inter", Font.PLAIN, 14));
         headerPanel.add(titleLabel);
         headerPanel.add(Box.createVerticalStrut(6));
         headerPanel.add(subtitleLabel);
@@ -315,17 +313,14 @@ public class SettingsPanel extends JPanel {
         brandRow.add(versionBadge);
         brandRow.add(Box.createHorizontalGlue());
 
-        repositoryButton.setUI(new BasicButtonUI());
         repositoryButton.setFocusPainted(false);
         repositoryButton.setRolloverEnabled(true);
         repositoryButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         repositoryButton.getModel().addChangeListener(event -> styleLinkButton(theme));
-        scrcpyRepositoryButton.setUI(new BasicButtonUI());
         scrcpyRepositoryButton.setFocusPainted(false);
         scrcpyRepositoryButton.setRolloverEnabled(true);
         scrcpyRepositoryButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         scrcpyRepositoryButton.getModel().addChangeListener(event -> styleLinkButton(scrcpyRepositoryButton, theme));
-        deviceCatalogButton.setUI(new BasicButtonUI());
         deviceCatalogButton.setFocusPainted(false);
         deviceCatalogButton.setRolloverEnabled(true);
         deviceCatalogButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -415,7 +410,6 @@ public class SettingsPanel extends JPanel {
 
         adbPathField.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, 40));
         adbPathField.setAlignmentX(LEFT_ALIGNMENT);
-        adbPathBrowseButton.setUI(new BasicButtonUI());
         adbPathBrowseButton.setFocusPainted(false);
         adbPathBrowseButton.setRolloverEnabled(true);
         adbPathBrowseButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -453,14 +447,14 @@ public class SettingsPanel extends JPanel {
                         title,
                         TitledBorder.LEFT,
                         TitledBorder.TOP,
-                        new Font(Font.SANS_SERIF, Font.BOLD, 18),
-                        theme.textPrimary()),
+                        new Font("Inter", Font.BOLD, 18),
+                                theme.textPrimary()),
                 BorderFactory.createEmptyBorder(16, 12, 16, 12)));
     }
 
     private void styleSectionLabel(JLabel label, AppTheme theme) {
         label.setForeground(theme.textSecondary());
-        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+        label.setFont(new Font("Inter", Font.BOLD, 14));
     }
 
     private void styleLinkButton(AppTheme theme) {
@@ -468,36 +462,15 @@ public class SettingsPanel extends JPanel {
     }
 
     private void styleLinkButton(JButton button, AppTheme theme) {
-        boolean hovered = button.isEnabled() && button.getModel().isRollover();
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(true);
-        button.setBackground(hovered
-                ? ThemeUtils.blend(theme.background(), theme.selectionBackground(), 0.22d)
-                : theme.background());
-        button.setForeground(theme.actionBackground());
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(theme.border(), 1),
-                BorderFactory.createEmptyBorder(10, 14, 10, 14)));
-        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+        // Use standardized button visuals for links
+        ButtonStyler.applyStandard(button, theme, false, false, false);
         button.setHorizontalAlignment(JButton.LEFT);
-        button.setMargin(new Insets(0, 0, 0, 0));
+        button.setFont(new java.awt.Font("Inter", java.awt.Font.BOLD, 14));
     }
 
     private void styleSecondaryButton(JButton button, AppTheme theme) {
-        boolean hovered = button.isEnabled() && button.getModel().isRollover();
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(true);
-        button.setBackground(hovered
-                ? ThemeUtils.blend(theme.background(), theme.selectionBackground(), 0.22d)
-                : theme.secondarySurface());
-        button.setForeground(button.isEnabled() ? theme.textPrimary() : theme.textSecondary());
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(theme.border(), 1),
-                BorderFactory.createEmptyBorder(10, 14, 10, 14)));
-        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
-        button.setMargin(new Insets(0, 0, 0, 0));
+        ButtonStyler.applyStandard(button, theme, false, false, false);
+        button.setFont(new java.awt.Font("Inter", java.awt.Font.BOLD, 13));
     }
 
     private void styleThemeButton(JToggleButton button, AppTheme theme) {
@@ -517,7 +490,7 @@ public class SettingsPanel extends JPanel {
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(selected ? theme.actionBackground() : theme.border(), 1),
                 BorderFactory.createEmptyBorder(12, 12, 12, 12)));
-        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+        button.setFont(new Font("Inter", Font.BOLD, 14));
     }
 
     private void styleLanguageCombo(AppTheme theme) {
@@ -527,7 +500,7 @@ public class SettingsPanel extends JPanel {
         languageCombo.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(4, 8, 4, 8)));
-        languageCombo.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+        languageCombo.setFont(new Font("Inter", Font.PLAIN, 15));
     }
 
     private void updateAdbPathState() {
