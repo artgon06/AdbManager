@@ -9,6 +9,8 @@ import java.awt.Font;
 import java.awt.Insets;
 import java.awt.Point;
 import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -50,6 +52,11 @@ public class FilesPanel extends JPanel {
 
     public interface FileDropHandler {
         void onDrop(List<File> files);
+    }
+
+    public interface DragExportHandler {
+        File prepareTempDirectory() throws Exception;
+        void cleanupTempDirectory(File tempDir);
     }
 
     private final JPanel contentPanel = new JPanel(new BorderLayout(0, 12));
@@ -95,6 +102,7 @@ public class FilesPanel extends JPanel {
     };
     private FileDropHandler fileDropHandler = files -> {
     };
+    private DragExportHandler dragExportHandler = null;
 
     public FilesPanel() {
         buildPanel();
@@ -156,6 +164,10 @@ public class FilesPanel extends JPanel {
     public void setFileDropHandler(FileDropHandler handler) {
         fileDropHandler = handler == null ? files -> {
         } : handler;
+    }
+
+    public void setDragExportHandler(DragExportHandler handler) {
+        dragExportHandler = handler;
     }
 
     public void setDeviceAvailable(boolean deviceAvailable) {
@@ -431,6 +443,7 @@ public class FilesPanel extends JPanel {
         tableScrollPane.setBorder(BorderFactory.createEmptyBorder());
         TransferHandler transferHandler = createTransferHandler();
         filesTable.setTransferHandler(transferHandler);
+        filesTable.setDragEnabled(true);
         tableScrollPane.setTransferHandler(transferHandler);
     }
 
@@ -479,7 +492,43 @@ public class FilesPanel extends JPanel {
     }
 
     private TransferHandler createTransferHandler() {
-        return new TransferHandler() {
+        return new TransferHandler("files") {
+            private File tempDirectory;
+            private volatile List<File> exportedFiles;
+
+            @Override
+            public int getSourceActions(JComponent c) {
+                if (!deviceAvailable || busy || getSelectedEntry() == null) {
+                    return NONE;
+                }
+                return COPY;
+            }
+
+            @Override
+            protected Transferable createTransferable(JComponent c) {
+                if (dragExportHandler == null || getSelectedEntries().isEmpty()) {
+                    return null;
+                }
+
+                try {
+                    setStatus(Messages.text("files.status.preparingExport"), false);
+                    tempDirectory = dragExportHandler.prepareTempDirectory();
+                    File[] files = tempDirectory.listFiles();
+                    if (files == null || files.length == 0) {
+                        cleanupTempDirectory();
+                        setStatus(Messages.text("error.files.download"), true);
+                        return null;
+                    }
+                    exportedFiles = List.of(files);
+                    setStatus(Messages.text("files.status.ready"), false);
+                    return new FileListTransferable(exportedFiles);
+                } catch (Exception e) {
+                    cleanupTempDirectory();
+                    setStatus(Messages.text("error.files.export"), true);
+                    return null;
+                }
+            }
+
             @Override
             public boolean canImport(TransferSupport support) {
                 return deviceAvailable
@@ -505,7 +554,52 @@ public class FilesPanel extends JPanel {
                     return false;
                 }
             }
+
+            @Override
+            public void exportDone(JComponent c, Transferable t, int action) {
+                if (action == MOVE || action == COPY) {
+                    cleanupTempDirectory();
+                }
+                exportedFiles = null;
+                setStatus(" ", false);
+            }
+
+            private void cleanupTempDirectory() {
+                if (tempDirectory != null && dragExportHandler != null) {
+                    try {
+                        dragExportHandler.cleanupTempDirectory(tempDirectory);
+                    } catch (Exception e) {
+                    }
+                    tempDirectory = null;
+                }
+            }
         };
+    }
+
+    private static class FileListTransferable implements Transferable {
+        private final List<File> files;
+
+        FileListTransferable(List<File> files) {
+            this.files = files;
+        }
+
+        @Override
+        public DataFlavor[] getTransferDataFlavors() {
+            return new DataFlavor[]{DataFlavor.javaFileListFlavor};
+        }
+
+        @Override
+        public boolean isDataFlavorSupported(DataFlavor flavor) {
+            return DataFlavor.javaFileListFlavor.equals(flavor);
+        }
+
+        @Override
+        public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException {
+            if (!isDataFlavorSupported(flavor)) {
+                throw new UnsupportedFlavorException(flavor);
+            }
+            return new ArrayList<>(files);
+        }
     }
 
     private void updateControlStates() {

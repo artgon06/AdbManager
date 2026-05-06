@@ -53,6 +53,7 @@ import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DeviceFileEntry;
 import com.adbmanager.logic.model.DevicePowerAction;
 import com.adbmanager.logic.model.DeviceSoundMode;
+import com.adbmanager.logic.model.AdbToolInfo;
 import com.adbmanager.logic.model.AppDetails;
 import com.adbmanager.logic.model.ControlState;
 import com.adbmanager.logic.model.InstalledApp;
@@ -238,6 +239,7 @@ public class MainFrame extends JFrame {
 
     public void setPrepareScrcpyAction(ActionListener actionListener) {
         displayPanel.setPrepareScrcpyAction(actionListener);
+        settingsPanel.setPrepareScrcpyAction(actionListener);
     }
 
     public void setLaunchScrcpyAction(ActionListener actionListener) {
@@ -438,6 +440,10 @@ public class MainFrame extends JFrame {
 
     public void setFilesDropHandler(FilesPanel.FileDropHandler handler) {
         filesPanel.setFileDropHandler(handler);
+    }
+
+    public void setFilesDragExportHandler(FilesPanel.DragExportHandler handler) {
+        filesPanel.setDragExportHandler(handler);
     }
 
     public void setRefreshSystemUsersAction(ActionListener actionListener) {
@@ -833,10 +839,20 @@ public class MainFrame extends JFrame {
 
     public void setScrcpyStatus(ScrcpyStatus status) {
         displayPanel.setScrcpyStatus(status);
+        settingsPanel.setScrcpyStatus(status);
+    }
+
+    public void setAdbToolInfo(AdbToolInfo toolInfo) {
+        settingsPanel.setAdbToolInfo(toolInfo);
     }
 
     public void setScrcpyFeedback(String message, boolean error) {
         displayPanel.setScrcpyFeedback(message, error);
+        settingsPanel.setScrcpyFeedback(message, error);
+    }
+
+    public void setScrcpyUpdateIndicatorState(SettingsPanel.ScrcpyUpdateIndicatorState state) {
+        settingsPanel.setScrcpyUpdateIndicatorState(state);
     }
 
     public void setScrcpyBusy(boolean busy) {

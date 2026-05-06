@@ -21,6 +21,8 @@ import com.adbmanager.logic.ScrcpyService;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DevicePowerAction;
+import com.adbmanager.logic.model.AdbToolInfo;
+import com.adbmanager.logic.model.ScrcpyStatus;
 import com.adbmanager.logic.model.UserConfig;
 import com.adbmanager.view.Messages;
 import com.adbmanager.view.Messages.Language;
@@ -87,6 +89,7 @@ public class SwingController {
         view().showHomeScreen();
         view().showWindow();
         context.saveUserConfigSafely();
+        refreshToolStatus(false);
         refreshDevices();
     }
 
@@ -125,7 +128,7 @@ public class SwingController {
         view().setAppsAction(event -> showAppsScreen());
         view().setFilesAction(event -> showFilesScreen());
         view().setSystemAction(event -> showSystemScreen());
-        view().setSettingsAction(event -> view().showSettingsScreen());
+        view().setSettingsAction(event -> showSettingsScreen());
         view().setThemeChangeAction(event -> applyThemeSelection());
         view().setLanguageChangeAction(event -> applyLanguageSelection());
         view().setAutoRefreshOnFocusChangeAction(event -> {
@@ -161,6 +164,17 @@ public class SwingController {
         view().setFilesDeleteAction(event -> filesController.deleteSelectedFiles());
         view().setFilesOpenDirectoryAction(filesController::openSelectedDirectory);
         view().setFilesDropHandler(filesController::uploadDroppedFiles);
+        view().setFilesDragExportHandler(new com.adbmanager.view.swing.FilesPanel.DragExportHandler() {
+            @Override
+            public File prepareTempDirectory() throws Exception {
+                return filesController.downloadSelectedFilesToTemp();
+            }
+
+            @Override
+            public void cleanupTempDirectory(File tempDir) {
+                filesController.cleanupTempDirectory(tempDir);
+            }
+        });
         view().setRefreshSystemUsersAction(event -> systemController.refreshState(true));
         view().setCreateSystemUserAction(event -> systemController.createUser());
         view().setSwitchSystemUserAction(event -> systemController.switchUser());
@@ -466,7 +480,69 @@ public class SwingController {
 
     private void applyAdbPathSettings() {
         context.saveUserConfigSafely();
+        refreshToolStatus(true);
         refreshDevices();
+    }
+
+    private void showSettingsScreen() {
+        view().showSettingsScreen();
+        refreshToolStatus(false);
+    }
+
+    private void refreshToolStatus(boolean showErrors) {
+        refreshAdbToolStatus(showErrors);
+        refreshScrcpyToolStatus(showErrors);
+    }
+
+    private void refreshAdbToolStatus(boolean showErrors) {
+        new SwingWorker<AdbToolInfo, Void>() {
+            @Override
+            protected AdbToolInfo doInBackground() throws Exception {
+                return model().getAdbToolInfo();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    view().setAdbToolInfo(get());
+                } catch (Exception exception) {
+                    view().setAdbToolInfo(new AdbToolInfo("-", "-", false, false));
+                    if (showErrors) {
+                        context.handleError(Messages.text("error.adb.toolStatus"), exception);
+                    }
+                }
+            }
+        }.execute();
+    }
+
+    private void refreshScrcpyToolStatus(boolean showErrors) {
+        if (state().loadingScrcpyStatus) {
+            return;
+        }
+
+        state().loadingScrcpyStatus = true;
+        context.updateScrcpyBusyState();
+        new SwingWorker<ScrcpyStatus, Void>() {
+            @Override
+            protected ScrcpyStatus doInBackground() throws Exception {
+                return context.scrcpyService.getStatus();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    view().setScrcpyStatus(get());
+                } catch (Exception exception) {
+                    view().setScrcpyStatus(ScrcpyStatus.missing());
+                    if (showErrors) {
+                        context.handleError(Messages.text("error.scrcpy.status"), exception);
+                    }
+                } finally {
+                    SwingController.this.state().loadingScrcpyStatus = false;
+                    context.updateScrcpyBusyState();
+                }
+            }
+        }.execute();
     }
 
     private void openUrl(String url) {

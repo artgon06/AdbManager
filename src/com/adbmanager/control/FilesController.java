@@ -1,6 +1,7 @@
 package com.adbmanager.control;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
@@ -188,6 +189,53 @@ final class FilesController {
                 Messages.format("files.status.downloaded", selectedPaths.size()),
                 false,
                 progress -> model().pullSelectedDevicePaths(selectedPaths, destinationDirectory, progress));
+    }
+
+    File downloadSelectedFilesToTemp() throws Exception {
+        List<String> selectedPaths = view().getSelectedFilePaths();
+        if (selectedPaths.isEmpty()) {
+            throw new IllegalStateException(Messages.text("error.files.noSelection"));
+        }
+
+        Device selectedDevice = model().getSelectedDevice().orElse(null);
+        if (!context.isFilesAvailable(selectedDevice)) {
+            throw new IllegalStateException(Messages.text("error.files.deviceRequired"));
+        }
+
+        File tempDir = Files.createTempDirectory("adbmanager-drag-").toFile();
+        try {
+            model().pullSelectedDevicePaths(selectedPaths, tempDir, progress -> {
+            });
+            File[] files = tempDir.listFiles();
+            if (files == null || files.length == 0) {
+                tempDir.delete();
+                throw new IllegalStateException(Messages.text("error.files.download"));
+            }
+            return tempDir;
+        } catch (Exception e) {
+            deleteDirectory(tempDir);
+            throw e;
+        }
+    }
+
+    void cleanupTempDirectory(File tempDir) {
+        if (tempDir != null && tempDir.exists()) {
+            deleteDirectory(tempDir);
+        }
+    }
+
+    private void deleteDirectory(File directory) {
+        File[] files = directory.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    deleteDirectory(file);
+                } else {
+                    file.delete();
+                }
+            }
+        }
+        directory.delete();
     }
 
     void renameSelectedFile() {

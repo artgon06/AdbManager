@@ -52,15 +52,11 @@ public class ScrcpyLauncherPanel extends JPanel {
     private final WrappingTextArea introLabel = new WrappingTextArea();
     private final JPanel introActionsPanel = new JPanel(new BorderLayout(16, 0));
     private final JPanel topActionsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-    private final JPanel statusCard = new JPanel();
-    private final JLabel availabilityLabel = new JLabel();
-    private final JLabel availabilityValueLabel = new JLabel("-");
-    private final JLabel versionLabel = new JLabel();
-    private final JLabel versionValueLabel = new JLabel("-");
-    private final JLabel locationLabel = new JLabel();
-    private final WrappingTextArea locationValueLabel = new WrappingTextArea("-");
+    private final JPanel missingScrcpyPanel = new JPanel(new BorderLayout(14, 0));
+    private final WrappingTextArea missingScrcpyLabel = new WrappingTextArea();
     private final JLabel feedbackLabel = new JLabel();
     private final JButton prepareButton = new JButton();
+    private ScrcpyStatus currentStatus = ScrcpyStatus.missing();
 
     private final JPanel sourceCard = new JPanel();
     private final JPanel targetCardsPanel = new JPanel(new GridLayout(1, 3, 14, 0));
@@ -185,12 +181,8 @@ public class ScrcpyLauncherPanel extends JPanel {
     }
 
     public void setScrcpyStatus(ScrcpyStatus status) {
-        ScrcpyStatus currentStatus = Objects.requireNonNullElse(status, ScrcpyStatus.missing());
-        availabilityValueLabel.setText(Messages.text(currentStatus.available()
-                ? (currentStatus.managedInstallation() ? "scrcpy.status.managed" : "scrcpy.status.system")
-                : "scrcpy.status.missing"));
-        versionValueLabel.setText(currentStatus.version());
-        locationValueLabel.setText(currentStatus.locationLabel());
+        currentStatus = Objects.requireNonNullElse(status, ScrcpyStatus.missing());
+        updateMissingScrcpyPanel();
     }
 
     public void setFeedback(String message, boolean error) {
@@ -314,10 +306,8 @@ public class ScrcpyLauncherPanel extends JPanel {
 
     public void refreshTexts() {
         introLabel.setText(Messages.text("scrcpy.intro"));
-        availabilityLabel.setText(Messages.text("scrcpy.status.availability"));
-        versionLabel.setText(Messages.text("scrcpy.status.version"));
-        locationLabel.setText(Messages.text("scrcpy.status.location"));
-        prepareButton.setText(Messages.text("scrcpy.status.prepare"));
+        prepareButton.setText(Messages.text("settings.tools.scrcpy.install"));
+        missingScrcpyLabel.setText(Messages.text("scrcpy.missing.notice"));
 
         targetLabel.setText(Messages.text("scrcpy.target.label"));
         updateTargetButtonTexts();
@@ -374,20 +364,14 @@ public class ScrcpyLauncherPanel extends JPanel {
         virtualDisplaySection.setBackground(theme.background());
         cameraSection.setBackground(theme.background());
 
-        styleCard(statusCard);
         styleCard(sourceCard);
         styleCard(optionsCard);
         styleCard(imageOptionsPanel);
         styleCard(ioOptionsPanel);
         styleCard(startAppCard);
         styleCard(recordCard);
+        styleMissingScrcpyPanel();
 
-        styleLabel(availabilityLabel);
-        styleLabel(versionLabel);
-        styleLabel(locationLabel);
-        styleValueLabel(availabilityValueLabel);
-        styleValueLabel(versionValueLabel);
-        locationValueLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 14), theme.textPrimary());
         styleFeedbackLabel();
 
         styleLabel(targetLabel);
@@ -446,14 +430,14 @@ public class ScrcpyLauncherPanel extends JPanel {
 
         buildStartAppCard();
         buildRecordCard();
-        buildStatusCard();
+        buildMissingScrcpyPanel();
         buildSourceCard();
         buildOptionsCard();
         buildTopActions();
         buildLaunchFooter();
 
         addContentRow(introActionsPanel, 0, 0.0, new Insets(0, 0, 14, 0));
-        addContentRow(statusCard, 1, 0.0, new Insets(0, 0, 12, 0));
+        addContentRow(missingScrcpyPanel, 1, 0.0, new Insets(0, 0, 12, 0));
         addContentRow(sourceCard, 2, 0.0, new Insets(0, 0, 12, 0));
         addContentRow(optionsCard, 3, 0.0, new Insets(0, 0, 12, 0));
 
@@ -472,9 +456,6 @@ public class ScrcpyLauncherPanel extends JPanel {
     private void buildTopActions() {
         introActionsPanel.setOpaque(false);
         topActionsPanel.setOpaque(false);
-        configureButton(prepareButton);
-        prepareButton.setPreferredSize(new Dimension(150, 38));
-        topActionsPanel.add(prepareButton);
         introActionsPanel.add(introLabel, BorderLayout.CENTER);
         introActionsPanel.add(topActionsPanel, BorderLayout.EAST);
     }
@@ -499,21 +480,20 @@ public class ScrcpyLauncherPanel extends JPanel {
         content.add(component, constraints);
     }
 
-    private void buildStatusCard() {
-        statusCard.setLayout(new BoxLayout(statusCard, BoxLayout.Y_AXIS));
-        statusCard.setBorder(new EmptyBorder(12, 12, 12, 12));
-        availabilityValueLabel.setAlignmentX(LEFT_ALIGNMENT);
-        versionValueLabel.setAlignmentX(LEFT_ALIGNMENT);
-        locationValueLabel.setAlignmentX(LEFT_ALIGNMENT);
+    private void buildMissingScrcpyPanel() {
+        missingScrcpyPanel.setBorder(new EmptyBorder(12, 14, 12, 14));
+        missingScrcpyLabel.setAlignmentX(LEFT_ALIGNMENT);
         feedbackLabel.setAlignmentX(LEFT_ALIGNMENT);
         feedbackLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, feedbackLabel.getPreferredSize().height));
-        statusCard.add(createKeyValueRow(availabilityLabel, availabilityValueLabel));
-        statusCard.add(Box.createVerticalStrut(8));
-        statusCard.add(createKeyValueRow(versionLabel, versionValueLabel));
-        statusCard.add(Box.createVerticalStrut(8));
-        statusCard.add(createKeyValueRow(locationLabel, locationValueLabel));
-        statusCard.add(Box.createVerticalStrut(10));
-        statusCard.add(feedbackLabel);
+        configureButton(prepareButton);
+        prepareButton.setPreferredSize(new Dimension(170, 38));
+        JPanel textPanel = new JPanel(new BorderLayout());
+        textPanel.setOpaque(false);
+        textPanel.add(missingScrcpyLabel, BorderLayout.CENTER);
+        textPanel.add(feedbackLabel, BorderLayout.SOUTH);
+        missingScrcpyPanel.add(textPanel, BorderLayout.CENTER);
+        missingScrcpyPanel.add(prepareButton, BorderLayout.EAST);
+        updateMissingScrcpyPanel();
     }
 
     private void buildSourceCard() {
@@ -909,6 +889,24 @@ public class ScrcpyLauncherPanel extends JPanel {
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 new EmptyBorder(12, 12, 12, 12)));
+    }
+
+    private void styleMissingScrcpyPanel() {
+        boolean visible = !currentStatus.available();
+        missingScrcpyPanel.setVisible(visible);
+        missingScrcpyPanel.setOpaque(true);
+        missingScrcpyPanel.setBackground(ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.76d));
+        missingScrcpyPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(theme.actionBackground(), 1),
+                BorderFactory.createEmptyBorder(12, 14, 12, 14)));
+        missingScrcpyLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.BOLD, 13), theme.textPrimary());
+    }
+
+    private void updateMissingScrcpyPanel() {
+        missingScrcpyPanel.setVisible(!currentStatus.available());
+        styleButtons();
+        revalidate();
+        repaint();
     }
 
     private void styleLabel(JLabel label) {

@@ -7,6 +7,7 @@ import java.util.function.BiConsumer;
 
 import javax.swing.SwingWorker;
 
+import com.adbmanager.logic.ScrcpyService.ScrcpyUpdateResult;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.InstalledApp;
@@ -15,6 +16,7 @@ import com.adbmanager.logic.model.ScrcpyLaunchRequest;
 import com.adbmanager.logic.model.ScrcpyStatus;
 import com.adbmanager.view.Messages;
 import com.adbmanager.view.swing.MainFrame;
+import com.adbmanager.view.swing.SettingsPanel;
 
 final class DisplayController {
 
@@ -92,24 +94,39 @@ final class DisplayController {
 
         state().preparingScrcpy = true;
         context.updateScrcpyBusyState();
-        view().setScrcpyFeedback(Messages.text("scrcpy.feedback.preparing"), false);
+        view().setScrcpyUpdateIndicatorState(SettingsPanel.ScrcpyUpdateIndicatorState.LOADING);
+        view().setScrcpyFeedback(Messages.text("scrcpy.feedback.checkingUpdates"), false);
 
-        new SwingWorker<ScrcpyStatus, Void>() {
+        new SwingWorker<ScrcpyUpdateResult, Void>() {
             @Override
-            protected ScrcpyStatus doInBackground() throws Exception {
-                return context.scrcpyService.ensureAvailable();
+            protected ScrcpyUpdateResult doInBackground() throws Exception {
+                return context.scrcpyService.installOrUpdate();
             }
 
             @Override
             protected void done() {
                 try {
-                    ScrcpyStatus status = get();
-                    view().setScrcpyStatus(status);
-                    view().setScrcpyFeedback(Messages.text("scrcpy.feedback.prepared"), false);
+                    ScrcpyUpdateResult result = get();
+                    view().setScrcpyStatus(result.status());
+                    if (result.alreadyLatest()) {
+                        view().setScrcpyUpdateIndicatorState(SettingsPanel.ScrcpyUpdateIndicatorState.SUCCESS);
+                        view().setScrcpyFeedback(Messages.format(
+                                "scrcpy.feedback.latest",
+                                result.latestVersion().isBlank() ? result.status().version() : result.latestVersion()), false);
+                    } else if (result.updated()) {
+                        view().setScrcpyUpdateIndicatorState(SettingsPanel.ScrcpyUpdateIndicatorState.SUCCESS);
+                        view().setScrcpyFeedback(Messages.format(
+                                "scrcpy.feedback.updated",
+                                result.status().version()), false);
+                    } else {
+                        view().setScrcpyUpdateIndicatorState(SettingsPanel.ScrcpyUpdateIndicatorState.SUCCESS);
+                        view().setScrcpyFeedback(Messages.text("scrcpy.feedback.prepared"), false);
+                    }
                     if (view().usesScrcpyCameraSource()) {
                         loadScrcpyCameras(true);
                     }
                 } catch (Exception exception) {
+                    view().setScrcpyUpdateIndicatorState(SettingsPanel.ScrcpyUpdateIndicatorState.ERROR);
                     context.handleError(Messages.text("error.scrcpy.prepare"), exception);
                     view().setScrcpyFeedback(
                             context.extractErrorMessage(exception, Messages.text("error.scrcpy.prepare")),

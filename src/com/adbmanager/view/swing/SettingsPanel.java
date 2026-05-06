@@ -19,21 +19,32 @@ import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.Icon;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
 
+import com.adbmanager.logic.model.AdbToolInfo;
+import com.adbmanager.logic.model.ScrcpyStatus;
 import com.adbmanager.view.Messages;
 import com.adbmanager.view.Messages.Language;
 
 public class SettingsPanel extends JPanel {
+
+    public enum ScrcpyUpdateIndicatorState {
+        NONE,
+        LOADING,
+        SUCCESS,
+        ERROR
+    }
 
     private final JLabel titleLabel = new JLabel();
     private final JLabel subtitleLabel = new JLabel();
@@ -43,6 +54,7 @@ public class SettingsPanel extends JPanel {
     private final JPanel appearancePanel = new JPanel();
     private final JPanel behaviorPanel = new JPanel();
     private final JPanel adbPanel = new JPanel();
+    private final JPanel toolsPanel = new JPanel();
 
     private final JLabel appNameValue = new JLabel();
     private final JLabel versionBadge = new JLabel();
@@ -53,6 +65,29 @@ public class SettingsPanel extends JPanel {
     private final JButton repositoryButton = new JButton();
     private final JButton scrcpyRepositoryButton = new JButton();
     private final JButton deviceCatalogButton = new JButton();
+
+    private final JLabel adbStatusTitleLabel = new JLabel();
+    private final JLabel adbVersionLabel = new JLabel();
+    private final JLabel adbVersionValueLabel = new JLabel("-");
+    private final JLabel adbLocationLabel = new JLabel();
+    private final WrappingTextArea adbLocationValueLabel = new WrappingTextArea("-");
+    private final JLabel adbPairLabel = new JLabel();
+    private final JLabel adbPairValueLabel = new JLabel("-");
+    private final JLabel adbQrLabel = new JLabel();
+    private final JLabel adbQrValueLabel = new JLabel("-");
+    private final JLabel scrcpyStatusTitleLabel = new JLabel();
+    private final JLabel scrcpyAvailabilityLabel = new JLabel();
+    private final JLabel scrcpyAvailabilityValueLabel = new JLabel("-");
+    private final JLabel scrcpyVersionLabel = new JLabel();
+    private final JLabel scrcpyVersionValueLabel = new JLabel("-");
+    private final JLabel scrcpyLocationLabel = new JLabel();
+    private final WrappingTextArea scrcpyLocationValueLabel = new WrappingTextArea("-");
+    private final JButton prepareScrcpyButton = new JButton();
+    private final JLabel scrcpyUpdateIndicatorLabel = new JLabel();
+    private final JPanel toolsGridPanel = new JPanel(new GridLayout(1, 2, 14, 0));
+    private final Timer scrcpySpinnerTimer = new Timer(90, event -> animateScrcpySpinner());
+    private ScrcpyUpdateIndicatorState scrcpyUpdateIndicatorState = ScrcpyUpdateIndicatorState.NONE;
+    private int scrcpySpinnerFrame;
 
     private final JLabel themeLabel = new JLabel();
     private final JToggleButton lightThemeButton = new JToggleButton();
@@ -94,6 +129,52 @@ public class SettingsPanel extends JPanel {
 
     public void setDeviceCatalogAction(ActionListener actionListener) {
         deviceCatalogButton.addActionListener(actionListener);
+    }
+
+    public void setPrepareScrcpyAction(ActionListener actionListener) {
+        prepareScrcpyButton.addActionListener(actionListener);
+    }
+
+    public void setScrcpyStatus(ScrcpyStatus status) {
+        ScrcpyStatus safeStatus = status == null ? ScrcpyStatus.missing() : status;
+        scrcpyAvailabilityValueLabel.setText(Messages.text(safeStatus.available()
+                ? (safeStatus.managedInstallation() ? "scrcpy.status.managed" : "scrcpy.status.system")
+                : "scrcpy.status.missing"));
+        scrcpyVersionValueLabel.setText(safeStatus.version());
+        scrcpyLocationValueLabel.setText(safeStatus.locationLabel());
+        prepareScrcpyButton.setText(Messages.text(safeStatus.available()
+                ? "settings.tools.scrcpy.update"
+                : "settings.tools.scrcpy.install"));
+        applyTheme(theme);
+    }
+
+    public void setScrcpyFeedback(String message, boolean error) {
+        if (error) {
+            setScrcpyUpdateIndicatorState(ScrcpyUpdateIndicatorState.ERROR);
+        }
+    }
+
+    public void setScrcpyUpdateIndicatorState(ScrcpyUpdateIndicatorState state) {
+        scrcpyUpdateIndicatorState = state == null ? ScrcpyUpdateIndicatorState.NONE : state;
+        if (scrcpyUpdateIndicatorState == ScrcpyUpdateIndicatorState.LOADING) {
+            scrcpySpinnerTimer.start();
+        } else {
+            scrcpySpinnerTimer.stop();
+        }
+        updateScrcpyUpdateIndicator();
+    }
+
+    public void setAdbToolInfo(AdbToolInfo toolInfo) {
+        AdbToolInfo safeInfo = toolInfo == null ? new AdbToolInfo("-", "-", false, false) : toolInfo;
+        adbVersionValueLabel.setText(safeInfo.version());
+        adbLocationValueLabel.setText(safeInfo.installedAs());
+        adbPairValueLabel.setText(Messages.text(safeInfo.supportsPair()
+                ? "wireless.support.available"
+                : "wireless.support.unavailable"));
+        adbQrValueLabel.setText(Messages.text(safeInfo.supportsQrPairing()
+                ? "wireless.support.available"
+                : "wireless.support.unavailable"));
+        applyTheme(theme);
     }
 
     public void setAutoRefreshOnFocusChangeAction(ActionListener actionListener) {
@@ -178,6 +259,18 @@ public class SettingsPanel extends JPanel {
         repositoryButton.setText(Messages.text("settings.repository.open"));
         scrcpyRepositoryButton.setText(Messages.text("settings.about.scrcpy.link"));
         deviceCatalogButton.setText(Messages.text("settings.about.deviceCatalog.link"));
+        adbStatusTitleLabel.setText(Messages.text("settings.tools.adb"));
+        adbVersionLabel.setText(Messages.text("wireless.capability.version"));
+        adbLocationLabel.setText(Messages.text("wireless.capability.location"));
+        adbPairLabel.setText(Messages.text("wireless.capability.pair"));
+        adbQrLabel.setText(Messages.text("wireless.capability.qr"));
+        scrcpyStatusTitleLabel.setText(Messages.text("settings.tools.scrcpy"));
+        scrcpyAvailabilityLabel.setText(Messages.text("scrcpy.status.availability"));
+        scrcpyVersionLabel.setText(Messages.text("scrcpy.status.version"));
+        scrcpyLocationLabel.setText(Messages.text("scrcpy.status.location"));
+        if (prepareScrcpyButton.getText() == null || prepareScrcpyButton.getText().isBlank()) {
+            prepareScrcpyButton.setText(Messages.text("settings.tools.scrcpy.install"));
+        }
         themeLabel.setText(Messages.text("settings.theme"));
         lightThemeButton.setText(Messages.text("settings.theme.light"));
         darkThemeButton.setText(Messages.text("settings.theme.dark"));
@@ -214,6 +307,7 @@ public class SettingsPanel extends JPanel {
         applySectionTheme(appearancePanel, Messages.text("settings.appearance.title"), theme);
         applySectionTheme(behaviorPanel, Messages.text("settings.behavior.title"), theme);
         applySectionTheme(adbPanel, Messages.text("settings.adb.title"), theme);
+        applySectionTheme(toolsPanel, Messages.text("settings.tools.title"), theme);
 
         appNameValue.setForeground(theme.textPrimary());
         appNameValue.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 26));
@@ -234,6 +328,8 @@ public class SettingsPanel extends JPanel {
         styleLinkButton(theme);
         styleLinkButton(scrcpyRepositoryButton, theme);
         styleLinkButton(deviceCatalogButton, theme);
+        styleSecondaryButton(prepareScrcpyButton, theme);
+        styleToolLabels();
         styleSectionLabel(themeLabel, theme);
         styleSectionLabel(languageLabel, theme);
         styleSectionLabel(adbPathLabel, theme);
@@ -285,11 +381,14 @@ public class SettingsPanel extends JPanel {
         content.setBorder(new EmptyBorder(22, 0, 0, 0));
 
         buildAboutPanel();
+        buildToolsPanel();
         buildAppearancePanel();
         buildBehaviorPanel();
         buildAdbPanel();
 
         content.add(aboutPanel);
+        content.add(Box.createVerticalStrut(18));
+        content.add(toolsPanel);
         content.add(Box.createVerticalStrut(18));
         content.add(appearancePanel);
         content.add(Box.createVerticalStrut(18));
@@ -400,6 +499,78 @@ public class SettingsPanel extends JPanel {
         appearancePanel.add(languageCombo);
     }
 
+    private void buildToolsPanel() {
+        toolsPanel.setLayout(new BoxLayout(toolsPanel, BoxLayout.Y_AXIS));
+        toolsPanel.setAlignmentX(LEFT_ALIGNMENT);
+        toolsPanel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        toolsGridPanel.setOpaque(false);
+        toolsGridPanel.setAlignmentX(LEFT_ALIGNMENT);
+        toolsGridPanel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+
+        JPanel adbStatusPanel = new JPanel();
+        adbStatusPanel.setOpaque(false);
+        adbStatusPanel.setLayout(new BoxLayout(adbStatusPanel, BoxLayout.Y_AXIS));
+        adbStatusPanel.add(adbStatusTitleLabel);
+        adbStatusPanel.add(Box.createVerticalStrut(12));
+        adbStatusPanel.add(createToolRow(adbVersionLabel, adbVersionValueLabel));
+        adbStatusPanel.add(Box.createVerticalStrut(8));
+        adbStatusPanel.add(createToolRow(adbLocationLabel, adbLocationValueLabel));
+        adbStatusPanel.add(Box.createVerticalStrut(8));
+        adbStatusPanel.add(createToolRow(adbPairLabel, adbPairValueLabel));
+        adbStatusPanel.add(Box.createVerticalStrut(8));
+        adbStatusPanel.add(createToolRow(adbQrLabel, adbQrValueLabel));
+
+        JPanel scrcpyStatusPanel = new JPanel();
+        scrcpyStatusPanel.setOpaque(false);
+        scrcpyStatusPanel.setLayout(new BoxLayout(scrcpyStatusPanel, BoxLayout.Y_AXIS));
+        prepareScrcpyButton.setUI(new BasicButtonUI());
+        prepareScrcpyButton.setFocusPainted(false);
+        prepareScrcpyButton.setRolloverEnabled(true);
+        prepareScrcpyButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        prepareScrcpyButton.getModel().addChangeListener(event -> styleSecondaryButton(prepareScrcpyButton, theme));
+        scrcpyUpdateIndicatorLabel.setPreferredSize(new java.awt.Dimension(26, 26));
+        scrcpyUpdateIndicatorLabel.setHorizontalAlignment(JLabel.CENTER);
+        scrcpyStatusPanel.add(scrcpyStatusTitleLabel);
+        scrcpyStatusPanel.add(Box.createVerticalStrut(12));
+        scrcpyStatusPanel.add(createToolRow(scrcpyAvailabilityLabel, scrcpyAvailabilityValueLabel));
+        scrcpyStatusPanel.add(Box.createVerticalStrut(8));
+        scrcpyStatusPanel.add(createToolRow(scrcpyVersionLabel, scrcpyVersionValueLabel));
+        scrcpyStatusPanel.add(Box.createVerticalStrut(8));
+        scrcpyStatusPanel.add(createToolRow(scrcpyLocationLabel, scrcpyLocationValueLabel));
+        scrcpyStatusPanel.add(Box.createVerticalStrut(12));
+        JPanel scrcpyActionRow = new JPanel();
+        scrcpyActionRow.setOpaque(false);
+        scrcpyActionRow.setLayout(new BoxLayout(scrcpyActionRow, BoxLayout.X_AXIS));
+        scrcpyActionRow.setAlignmentX(LEFT_ALIGNMENT);
+        scrcpyActionRow.add(prepareScrcpyButton);
+        scrcpyActionRow.add(Box.createHorizontalStrut(10));
+        scrcpyActionRow.add(scrcpyUpdateIndicatorLabel);
+        scrcpyActionRow.add(Box.createHorizontalGlue());
+        scrcpyStatusPanel.add(scrcpyActionRow);
+
+        toolsGridPanel.add(adbStatusPanel);
+        toolsGridPanel.add(scrcpyStatusPanel);
+        toolsPanel.add(toolsGridPanel);
+    }
+
+    private JPanel createToolRow(JLabel titleLabel, JLabel valueLabel) {
+        JPanel row = new JPanel(new BorderLayout(12, 0));
+        row.setOpaque(false);
+        row.setAlignmentX(LEFT_ALIGNMENT);
+        row.add(titleLabel, BorderLayout.WEST);
+        row.add(valueLabel, BorderLayout.CENTER);
+        return row;
+    }
+
+    private JPanel createToolRow(JLabel titleLabel, WrappingTextArea valueLabel) {
+        JPanel row = new JPanel(new BorderLayout(12, 0));
+        row.setOpaque(false);
+        row.setAlignmentX(LEFT_ALIGNMENT);
+        row.add(titleLabel, BorderLayout.WEST);
+        row.add(valueLabel, BorderLayout.CENTER);
+        return row;
+    }
+
     private void buildBehaviorPanel() {
         behaviorPanel.setLayout(new BoxLayout(behaviorPanel, BoxLayout.Y_AXIS));
         behaviorPanel.setAlignmentX(LEFT_ALIGNMENT);
@@ -463,6 +634,39 @@ public class SettingsPanel extends JPanel {
         label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
     }
 
+    private void styleToolLabels() {
+        for (JLabel label : new JLabel[] {
+                adbStatusTitleLabel,
+                scrcpyStatusTitleLabel }) {
+            label.setForeground(theme.textPrimary());
+            label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 17));
+        }
+        for (JLabel label : new JLabel[] {
+                adbVersionLabel,
+                adbLocationLabel,
+                adbPairLabel,
+                adbQrLabel,
+                scrcpyAvailabilityLabel,
+                scrcpyVersionLabel,
+                scrcpyLocationLabel }) {
+            label.setForeground(theme.textSecondary());
+            label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        }
+        for (JLabel label : new JLabel[] {
+                adbVersionValueLabel,
+                adbPairValueLabel,
+                adbQrValueLabel,
+                scrcpyAvailabilityValueLabel,
+                scrcpyVersionValueLabel }) {
+            label.setForeground(theme.textPrimary());
+            label.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        }
+        toolsGridPanel.setBackground(theme.background());
+        adbLocationValueLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textPrimary());
+        scrcpyLocationValueLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textPrimary());
+        updateScrcpyUpdateIndicator();
+    }
+
     private void styleLinkButton(AppTheme theme) {
         styleLinkButton(repositoryButton, theme);
     }
@@ -498,6 +702,71 @@ public class SettingsPanel extends JPanel {
                 BorderFactory.createEmptyBorder(10, 14, 10, 14)));
         button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
         button.setMargin(new Insets(0, 0, 0, 0));
+    }
+
+    private void animateScrcpySpinner() {
+        scrcpySpinnerFrame = (scrcpySpinnerFrame + 1) % 12;
+        updateScrcpyUpdateIndicator();
+    }
+
+    private void updateScrcpyUpdateIndicator() {
+        Icon icon = switch (scrcpyUpdateIndicatorState) {
+            case LOADING -> new SpinnerStatusIcon(theme.actionBackground(), scrcpySpinnerFrame);
+            case SUCCESS -> new ToolbarIcon(ToolbarIcon.Type.ENABLE, 18, theme.actionBackground());
+            case ERROR -> new ToolbarIcon(ToolbarIcon.Type.DISABLE, 18, new java.awt.Color(214, 80, 80));
+            case NONE -> null;
+        };
+        scrcpyUpdateIndicatorLabel.setIcon(icon);
+        scrcpyUpdateIndicatorLabel.setToolTipText(switch (scrcpyUpdateIndicatorState) {
+            case LOADING -> Messages.text("scrcpy.feedback.checkingUpdates");
+            case SUCCESS -> Messages.text("settings.tools.scrcpy.latestIndicator");
+            case ERROR -> Messages.text("error.scrcpy.prepare");
+            case NONE -> null;
+        });
+        scrcpyUpdateIndicatorLabel.repaint();
+    }
+
+    private static final class SpinnerStatusIcon implements Icon {
+
+        private final java.awt.Color color;
+        private final int frame;
+
+        private SpinnerStatusIcon(java.awt.Color color, int frame) {
+            this.color = color;
+            this.frame = frame;
+        }
+
+        @Override
+        public int getIconWidth() {
+            return 18;
+        }
+
+        @Override
+        public int getIconHeight() {
+            return 18;
+        }
+
+        @Override
+        public void paintIcon(Component component, java.awt.Graphics graphics, int x, int y) {
+            java.awt.Graphics2D g2d = (java.awt.Graphics2D) graphics.create();
+            g2d.setRenderingHint(
+                    java.awt.RenderingHints.KEY_ANTIALIASING,
+                    java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            g2d.setStroke(new java.awt.BasicStroke(2.2f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+            for (int index = 0; index < 12; index++) {
+                int alpha = 42 + (int) (213 * ((index + frame) % 12) / 11.0d);
+                g2d.setColor(new java.awt.Color(color.getRed(), color.getGreen(), color.getBlue(), alpha));
+                double angle = Math.toRadians(index * 30d);
+                int centerX = x + 9;
+                int centerY = y + 9;
+                int innerX = centerX + (int) Math.round(Math.cos(angle) * 5);
+                int innerY = centerY + (int) Math.round(Math.sin(angle) * 5);
+                int outerX = centerX + (int) Math.round(Math.cos(angle) * 8);
+                int outerY = centerY + (int) Math.round(Math.sin(angle) * 8);
+                g2d.drawLine(innerX, innerY, outerX, outerY);
+            }
+            g2d.dispose();
+        }
     }
 
     private void styleThemeButton(JToggleButton button, AppTheme theme) {

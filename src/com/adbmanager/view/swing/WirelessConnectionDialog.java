@@ -412,8 +412,6 @@ public class WirelessConnectionDialog extends JDialog {
         header.add(Box.createVerticalStrut(6));
         header.add(subtitleLabel);
         header.add(Box.createVerticalStrut(18));
-        header.add(buildCapabilityCard());
-        header.add(Box.createVerticalStrut(18));
         header.add(buildPrimaryTabs());
 
         body.add(buildRootContent(), BorderLayout.NORTH);
