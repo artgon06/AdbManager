@@ -1,12 +1,15 @@
 package com.adbmanager.control;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import javax.swing.SwingWorker;
 
 import com.adbmanager.logic.model.AdbToolInfo;
+import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.WirelessEndpointDiscovery;
 import com.adbmanager.logic.model.WirelessPairingResult;
 import com.adbmanager.logic.model.WirelessPairingQrPayload;
@@ -16,6 +19,9 @@ import com.adbmanager.view.swing.SimpleQrCodeGenerator;
 import com.adbmanager.view.swing.WirelessConnectionDialog;
 
 final class WirelessController {
+
+    private record PairingCompletion(WirelessPairingResult result, Device connectedDevice) {
+    }
 
     private final SwingControllerContext context;
     private final Runnable refreshDevices;
@@ -69,17 +75,21 @@ final class WirelessController {
         dialog.showStatus(Messages.text("wireless.status.pairing"), false);
         dialog.setBusy(true);
 
-        new SwingWorker<WirelessPairingResult, Void>() {
+        new SwingWorker<PairingCompletion, Void>() {
             @Override
-            protected WirelessPairingResult doInBackground() throws Exception {
-                return model().pairWirelessDevice(host, pairingPort, pairingCode);
+            protected PairingCompletion doInBackground() throws Exception {
+                Set<String> knownWirelessSerials = connectedWirelessSerials();
+                WirelessPairingResult result = model().pairWirelessDevice(host, pairingPort, pairingCode);
+                return new PairingCompletion(
+                        result,
+                        waitForConnectedWirelessDevice(knownWirelessSerials, result));
             }
 
             @Override
             protected void done() {
                 try {
-                    WirelessPairingResult result = get();
-                    applyPairingResult(dialog, result, Messages.text("wireless.status.paired"));
+                    PairingCompletion completion = get();
+                    applyPairingResult(dialog, completion, Messages.text("wireless.status.paired"));
                 } catch (Exception exception) {
                     dialog.showStatus(
                             context.extractErrorMessage(exception, Messages.text("error.wireless.pair")),
@@ -102,18 +112,20 @@ final class WirelessController {
         dialog.showStatus(Messages.text("wireless.status.connecting"), false);
         dialog.setBusy(true);
 
-        new SwingWorker<Void, Void>() {
+        new SwingWorker<Device, Void>() {
             @Override
-            protected Void doInBackground() throws Exception {
+            protected Device doInBackground() throws Exception {
+                Set<String> knownWirelessSerials = connectedWirelessSerials();
                 model().connectWirelessDevice(dialog.getConnectHost(), connectPort);
-                return null;
+                return waitForConnectedWirelessDevice(knownWirelessSerials, null);
             }
 
             @Override
             protected void done() {
                 try {
-                    get();
+                    Device connectedDevice = get();
                     dialog.showStatus(Messages.text("wireless.status.connected"), false);
+                    closeDialogAfterWirelessConnection(dialog, connectedDevice);
                     refreshDevices.run();
                 } catch (Exception exception) {
                     dialog.showStatus(
@@ -176,20 +188,24 @@ final class WirelessController {
         dialog.showStatus(Messages.text("wireless.status.waitingForQr"), false);
         dialog.setBusy(true);
 
-        new SwingWorker<WirelessPairingResult, Void>() {
+        new SwingWorker<PairingCompletion, Void>() {
             @Override
-            protected WirelessPairingResult doInBackground() throws Exception {
-                return model().pairWirelessDeviceWithQr(
+            protected PairingCompletion doInBackground() throws Exception {
+                Set<String> knownWirelessSerials = connectedWirelessSerials();
+                WirelessPairingResult result = model().pairWirelessDeviceWithQr(
                         WirelessController.this.state().currentQrPayload.serviceName(),
                         WirelessController.this.state().currentQrPayload.password(),
                         45);
+                return new PairingCompletion(
+                        result,
+                        waitForConnectedWirelessDevice(knownWirelessSerials, result));
             }
 
             @Override
             protected void done() {
                 try {
-                    WirelessPairingResult result = get();
-                    applyPairingResult(dialog, result, Messages.text("wireless.status.qrPaired"));
+                    PairingCompletion completion = get();
+                    applyPairingResult(dialog, completion, Messages.text("wireless.status.qrPaired"));
                 } catch (Exception exception) {
                     dialog.showStatus(
                             context.extractErrorMessage(exception, Messages.text("error.wireless.qrPair")),
@@ -210,14 +226,17 @@ final class WirelessController {
 
     private void applyPairingResult(
             WirelessConnectionDialog dialog,
-            WirelessPairingResult result,
+            PairingCompletion completion,
             String connectedStatus) {
+        WirelessPairingResult result = completion == null ? null : completion.result();
         if (result != null && result.hasConnectEndpoint()) {
             dialog.setConnectEndpoint(result.connectEndpoint().host(), result.connectEndpoint().port());
         }
 
-        if (result != null && result.connectedAutomatically()) {
+        if ((result != null && result.connectedAutomatically())
+                || (completion != null && completion.connectedDevice() != null)) {
             dialog.showStatus(Messages.text("wireless.status.pairedConnected"), false);
+            closeDialogAfterWirelessConnection(dialog, completion == null ? null : completion.connectedDevice());
             refreshDevices.run();
             return;
         }
@@ -230,6 +249,90 @@ final class WirelessController {
         }
 
         dialog.showStatus(connectedStatus, false);
+    }
+
+    private Set<String> connectedWirelessSerials() {
+        Set<String> serials = new HashSet<>();
+        for (Device device : model().getDevices()) {
+            if (isConnectedWirelessDevice(device)) {
+                serials.add(device.serial());
+            }
+        }
+        return serials;
+    }
+
+    private Device waitForConnectedWirelessDevice(
+            Set<String> knownWirelessSerials,
+            WirelessPairingResult pairingResult) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(12);
+        while (System.nanoTime() < deadline) {
+            model().refreshDevices();
+
+            Device preferredDevice = findPreferredConnectedWirelessDevice(pairingResult);
+            if (preferredDevice != null) {
+                selectDevice(preferredDevice);
+                return preferredDevice;
+            }
+
+            for (Device device : model().getDevices()) {
+                if (isConnectedWirelessDevice(device)
+                        && (knownWirelessSerials == null || !knownWirelessSerials.contains(device.serial()))) {
+                    selectDevice(device);
+                    return device;
+                }
+            }
+
+            Thread.sleep(1000L);
+        }
+        return null;
+    }
+
+    private Device findPreferredConnectedWirelessDevice(WirelessPairingResult pairingResult) {
+        if (pairingResult == null || !pairingResult.hasConnectEndpoint()) {
+            return null;
+        }
+
+        String preferredHost = pairingResult.connectEndpoint().host();
+        int preferredPort = pairingResult.connectEndpoint().port();
+        String preferredEndpoint = pairingResult.connectEndpoint().endpoint();
+        for (Device device : model().getDevices()) {
+            if (!isConnectedWirelessDevice(device)) {
+                continue;
+            }
+
+            String serial = device.serial() == null ? "" : device.serial();
+            if (serial.equals(preferredEndpoint)
+                    || serial.contains(preferredHost)
+                    || (preferredPort > 0 && serial.contains(":" + preferredPort))) {
+                return device;
+            }
+        }
+        return null;
+    }
+
+    private void selectDevice(Device device) {
+        if (device != null && device.serial() != null && !device.serial().isBlank()) {
+            model().selectDeviceBySerial(device.serial());
+        }
+    }
+
+    private boolean isConnectedWirelessDevice(Device device) {
+        if (device == null || !Messages.STATUS_CONNECTED.equals(device.state())) {
+            return false;
+        }
+
+        String serial = device.serial() == null ? "" : device.serial().trim();
+        return serial.contains(":")
+                || serial.contains("_adb")
+                || serial.startsWith("adb-");
+    }
+
+    private void closeDialogAfterWirelessConnection(WirelessConnectionDialog dialog, Device connectedDevice) {
+        if (connectedDevice != null) {
+            selectDevice(connectedDevice);
+        }
+        cancelEndpointDiscovery();
+        dialog.setVisible(false);
     }
 
     private void startEndpointDiscovery() {
