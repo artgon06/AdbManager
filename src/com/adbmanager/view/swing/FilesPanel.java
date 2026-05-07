@@ -498,7 +498,8 @@ public class FilesPanel extends JPanel {
 
             @Override
             public int getSourceActions(JComponent c) {
-                if (!deviceAvailable || busy || getSelectedEntry() == null) {
+                // Allow drag only when exactly one item (file or directory) is selected
+                if (!deviceAvailable || busy || getSelectedEntries().size() != 1) {
                     return NONE;
                 }
                 return COPY;
@@ -541,6 +542,24 @@ public class FilesPanel extends JPanel {
             public boolean importData(TransferSupport support) {
                 if (!canImport(support)) {
                     return false;
+                }
+                // Ignore drops que provienen de la transferencia interna (misma ventana)
+                // y drops que apunten a archivos temporales creados para exportar (temp dir).
+                try {
+                    List<File> files = (List<File>) support.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
+                    if (files != null) {
+                        // Si alguno de los ficheros está dentro del directorio temporal de exportación,
+                        // tratamos el drop como interno y lo ignoramos.
+                        if (tempDirectory != null) {
+                            for (File f : files) {
+                                if (f != null && f.getAbsolutePath().startsWith(tempDirectory.getAbsolutePath())) {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    // Si falla, seguimos con el comportamiento normal.
                 }
 
                 try {
