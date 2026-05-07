@@ -117,8 +117,14 @@ public class ScreenshotPreviewPanel extends JPanel {
                 theme.textSecondary().getBlue(),
                 190));
         int textWidth = rotated.getFontMetrics().stringWidth(title);
+        int sideLabelWidth = 34;
+        int inset = 24;
+        int labelCenterX = getWidth() - inset - (sideLabelWidth / 2);
+        int labelCenterY = getHeight() / 2;
+
+        rotated.translate(labelCenterX, labelCenterY);
         rotated.rotate(Math.PI / 2d);
-        rotated.drawString(title, 24, -getWidth() + 18 + ((getHeight() - textWidth) / 2));
+        rotated.drawString(title, -textWidth / 2, rotated.getFontMetrics().getAscent() / 2);
         rotated.dispose();
     }
 

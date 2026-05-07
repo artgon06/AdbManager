@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.function.Consumer;
 
+import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 
 import com.adbmanager.logic.model.Device;
@@ -191,7 +192,7 @@ final class FilesController {
                 progress -> model().pullSelectedDevicePaths(selectedPaths, destinationDirectory, progress));
     }
 
-    File downloadSelectedFilesToTemp() throws Exception {
+    File downloadSelectedFilesToTemp(boolean showProgress) throws Exception {
         List<String> selectedPaths = view().getSelectedFilePaths();
         if (selectedPaths.isEmpty()) {
             throw new IllegalStateException(Messages.text("error.files.noSelection"));
@@ -204,7 +205,13 @@ final class FilesController {
 
         File tempDir = Files.createTempDirectory("adbmanager-drag-").toFile();
         try {
+            if (showProgress) {
+                updateDragExportProgress(new FileTransferProgress(0L, 0L, 0L, true));
+            }
             model().pullSelectedDevicePaths(selectedPaths, tempDir, progress -> {
+                if (showProgress) {
+                    updateDragExportProgress(progress);
+                }
             });
             File[] files = tempDir.listFiles();
             if (files == null || files.length == 0) {
@@ -215,7 +222,19 @@ final class FilesController {
         } catch (Exception e) {
             deleteDirectory(tempDir);
             throw e;
+        } finally {
+            if (showProgress) {
+                SwingUtilities.invokeLater(() -> view().clearFilesTransferProgress());
+            }
         }
+    }
+
+    private void updateDragExportProgress(FileTransferProgress progress) {
+        SwingUtilities.invokeLater(() -> view().setFilesTransferProgress(
+                true,
+                progress == null || progress.indeterminate(),
+                progress == null ? 0 : progress.percent(),
+                formatTransferProgress(progress)));
     }
 
     void cleanupTempDirectory(File tempDir) {

@@ -166,8 +166,8 @@ public class SwingController {
         view().setFilesDropHandler(filesController::uploadDroppedFiles);
         view().setFilesDragExportHandler(new com.adbmanager.view.swing.FilesPanel.DragExportHandler() {
             @Override
-            public File prepareTempDirectory() throws Exception {
-                return filesController.downloadSelectedFilesToTemp();
+            public File prepareTempDirectory(boolean showProgress) throws Exception {
+                return filesController.downloadSelectedFilesToTemp(showProgress);
             }
 
             @Override

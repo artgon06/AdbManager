@@ -383,8 +383,10 @@ public class DisplayPanel extends JPanel {
 
         configureActionButton(resetButton);
         configureActionButton(applyButton);
-        resetButton.setPreferredSize(new Dimension(92, 38));
-        applyButton.setPreferredSize(new Dimension(92, 38));
+        resetButton.setPreferredSize(new Dimension(126, 38));
+        resetButton.setMinimumSize(new Dimension(126, 38));
+        applyButton.setPreferredSize(new Dimension(104, 38));
+        applyButton.setMinimumSize(new Dimension(104, 38));
         headerActionsPanel.setOpaque(false);
         headerActionsPanel.add(resetButton);
         headerActionsPanel.add(applyButton);

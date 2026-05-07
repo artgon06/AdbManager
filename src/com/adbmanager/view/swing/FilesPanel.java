@@ -8,6 +8,8 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Insets;
 import java.awt.Point;
+import java.awt.SecondaryLoop;
+import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
@@ -15,9 +17,11 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutionException;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -35,6 +39,8 @@ import javax.swing.JTextField;
 import javax.swing.JViewport;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.TransferHandler;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
@@ -55,9 +61,11 @@ public class FilesPanel extends JPanel {
     }
 
     public interface DragExportHandler {
-        File prepareTempDirectory() throws Exception;
+        File prepareTempDirectory(boolean showProgress) throws Exception;
         void cleanupTempDirectory(File tempDir);
     }
+
+    private static final long EAGER_DRAG_EXPORT_LIMIT_BYTES = 100L * 1024L * 1024L;
 
     private final JPanel contentPanel = new JPanel(new BorderLayout(0, 12));
     private final JPanel toolbarPanel = new JPanel(new BorderLayout(12, 0));
@@ -511,9 +519,19 @@ public class FilesPanel extends JPanel {
                     return null;
                 }
 
+                DeviceFileEntry selectedEntry = getSelectedEntry();
+                if (selectedEntry == null) {
+                    return null;
+                }
+
+                if (shouldDeferDragExport(selectedEntry)) {
+                    setStatus(Messages.text("files.status.ready"), false);
+                    return new LazyFileListTransferable();
+                }
+
                 try {
                     setStatus(Messages.text("files.status.preparingExport"), false);
-                    tempDirectory = dragExportHandler.prepareTempDirectory();
+                    tempDirectory = dragExportHandler.prepareTempDirectory(false);
                     File[] files = tempDirectory.listFiles();
                     if (files == null || files.length == 0) {
                         cleanupTempDirectory();
@@ -576,9 +594,7 @@ public class FilesPanel extends JPanel {
 
             @Override
             public void exportDone(JComponent c, Transferable t, int action) {
-                if (action == MOVE || action == COPY) {
-                    cleanupTempDirectory();
-                }
+                cleanupTempDirectory();
                 exportedFiles = null;
                 setStatus(" ", false);
             }
@@ -590,6 +606,125 @@ public class FilesPanel extends JPanel {
                     } catch (Exception e) {
                     }
                     tempDirectory = null;
+                }
+            }
+
+            private boolean shouldDeferDragExport(DeviceFileEntry entry) {
+                return entry.directory() || entry.sizeBytes() > EAGER_DRAG_EXPORT_LIMIT_BYTES;
+            }
+
+            private void setStatusOnEventThread(String message, boolean error) {
+                if (SwingUtilities.isEventDispatchThread()) {
+                    setStatus(message, error);
+                } else {
+                    SwingUtilities.invokeLater(() -> setStatus(message, error));
+                }
+            }
+
+            final class LazyFileListTransferable implements Transferable {
+                private List<File> files;
+                private SwingWorker<List<File>, Void> exportWorker;
+
+                @Override
+                public DataFlavor[] getTransferDataFlavors() {
+                    return new DataFlavor[]{DataFlavor.javaFileListFlavor};
+                }
+
+                @Override
+                public boolean isDataFlavorSupported(DataFlavor flavor) {
+                    return DataFlavor.javaFileListFlavor.equals(flavor);
+                }
+
+                @Override
+                public synchronized Object getTransferData(DataFlavor flavor)
+                        throws UnsupportedFlavorException, IOException {
+                    if (!isDataFlavorSupported(flavor)) {
+                        throw new UnsupportedFlavorException(flavor);
+                    }
+                    if (files != null) {
+                        return files;
+                    }
+
+                    try {
+                        return awaitExport();
+                    } catch (IOException exception) {
+                        throw exception;
+                    } catch (Exception exception) {
+                        cleanupTempDirectory();
+                        setStatusOnEventThread(Messages.text("error.files.export"), true);
+                        throw new IOException(exception);
+                    }
+                }
+
+                private List<File> awaitExport() throws IOException {
+                    if (exportWorker == null) {
+                        exportWorker = createExportWorker();
+                        exportWorker.execute();
+                    }
+
+                    try {
+                        List<File> result;
+                        if (SwingUtilities.isEventDispatchThread()) {
+                            result = waitKeepingEventDispatchThreadAlive(exportWorker);
+                        } else {
+                            result = exportWorker.get();
+                        }
+                        files = result;
+                        exportedFiles = result;
+                        return result;
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException(exception);
+                    } catch (ExecutionException exception) {
+                        Throwable cause = exception.getCause() == null ? exception : exception.getCause();
+                        if (cause instanceof IOException ioException) {
+                            throw ioException;
+                        }
+                        throw new IOException(cause);
+                    }
+                }
+
+                private SwingWorker<List<File>, Void> createExportWorker() {
+                    return new SwingWorker<>() {
+                        @Override
+                        protected List<File> doInBackground() throws Exception {
+                            setStatusOnEventThread(Messages.text("files.status.preparingExport"), false);
+                            tempDirectory = dragExportHandler.prepareTempDirectory(true);
+                            File[] exported = tempDirectory.listFiles();
+                            if (exported == null || exported.length == 0) {
+                                cleanupTempDirectory();
+                                setStatusOnEventThread(Messages.text("error.files.download"), true);
+                                throw new IOException(Messages.text("error.files.download"));
+                            }
+                            return List.of(exported);
+                        }
+
+                        @Override
+                        protected void done() {
+                            if (!isCancelled()) {
+                                setStatus(Messages.text("files.status.ready"), false);
+                            }
+                        }
+                    };
+                }
+
+                private List<File> waitKeepingEventDispatchThreadAlive(SwingWorker<List<File>, Void> worker)
+                        throws InterruptedException, ExecutionException {
+                    if (!worker.isDone()) {
+                        SecondaryLoop secondaryLoop = Toolkit.getDefaultToolkit()
+                                .getSystemEventQueue()
+                                .createSecondaryLoop();
+                        worker.addPropertyChangeListener(event -> {
+                            if ("state".equals(event.getPropertyName())
+                                    && SwingWorker.StateValue.DONE.equals(event.getNewValue())) {
+                                secondaryLoop.exit();
+                            }
+                        });
+                        if (!worker.isDone()) {
+                            secondaryLoop.enter();
+                        }
+                    }
+                    return worker.get();
                 }
             }
         };
