@@ -26,7 +26,6 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.JButton;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -36,7 +35,6 @@ import javax.swing.JToggleButton;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.ChangeListener;
-import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
 
 import com.adbmanager.logic.model.ControlState;
@@ -45,7 +43,7 @@ import com.adbmanager.view.Messages;
 
 public class ControlPanel extends JPanel {
 
-    private static final Font BASE_TEXT_FONT = new Font(Font.SANS_SERIF, Font.PLAIN, 14);
+    private static final Font BASE_TEXT_FONT = new Font("Inter", Font.PLAIN, 14);
 
     private final JLabel titleLabel = new JLabel();
     private final JLabel subtitleLabel = new JLabel();
@@ -380,11 +378,11 @@ public class ControlPanel extends JPanel {
         }
 
         titleLabel.setForeground(theme.textPrimary());
-        titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
+        titleLabel.setFont(new Font("Inter", Font.BOLD, 28));
         subtitleLabel.setForeground(theme.textSecondary());
-        subtitleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        subtitleLabel.setFont(new Font("Inter", Font.PLAIN, 14));
         autoApplyHintLabel.setForeground(theme.textSecondary());
-        autoApplyHintLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+        autoApplyHintLabel.setFont(new Font("Inter", Font.PLAIN, 12));
 
         styleSection(quickActionsPanel, Messages.text("control.quick.title"));
         styleSection(mediaPanel, Messages.text("control.media.title"));
@@ -397,9 +395,9 @@ public class ControlPanel extends JPanel {
         styleFormLabel(soundModeLabel);
 
         brightnessValueLabel.setForeground(theme.textPrimary());
-        brightnessValueLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
-        volumeValueLabel.setForeground(theme.textPrimary());
-        volumeValueLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+        brightnessValueLabel.setFont(new Font("Inter", Font.BOLD, 14));
+        brightnessValueLabel.setForeground(theme.textPrimary());
+        volumeValueLabel.setFont(new Font("Inter", Font.BOLD, 14));
 
         styleTextField(textInputField);
         styleSlider(brightnessSlider);
@@ -757,7 +755,6 @@ public class ControlPanel extends JPanel {
     }
 
     private void configureActionButton(JButton button, boolean primary, ToolbarIcon.Type iconType) {
-        button.setUI(new BasicButtonUI());
         button.setFocusPainted(false);
         button.setFocusable(false);
         button.setRolloverEnabled(true);
@@ -799,7 +796,7 @@ public class ControlPanel extends JPanel {
 
     private void styleFormLabel(JLabel label) {
         label.setForeground(theme.textSecondary());
-        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        label.setFont(new Font("Inter", Font.BOLD, 13));
     }
 
     private void styleTextField(JTextField field) {
@@ -825,30 +822,11 @@ public class ControlPanel extends JPanel {
     }
 
     private void styleActionButton(JButton button, boolean primary) {
-        boolean hovered = button.isEnabled() && button.getModel().isRollover();
-        if (button.isEnabled()) {
-            Color background = primary
-                    ? theme.actionBackground()
-                    : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.84d);
-            if (hovered) {
-                background = ThemeUtils.blend(background, theme.selectionBackground(), primary ? 0.18d : 0.24d);
-            }
-            Color foreground = primary ? theme.actionForeground() : theme.textPrimary();
-            button.setBackground(background);
-            button.setForeground(foreground);
-            button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(primary ? background : theme.border(), 1),
-                    BorderFactory.createEmptyBorder(8, 12, 8, 12)));
-            applyButtonIcon(button, foreground);
-            return;
-        }
-
-        button.setBackground(theme.secondarySurface());
-        button.setForeground(theme.textSecondary());
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(theme.disabledBorder(), 1),
-                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
-        applyButtonIcon(button, theme.textSecondary());
+        boolean iconOnly = button.getIcon() != null && (button.getText() == null || button.getText().isBlank());
+        boolean hasIconAndText = button.getIcon() != null && button.getText() != null && !button.getText().isBlank();
+        ButtonStyler.applyStandard(button, theme, primary, iconOnly, hasIconAndText);
+        applyButtonIcon(button, button.isEnabled() ? (primary ? theme.actionForeground() : theme.textPrimary())
+                : theme.textSecondary());
     }
 
     private void applyButtonIcon(JButton button, Color color) {
@@ -887,7 +865,7 @@ public class ControlPanel extends JPanel {
 
     private void styleStatusLabel() {
         boolean error = Boolean.TRUE.equals(statusLabel.getClientProperty("error"));
-        statusLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        statusLabel.setFont(new Font("Inter", Font.PLAIN, 13));
         statusLabel.setForeground(error ? new Color(223, 76, 76) : theme.textSecondary());
     }
 
@@ -905,8 +883,8 @@ public class ControlPanel extends JPanel {
                 title,
                 TitledBorder.LEFT,
                 TitledBorder.TOP,
-                new Font(Font.SANS_SERIF, Font.BOLD, 18),
-                theme.textPrimary());
+                new Font("Inter", Font.BOLD, 18),
+                        theme.textPrimary());
     }
 
     private static final class PlaceholderTextField extends JTextField {

@@ -6,7 +6,6 @@ import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.Insets;
 import java.awt.Point;
 import java.awt.SecondaryLoop;
 import java.awt.Toolkit;
@@ -45,10 +44,9 @@ import javax.swing.TransferHandler;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.ListSelectionListener;
-import javax.swing.plaf.basic.BasicButtonUI;
+import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
-import javax.swing.table.AbstractTableModel;
 
 import com.adbmanager.logic.model.DeviceDirectoryListing;
 import com.adbmanager.logic.model.DeviceFileEntry;
@@ -326,10 +324,10 @@ public class FilesPanel extends JPanel {
         styleButton(deleteButton, false, ToolbarIcon.Type.UNINSTALL);
 
         pathLabel.setForeground(theme.textSecondary());
-        pathLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        pathLabel.setFont(new Font("Inter", Font.BOLD, 13));
         pathField.setForeground(theme.textPrimary());
         pathField.setCaretColor(theme.textPrimary());
-        pathField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        pathField.setFont(new Font("Inter", Font.PLAIN, 14));
         pathField.setEditable(true);
         pathField.setBackground(theme.secondarySurface());
         pathField.setBorder(BorderFactory.createCompoundBorder(
@@ -338,7 +336,7 @@ public class FilesPanel extends JPanel {
         transferProgressBar.setForeground(theme.actionBackground());
         transferProgressBar.setBackground(theme.secondarySurface());
         transferProgressBar.setBorder(BorderFactory.createLineBorder(theme.border(), 1));
-        transferProgressBar.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+        transferProgressBar.setFont(new Font("Inter", Font.BOLD, 12));
         statusRowPanel.setOpaque(false);
         styleTransferCancelButton();
 
@@ -504,7 +502,6 @@ public class FilesPanel extends JPanel {
             private File tempDirectory;
             private volatile List<File> exportedFiles;
 
-            @Override
             public int getSourceActions(JComponent c) {
                 // Allow drag only when exactly one item (file or directory) is selected
                 if (!deviceAvailable || busy || getSelectedEntries().size() != 1) {
@@ -513,7 +510,6 @@ public class FilesPanel extends JPanel {
                 return COPY;
             }
 
-            @Override
             protected Transferable createTransferable(JComponent c) {
                 if (dragExportHandler == null || getSelectedEntries().isEmpty()) {
                     return null;
@@ -592,7 +588,6 @@ public class FilesPanel extends JPanel {
                 }
             }
 
-            @Override
             public void exportDone(JComponent c, Transferable t, int action) {
                 cleanupTempDirectory();
                 exportedFiles = null;
@@ -778,14 +773,12 @@ public class FilesPanel extends JPanel {
     }
 
     private void configureButton(JButton button) {
-        button.setUI(new BasicButtonUI());
         button.setFocusPainted(false);
         button.setFocusable(false);
         button.setRolloverEnabled(true);
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.setHorizontalAlignment(SwingConstants.LEFT);
         button.setIconTextGap(8);
-        button.setMargin(new Insets(0, 0, 0, 0));
         button.getModel().addChangeListener(event -> {
             ToolbarIcon.Type iconType = (ToolbarIcon.Type) button.getClientProperty("iconType");
             boolean primary = Boolean.TRUE.equals(button.getClientProperty("primary"));
@@ -798,72 +791,23 @@ public class FilesPanel extends JPanel {
         button.putClientProperty("iconType", iconType);
         int iconSize = button.getClientProperty("iconSize") instanceof Integer size ? size : 16;
         boolean enabled = button.isEnabled();
-        boolean hovered = enabled && button.getModel().isRollover();
-
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(true);
-        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
-
-        Color background;
-        Color foreground;
-        if (enabled) {
-            background = primary
-                    ? theme.actionBackground()
-                    : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.84d);
-            if (hovered) {
-                background = ThemeUtils.blend(background, theme.selectionBackground(), primary ? 0.18d : 0.22d);
-            }
-            foreground = primary ? theme.actionForeground() : theme.textPrimary();
-            button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(primary ? background : theme.border(), 1),
-                    BorderFactory.createEmptyBorder(8, 12, 8, 12)));
-        } else {
-            background = theme.surface();
-            foreground = theme.textSecondary();
-            button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(theme.disabledBorder(), 1),
-                    BorderFactory.createEmptyBorder(8, 12, 8, 12)));
-        }
-
-        button.setBackground(background);
-        button.setForeground(foreground);
+        Color foreground = enabled ? (primary ? theme.actionForeground() : theme.textPrimary()) : theme.textSecondary();
         button.setIcon(new ToolbarIcon(iconType, iconSize, foreground));
+        boolean iconOnly = button.getIcon() != null && (button.getText() == null || button.getText().isBlank());
+        boolean hasIconAndText = button.getIcon() != null && button.getText() != null && !button.getText().isBlank();
+        ButtonStyler.applyStandard(button, theme, primary, iconOnly, hasIconAndText);
     }
 
     private void styleTransferCancelButton() {
-        boolean enabled = transferCancelable;
-        boolean hovered = enabled && cancelTransferButton.getModel().isRollover();
-
-        cancelTransferButton.setUI(new BasicButtonUI());
-        cancelTransferButton.setFocusPainted(false);
-        cancelTransferButton.setFocusable(false);
-        cancelTransferButton.setRolloverEnabled(true);
-        cancelTransferButton.setCursor(enabled
+        cancelTransferButton.setCursor(transferCancelable
                 ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
                 : Cursor.getDefaultCursor());
-        cancelTransferButton.setOpaque(true);
-        cancelTransferButton.setContentAreaFilled(true);
-        cancelTransferButton.setBorderPainted(true);
-        cancelTransferButton.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
-        cancelTransferButton.setMargin(new Insets(0, 0, 0, 0));
-        cancelTransferButton.setPreferredSize(new Dimension(18, 18));
-        cancelTransferButton.setMinimumSize(new Dimension(18, 18));
-        cancelTransferButton.setMaximumSize(new Dimension(18, 18));
+        ButtonStyler.applyStandard(cancelTransferButton, theme, false, true, false);
         cancelTransferButton.setToolTipText(Messages.text("files.action.cancelTransfer"));
-
-        if (enabled) {
-            Color background = hovered
-                    ? ThemeUtils.blend(theme.surface(), new Color(214, 80, 80), 0.24d)
-                    : theme.surface();
-            cancelTransferButton.setBackground(background);
-            cancelTransferButton.setForeground(theme.textSecondary());
-            cancelTransferButton.setBorder(BorderFactory.createLineBorder(theme.border(), 1));
-        } else {
-            cancelTransferButton.setBackground(theme.background());
-            cancelTransferButton.setForeground(theme.textSecondary());
-            cancelTransferButton.setBorder(BorderFactory.createLineBorder(theme.disabledBorder(), 1));
-        }
+        cancelTransferButton.setPreferredSize(new Dimension(32, 32));
+        cancelTransferButton.setMinimumSize(new Dimension(32, 32));
+        cancelTransferButton.setMaximumSize(new Dimension(32, 32));
+        cancelTransferButton.setForeground(transferCancelable ? theme.textSecondary() : theme.textSecondary());
     }
 
     private void styleTable() {
@@ -872,14 +816,14 @@ public class FilesPanel extends JPanel {
         filesTable.setSelectionBackground(theme.selectionBackground());
         filesTable.setSelectionForeground(theme.selectionForeground());
         filesTable.setGridColor(theme.border());
-        filesTable.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        filesTable.setFont(new Font("Inter", Font.PLAIN, 14));
 
         JTableHeader tableHeader = filesTable.getTableHeader();
         tableHeader.setReorderingAllowed(false);
         tableHeader.setOpaque(true);
         tableHeader.setBackground(theme.secondarySurface());
         tableHeader.setForeground(theme.textSecondary());
-        tableHeader.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        tableHeader.setFont(new Font("Inter", Font.BOLD, 13));
         tableHeader.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, theme.border()));
         tableHeader.setDefaultRenderer(new FilesTableHeaderRenderer());
     }
@@ -916,7 +860,7 @@ public class FilesPanel extends JPanel {
                 menuItem.setBackground(theme.surface());
                 menuItem.setForeground(menuItem.isEnabled() ? theme.textPrimary() : theme.textSecondary());
                 menuItem.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-                menuItem.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+                menuItem.setFont(new Font("Inter", Font.PLAIN, 14));
                 menuItem.setIconTextGap(10);
             }
         }
@@ -925,7 +869,7 @@ public class FilesPanel extends JPanel {
     private void styleStatusLabel() {
         boolean error = Boolean.TRUE.equals(statusLabel.getClientProperty("error"));
         statusLabel.setForeground(error ? new Color(214, 80, 80) : theme.textSecondary());
-        statusLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        statusLabel.setFont(new Font("Inter", Font.BOLD, 13));
     }
 
     private void styleSection(JPanel panel, String title) {
@@ -936,8 +880,8 @@ public class FilesPanel extends JPanel {
                         title,
                         TitledBorder.LEFT,
                         TitledBorder.TOP,
-                        new Font(Font.SANS_SERIF, Font.BOLD, 18),
-                        theme.textPrimary()),
+                        new Font("Inter", Font.BOLD, 18),
+                                theme.textPrimary()),
                 BorderFactory.createEmptyBorder(12, 12, 12, 12)));
     }
 
@@ -947,8 +891,8 @@ public class FilesPanel extends JPanel {
                 title,
                 TitledBorder.LEFT,
                 TitledBorder.TOP,
-                new Font(Font.SANS_SERIF, Font.BOLD, 18),
-                theme.textPrimary());
+                new Font("Inter", Font.BOLD, 18),
+                        theme.textPrimary());
     }
 
     private String resolveTypeLabel(DeviceFileEntry entry) {
@@ -1044,7 +988,7 @@ public class FilesPanel extends JPanel {
             setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 10));
             setBackground(isSelected ? theme.selectionBackground() : theme.background());
             setForeground(isSelected ? theme.selectionForeground() : theme.textPrimary());
-            setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+            setFont(new Font("Inter", Font.PLAIN, 14));
 
             DeviceFileEntry entry = tableModel.getEntryAt(row);
             if (column == 0 && entry != null) {
@@ -1083,7 +1027,7 @@ public class FilesPanel extends JPanel {
             setBorder(BorderFactory.createCompoundBorder(
                     BorderFactory.createMatteBorder(0, 0, 1, 0, theme.border()),
                     BorderFactory.createEmptyBorder(0, 10, 0, 10)));
-            setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+            setFont(new Font("Inter", Font.BOLD, 13));
             return this;
         }
     }

@@ -9,15 +9,15 @@ import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.Insets;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
-import java.awt.datatransfer.StringSelection;
-import java.awt.Point;
-import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,8 +36,8 @@ import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
 import javax.swing.JSlider;
+import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.JViewport;
@@ -49,13 +49,12 @@ import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.ListSelectionListener;
-import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableRowSorter;
 
-import com.adbmanager.logic.model.AppDetails;
 import com.adbmanager.logic.model.AppBackgroundMode;
+import com.adbmanager.logic.model.AppDetails;
 import com.adbmanager.logic.model.AppPermission;
 import com.adbmanager.logic.model.InstalledApp;
 import com.adbmanager.view.Messages;
@@ -505,7 +504,7 @@ public class AppsPanel extends JPanel {
         this.theme = theme;
         setBackground(theme.background());
         titleLabel.setForeground(theme.textPrimary());
-        titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
+        titleLabel.setFont(new Font("Inter", Font.BOLD, 28));
 
         listPanel.setBackground(theme.background());
         listHeaderPanel.setBackground(theme.background());
@@ -529,9 +528,9 @@ public class AppsPanel extends JPanel {
         permissionsPanel.setBackground(theme.background());
 
         searchLabel.setForeground(theme.textSecondary());
-        searchLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        searchLabel.setFont(new Font("Inter", Font.BOLD, 13));
         visibleCountLabel.setForeground(theme.textSecondary());
-        visibleCountLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        visibleCountLabel.setFont(new Font("Inter", Font.BOLD, 13));
         visibleCountLabel.setHorizontalAlignment(SwingConstants.RIGHT);
         styleStatusLabel();
 
@@ -554,29 +553,29 @@ public class AppsPanel extends JPanel {
                 BorderFactory.createEmptyBorder(12, 14, 14, 14)));
 
         detailsEmptyTitleLabel.setForeground(theme.textPrimary());
-        detailsEmptyTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
-        detailsEmptySubtitleLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 15), theme.textSecondary());
+        detailsEmptyTitleLabel.setFont(new Font("Inter", Font.BOLD, 22));
+        detailsEmptySubtitleLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 15), theme.textSecondary());
         detailsLoadingTitleLabel.setForeground(theme.textPrimary());
-        detailsLoadingTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
-        detailsLoadingSubtitleLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 15), theme.textSecondary());
+        detailsLoadingTitleLabel.setFont(new Font("Inter", Font.BOLD, 22));
+        detailsLoadingSubtitleLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 15), theme.textSecondary());
 
         appNameTitleLabel.setForeground(theme.textPrimary());
-        appNameTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 22));
+        appNameTitleLabel.setFont(new Font("Inter", Font.BOLD, 22));
         appPackageTitleLabel.setForeground(theme.textSecondary());
-        appPackageTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        appPackageTitleLabel.setFont(new Font("Inter", Font.PLAIN, 14));
         backgroundModeTitleLabel.setForeground(theme.textSecondary());
-        backgroundModeTitleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        backgroundModeTitleLabel.setFont(new Font("Inter", Font.BOLD, 13));
         backgroundModeValueLabel.setForeground(theme.textPrimary());
-        backgroundModeValueLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
+        backgroundModeValueLabel.setFont(new Font("Inter", Font.BOLD, 14));
 
         for (JLabel fieldLabel : fieldLabels.values()) {
             fieldLabel.setForeground(theme.textSecondary());
-            fieldLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+            fieldLabel.setFont(new Font("Inter", Font.BOLD, 13));
         }
 
         for (JLabel valueLabel : valueLabels.values()) {
             valueLabel.setForeground(theme.textPrimary());
-            valueLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+            valueLabel.setFont(new Font("Inter", Font.PLAIN, 15));
         }
 
         styleTable();
@@ -632,7 +631,7 @@ public class AppsPanel extends JPanel {
 
         searchField.setBorder(BorderFactory.createEmptyBorder(8, 4, 8, 4));
         searchField.setOpaque(false);
-        searchField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 15));
+        searchField.setFont(new Font("Inter", Font.PLAIN, 15));
         searchField.getInputMap().put(javax.swing.KeyStroke.getKeyStroke("ESCAPE"), "clear-search");
         searchField.getActionMap().put("clear-search", new AbstractAction() {
             @Override
@@ -641,21 +640,19 @@ public class AppsPanel extends JPanel {
             }
         });
 
-        clearSearchButton.setUI(new BasicButtonUI());
         clearSearchButton.setFocusable(false);
         clearSearchButton.setFocusPainted(false);
         clearSearchButton.setRolloverEnabled(true);
         clearSearchButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         clearSearchButton.getModel().addChangeListener(event -> styleSearchField());
-        clearSearchButton.setPreferredSize(new Dimension(28, 28));
+        clearSearchButton.setPreferredSize(new Dimension(32, 32));
         clearSearchButton.addActionListener(event -> clearSearchField());
 
-        installButton.setUI(new BasicButtonUI());
         installButton.setFocusable(false);
         installButton.setFocusPainted(false);
         installButton.setRolloverEnabled(true);
         installButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        installButton.setPreferredSize(new Dimension(40, 40));
+        installButton.setPreferredSize(new Dimension(32, 32));
         installButton.setText("");
         installButton.getModel().addChangeListener(event -> styleInstallButton());
 
@@ -938,7 +935,7 @@ public class AppsPanel extends JPanel {
             if (permissions.isEmpty()) {
                 JLabel emptyLabel = new JLabel(Messages.text("apps.permissions.empty"));
                 emptyLabel.setForeground(theme.textSecondary());
-                emptyLabel.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+                emptyLabel.setFont(new Font("Inter", Font.PLAIN, 14));
                 permissionsPanel.add(emptyLabel);
             } else {
                 for (AppPermission permission : permissions) {
@@ -1055,34 +1052,22 @@ public class AppsPanel extends JPanel {
                 BorderFactory.createEmptyBorder(4, 10, 4, 6)));
         searchField.setForeground(theme.textPrimary());
         searchField.setCaretColor(theme.textPrimary());
-        clearSearchButton.setOpaque(true);
-        clearSearchButton.setContentAreaFilled(true);
-        clearSearchButton.setBackground(clearSearchButton.getModel().isRollover()
-                ? ThemeUtils.blend(theme.secondarySurface(), theme.selectionBackground(), 0.2d)
-                : theme.secondarySurface());
+        ButtonStyler.applyStandard(clearSearchButton, theme, false, true, false);
         clearSearchButton.setForeground(theme.textSecondary());
         clearSearchButton.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
     }
 
     private void styleInstallButton() {
-        boolean hovered = installButton.getModel().isRollover() && installButton.isEnabled();
-        installButton.setOpaque(true);
-        installButton.setContentAreaFilled(true);
-        installButton.setBackground(hovered
-                ? ThemeUtils.blend(theme.secondarySurface(), theme.selectionBackground(), 0.24d)
-                : theme.secondarySurface());
-        installButton.setForeground(installButton.isEnabled() ? theme.actionBackground() : theme.textSecondary());
-        installButton.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(installButton.isEnabled() ? theme.border() : theme.disabledBorder(), 1),
-                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
-        installButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.ADD, 16, installButton.getForeground()));
+        ButtonStyler.applyStandard(installButton, theme, false, true, false);
+        installButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.ADD, 16,
+                installButton.isEnabled() ? theme.actionBackground() : theme.textSecondary()));
     }
 
     private void styleStatusLabel() {
         listStatusLabel.setForeground(Boolean.TRUE.equals(listStatusLabel.getClientProperty("loading"))
                 ? theme.actionBackground()
                 : theme.textSecondary());
-        listStatusLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        listStatusLabel.setFont(new Font("Inter", Font.BOLD, 13));
     }
 
     private void updateVisibleCountLabel() {
@@ -1094,7 +1079,7 @@ public class AppsPanel extends JPanel {
         checkBox.setBackground(theme.background());
         checkBox.setForeground(theme.textPrimary());
         checkBox.setFocusPainted(false);
-        checkBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        checkBox.setFont(new Font("Inter", Font.PLAIN, 14));
     }
 
     private void stylePermissionCheckBox(JCheckBox checkBox) {
@@ -1102,7 +1087,7 @@ public class AppsPanel extends JPanel {
         checkBox.setForeground(checkBox.isEnabled() ? theme.textPrimary() : theme.textSecondary());
         checkBox.setFocusPainted(false);
         checkBox.setBorder(BorderFactory.createEmptyBorder(4, 0, 4, 0));
-        checkBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        checkBox.setFont(new Font("Inter", Font.PLAIN, 14));
     }
 
     private void styleTable() {
@@ -1111,13 +1096,13 @@ public class AppsPanel extends JPanel {
         appsTable.setSelectionBackground(theme.selectionBackground());
         appsTable.setSelectionForeground(theme.selectionForeground());
         appsTable.setGridColor(theme.border());
-        appsTable.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        appsTable.setFont(new Font("Inter", Font.PLAIN, 14));
 
         JTableHeader tableHeader = appsTable.getTableHeader();
         tableHeader.setOpaque(true);
         tableHeader.setBackground(theme.secondarySurface());
         tableHeader.setForeground(theme.textSecondary());
-        tableHeader.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        tableHeader.setFont(new Font("Inter", Font.BOLD, 13));
         tableHeader.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, theme.border()));
         tableHeader.setDefaultRenderer(new AppsTableHeaderRenderer());
     }
@@ -1149,7 +1134,6 @@ public class AppsPanel extends JPanel {
     private void configureActionButton(JButton button, ToolbarIcon.Type iconType, boolean primary) {
         button.putClientProperty("iconType", iconType);
         button.putClientProperty("primary", primary);
-        button.setUI(new BasicButtonUI());
         button.setFocusable(false);
         button.setFocusPainted(false);
         button.setHorizontalAlignment(SwingConstants.LEFT);
@@ -1157,7 +1141,7 @@ public class AppsPanel extends JPanel {
         button.setRolloverEnabled(true);
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.getModel().addChangeListener(event -> styleActionButton(button, button.isEnabled()));
-        button.setPreferredSize(new Dimension(0, 36));
+        button.setPreferredSize(new Dimension(0, 32));
         button.setMargin(new Insets(0, 0, 0, 0));
     }
 
@@ -1183,32 +1167,9 @@ public class AppsPanel extends JPanel {
 
     private void styleActionButton(JButton button, boolean enabled) {
         boolean primary = Boolean.TRUE.equals(button.getClientProperty("primary"));
-        boolean hovered = enabled && button.getModel().isRollover();
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(true);
-        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
-
-        if (enabled) {
-            Color background = primary
-                    ? theme.actionBackground()
-                    : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.84d);
-            if (hovered) {
-                background = ThemeUtils.blend(background, theme.selectionBackground(), primary ? 0.16d : 0.24d);
-            }
-            button.setBackground(background);
-            button.setForeground(primary ? theme.actionForeground() : theme.textPrimary());
-            button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(primary ? background : theme.border(), 1),
-                    BorderFactory.createEmptyBorder(6, 10, 6, 10)));
-        } else {
-            button.setBackground(theme.secondarySurface());
-            button.setForeground(theme.textSecondary());
-            button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(theme.disabledBorder(), 1),
-                    BorderFactory.createEmptyBorder(6, 10, 6, 10)));
-        }
-
+        boolean iconOnly = button.getIcon() != null && (button.getText() == null || button.getText().isBlank());
+        boolean hasIconAndText = button.getIcon() != null && button.getText() != null && !button.getText().isBlank();
+        ButtonStyler.applyStandard(button, theme, primary, iconOnly, hasIconAndText);
         updateActionButtonIcons();
     }
 
@@ -1241,7 +1202,7 @@ public class AppsPanel extends JPanel {
 
     private void styleBackgroundModeLegendLabel(JLabel label, boolean selected) {
         label.setForeground(selected ? theme.actionBackground() : theme.textSecondary());
-        label.setFont(new Font(Font.SANS_SERIF, selected ? Font.BOLD : Font.PLAIN, 13));
+        label.setFont(new Font("Inter", selected ? Font.BOLD : Font.PLAIN, 13));
     }
 
     private void restoreSplitPaneLocation() {
@@ -1300,7 +1261,7 @@ public class AppsPanel extends JPanel {
 
             String monogram = buildMonogram(displayName, packageName);
             g2d.setColor(Color.WHITE);
-            g2d.setFont(new Font(Font.SANS_SERIF, Font.BOLD, Math.max(10, Math.round(size * 0.42f))));
+            g2d.setFont(new Font("Inter", Font.BOLD, Math.max(10, Math.round(size * 0.42f))));
             java.awt.FontMetrics metrics = g2d.getFontMetrics();
             int textX = (size - metrics.stringWidth(monogram)) / 2;
             int textY = (size - metrics.getHeight()) / 2 + metrics.getAscent();
@@ -1419,7 +1380,7 @@ public class AppsPanel extends JPanel {
                 title,
                 TitledBorder.LEFT,
                 TitledBorder.TOP,
-                new Font(Font.SANS_SERIF, Font.BOLD, 18),
+                new Font("Inter", Font.BOLD, 18),
                 theme.textPrimary());
     }
 
@@ -1437,7 +1398,7 @@ public class AppsPanel extends JPanel {
             setBorder(BorderFactory.createEmptyBorder(0, 10, 0, 10));
             setBackground(isSelected ? theme.selectionBackground() : theme.background());
             setForeground(isSelected ? theme.selectionForeground() : theme.textPrimary());
-            setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+            setFont(new Font("Inter", Font.PLAIN, 14));
             if (column == 0) {
                 InstalledApp application = tableModel.getApplicationAt(table.convertRowIndexToModel(row));
                 setIcon(createListApplicationIcon(application));
@@ -1465,7 +1426,7 @@ public class AppsPanel extends JPanel {
             setBorder(BorderFactory.createCompoundBorder(
                     BorderFactory.createMatteBorder(0, 0, 1, 0, theme.border()),
                     BorderFactory.createEmptyBorder(0, 10, 0, 10)));
-            setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+            setFont(new Font("Inter", Font.BOLD, 13));
             return this;
         }
     }

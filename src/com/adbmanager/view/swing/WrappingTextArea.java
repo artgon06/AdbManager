@@ -22,7 +22,7 @@ public class WrappingTextArea extends JTextArea {
         setOpaque(false);
         setBorder(BorderFactory.createEmptyBorder());
         setAlignmentX(LEFT_ALIGNMENT);
-        setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        setFont(new Font("Inter", Font.PLAIN, 14));
     }
 
     public void applyTheme(AppTheme theme, Font font, java.awt.Color foreground) {

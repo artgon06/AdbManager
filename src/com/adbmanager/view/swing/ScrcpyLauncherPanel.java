@@ -4,13 +4,12 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
-import java.awt.Rectangle;
 import java.awt.event.ActionListener;
 import java.util.EnumMap;
 import java.util.List;
@@ -33,7 +32,6 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.border.EmptyBorder;
-import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
 
 import com.adbmanager.logic.model.DeviceDetails;
@@ -54,6 +52,12 @@ public class ScrcpyLauncherPanel extends JPanel {
     private final JPanel topActionsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
     private final JPanel missingScrcpyPanel = new JPanel(new BorderLayout(14, 0));
     private final WrappingTextArea missingScrcpyLabel = new WrappingTextArea();
+    private final JLabel availabilityLabel = new JLabel();
+    private final JLabel availabilityValueLabel = new JLabel();
+    private final JLabel versionLabel = new JLabel();
+    private final JLabel versionValueLabel = new JLabel();
+    private final JLabel locationLabel = new JLabel();
+    private final WrappingTextArea locationValueLabel = new WrappingTextArea();
     private final JLabel feedbackLabel = new JLabel();
     private final JButton prepareButton = new JButton();
     private ScrcpyStatus currentStatus = ScrcpyStatus.missing();
@@ -226,9 +230,12 @@ public class ScrcpyLauncherPanel extends JPanel {
         readOnlyCheck.setSelected(safeRequest.readOnly());
         maxSizeField.setText(safeRequest.maxSize() == null ? "" : String.valueOf(safeRequest.maxSize()));
         maxFpsField.setText(safeRequest.maxFps() == null ? "" : formatDecimal(safeRequest.maxFps()));
-        virtualWidthField.setText(safeRequest.virtualDisplayWidth() == null ? "" : String.valueOf(safeRequest.virtualDisplayWidth()));
-        virtualHeightField.setText(safeRequest.virtualDisplayHeight() == null ? "" : String.valueOf(safeRequest.virtualDisplayHeight()));
-        virtualDpiField.setText(safeRequest.virtualDisplayDpi() == null ? "" : String.valueOf(safeRequest.virtualDisplayDpi()));
+        virtualWidthField.setText(
+                safeRequest.virtualDisplayWidth() == null ? "" : String.valueOf(safeRequest.virtualDisplayWidth()));
+        virtualHeightField.setText(
+                safeRequest.virtualDisplayHeight() == null ? "" : String.valueOf(safeRequest.virtualDisplayHeight()));
+        virtualDpiField.setText(
+                safeRequest.virtualDisplayDpi() == null ? "" : String.valueOf(safeRequest.virtualDisplayDpi()));
         cameraWidthField.setText(safeRequest.cameraWidth() == null ? "" : String.valueOf(safeRequest.cameraWidth()));
         cameraHeightField.setText(safeRequest.cameraHeight() == null ? "" : String.valueOf(safeRequest.cameraHeight()));
         audioCombo.setSelectedItem(safeRequest.audioSource());
@@ -357,7 +364,7 @@ public class ScrcpyLauncherPanel extends JPanel {
             scrollPane.getHorizontalScrollBar().setUnitIncrement(24);
         }
 
-        introLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 14), theme.textSecondary());
+        introLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 14), theme.textSecondary());
         introActionsPanel.setBackground(theme.background());
         topActionsPanel.setBackground(theme.background());
         videoTuningPanel.setBackground(theme.background());
@@ -372,6 +379,12 @@ public class ScrcpyLauncherPanel extends JPanel {
         styleCard(recordCard);
         styleMissingScrcpyPanel();
 
+        styleLabel(availabilityLabel);
+        styleLabel(versionLabel);
+        styleLabel(locationLabel);
+        styleValueLabel(availabilityValueLabel);
+        styleValueLabel(versionValueLabel);
+        locationValueLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 14), theme.textPrimary());
         styleFeedbackLabel();
 
         styleLabel(targetLabel);
@@ -379,7 +392,7 @@ public class ScrcpyLauncherPanel extends JPanel {
         styleCheckBox(fullscreenCheck);
         styleCheckBox(turnScreenOffCheck);
         styleCheckBox(readOnlyCheck);
-        hintLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
+        hintLabel.applyTheme(theme, new Font("Inter", Font.PLAIN, 13), theme.textSecondary());
 
         styleSectionTitle(imageSectionLabel);
         styleSectionTitle(ioSectionLabel);
@@ -483,13 +496,23 @@ public class ScrcpyLauncherPanel extends JPanel {
     private void buildMissingScrcpyPanel() {
         missingScrcpyPanel.setBorder(new EmptyBorder(12, 14, 12, 14));
         missingScrcpyLabel.setAlignmentX(LEFT_ALIGNMENT);
+        locationValueLabel.setAlignmentX(LEFT_ALIGNMENT);
         feedbackLabel.setAlignmentX(LEFT_ALIGNMENT);
         feedbackLabel.setMaximumSize(new Dimension(Integer.MAX_VALUE, feedbackLabel.getPreferredSize().height));
         configureButton(prepareButton);
         prepareButton.setPreferredSize(new Dimension(170, 38));
         JPanel textPanel = new JPanel(new BorderLayout());
         textPanel.setOpaque(false);
-        textPanel.add(missingScrcpyLabel, BorderLayout.CENTER);
+        JPanel detailsPanel = new JPanel();
+        detailsPanel.setOpaque(false);
+        detailsPanel.setLayout(new BoxLayout(detailsPanel, BoxLayout.Y_AXIS));
+        detailsPanel.add(createKeyValueRow(availabilityLabel, availabilityValueLabel));
+        detailsPanel.add(Box.createVerticalStrut(8));
+        detailsPanel.add(createKeyValueRow(versionLabel, versionValueLabel));
+        detailsPanel.add(Box.createVerticalStrut(8));
+        detailsPanel.add(createKeyValueRow(locationLabel, locationValueLabel));
+        textPanel.add(missingScrcpyLabel, BorderLayout.NORTH);
+        textPanel.add(detailsPanel, BorderLayout.CENTER);
         textPanel.add(feedbackLabel, BorderLayout.SOUTH);
         missingScrcpyPanel.add(textPanel, BorderLayout.CENTER);
         missingScrcpyPanel.add(prepareButton, BorderLayout.EAST);
@@ -911,23 +934,23 @@ public class ScrcpyLauncherPanel extends JPanel {
 
     private void styleLabel(JLabel label) {
         label.setForeground(theme.textSecondary());
-        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        label.setFont(new Font("Inter", Font.BOLD, 13));
     }
 
     private void styleSectionTitle(JLabel label) {
         label.setForeground(theme.textPrimary());
-        label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 20));
+        label.setFont(new Font("Inter", Font.BOLD, 20));
     }
 
     private void styleValueLabel(JLabel label) {
         label.setForeground(theme.textPrimary());
-        label.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        label.setFont(new Font("Inter", Font.PLAIN, 14));
     }
 
     private void styleFeedbackLabel() {
         boolean error = Boolean.TRUE.equals(feedbackLabel.getClientProperty("error"));
         feedbackLabel.setForeground(error ? new java.awt.Color(214, 80, 80) : theme.actionBackground());
-        feedbackLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
+        feedbackLabel.setFont(new Font("Inter", Font.BOLD, 13));
     }
 
     private void styleCheckBox(JCheckBox checkBox) {
@@ -935,7 +958,7 @@ public class ScrcpyLauncherPanel extends JPanel {
         checkBox.setBackground(theme.background());
         checkBox.setForeground(theme.textPrimary());
         checkBox.setFocusPainted(false);
-        checkBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        checkBox.setFont(new Font("Inter", Font.PLAIN, 14));
     }
 
     private void styleTextField(JTextField textField) {
@@ -946,7 +969,7 @@ public class ScrcpyLauncherPanel extends JPanel {
         textField.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(8, 10, 8, 10)));
-        textField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        textField.setFont(new Font("Inter", Font.PLAIN, 14));
         textField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
     }
 
@@ -957,7 +980,7 @@ public class ScrcpyLauncherPanel extends JPanel {
         comboBox.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(4, 8, 4, 8)));
-        comboBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        comboBox.setFont(new Font("Inter", Font.PLAIN, 14));
         comboBox.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         comboBox.setFocusable(false);
         comboBox.setBackground(theme.secondarySurface());
@@ -994,7 +1017,7 @@ public class ScrcpyLauncherPanel extends JPanel {
 
     private void styleEditableComboEditor(JComboBox<?> comboBox, JTextField editorField) {
         ThemedComboBoxUI.styleEditableEditor(comboBox, theme);
-        editorField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        editorField.setFont(new Font("Inter", Font.PLAIN, 14));
     }
 
     private void styleButtons() {
@@ -1010,46 +1033,16 @@ public class ScrcpyLauncherPanel extends JPanel {
     }
 
     private void styleButton(JButton button, boolean primary) {
-        boolean enabled = button.isEnabled();
-        boolean hovered = enabled && button.getModel().isRollover();
-        button.setUI(new BasicButtonUI());
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(true);
-        button.setFocusPainted(false);
-        button.setFocusable(false);
-        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, button == launchButton ? 15 : 13));
-        button.setPreferredSize(new Dimension(0, button == launchButton ? 46 : 38));
         if (button == prepareButton) {
             button.setIcon(new ToolbarIcon(ToolbarIcon.Type.DOWNLOAD, 16,
-                    enabled ? theme.textPrimary() : theme.textSecondary()));
+                    button.isEnabled() ? theme.textPrimary() : theme.textSecondary()));
         } else if (button == launchButton) {
             button.setIcon(new ToolbarIcon(ToolbarIcon.Type.MEDIA_PLAY_PAUSE, 16,
-                    enabled ? theme.actionForeground() : theme.textSecondary()));
+                    button.isEnabled() ? theme.actionForeground() : theme.textSecondary()));
         }
-        button.setIconTextGap(8);
-
-        if (enabled) {
-            java.awt.Color background = primary
-                    ? theme.actionBackground()
-                    : ThemeUtils.blend(theme.background(), theme.secondarySurface(), 0.84d);
-            if (hovered) {
-                background = ThemeUtils.blend(background, theme.selectionBackground(), primary ? 0.18d : 0.22d);
-            }
-            button.setBackground(background);
-            button.setForeground(primary ? theme.actionForeground() : theme.textPrimary());
-            button.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(primary ? background : theme.border(), 1),
-                    BorderFactory.createEmptyBorder(8, 12, 8, 12)));
-            return;
-        }
-
-        button.setBackground(theme.secondarySurface());
-        button.setForeground(theme.textSecondary());
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(theme.disabledBorder(), 1),
-                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
+        boolean iconOnly = button.getIcon() != null && (button.getText() == null || button.getText().isBlank());
+        boolean hasIconAndText = button.getIcon() != null && button.getText() != null && !button.getText().isBlank();
+        ButtonStyler.applyStandard(button, theme, primary, iconOnly, hasIconAndText);
     }
 
     private void updateTargetButtonTexts() {
@@ -1100,7 +1093,7 @@ public class ScrcpyLauncherPanel extends JPanel {
         button.setContentAreaFilled(true);
         button.setBackground(background);
         button.setForeground(foreground);
-        button.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
+        button.setFont(new Font("Inter", Font.PLAIN, 13));
         button.setIcon(new ToolbarIcon(
                 (ToolbarIcon.Type) button.getClientProperty("iconType"),
                 34,

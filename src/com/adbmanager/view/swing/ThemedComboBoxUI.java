@@ -10,15 +10,14 @@ import java.awt.RenderingHints;
 import java.beans.PropertyChangeListener;
 
 import javax.swing.BorderFactory;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.Icon;
 import javax.swing.JButton;
-import javax.swing.JComponent;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JList;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
-import javax.swing.DefaultListCellRenderer;
-import javax.swing.plaf.basic.BasicButtonUI;
 import javax.swing.plaf.basic.BasicComboBoxUI;
 import javax.swing.plaf.basic.BasicComboPopup;
 import javax.swing.plaf.basic.ComboPopup;
@@ -36,7 +35,7 @@ public class ThemedComboBoxUI extends BasicComboBoxUI {
     @Override
     protected JButton createArrowButton() {
         JButton button = new JButton(new ArrowIcon(theme.textSecondary()));
-        button.setUI(new BasicButtonUI());
+        // Use centralized button styling via ButtonStyler instead of BasicButtonUI
         button.setOpaque(true);
         button.setContentAreaFilled(true);
         button.setBackground(resolveSurfaceColor());
@@ -44,6 +43,7 @@ public class ThemedComboBoxUI extends BasicComboBoxUI {
         button.setBorder(BorderFactory.createMatteBorder(0, 1, 0, 0, resolveBorderColor()));
         button.setFocusPainted(false);
         button.setFocusable(false);
+        button.setPreferredSize(new java.awt.Dimension(32, 32));
         arrowButtonRef = button;
         return button;
     }

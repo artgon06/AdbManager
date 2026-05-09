@@ -35,7 +35,7 @@ public class MirroringPanel extends JPanel {
         this.theme = theme;
         setBackground(theme.background());
         titleLabel.setForeground(theme.textPrimary());
-        titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
+        titleLabel.setFont(new Font("Inter", Font.BOLD, 28));
         scrcpyLabel.setForeground(theme.textSecondary());
         scrcpyLabel.setFont(new Font(Font.MONOSPACED, Font.BOLD | Font.ITALIC, 20));
         scrcpyPanel.applyTheme(theme);
