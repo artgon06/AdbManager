@@ -1,11 +1,13 @@
 package com.adbmanager.control;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.function.Consumer;
 
+import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 
 import com.adbmanager.logic.model.Device;
@@ -188,6 +190,71 @@ final class FilesController {
                 Messages.format("files.status.downloaded", selectedPaths.size()),
                 false,
                 progress -> model().pullSelectedDevicePaths(selectedPaths, destinationDirectory, progress));
+    }
+
+    File downloadSelectedFilesToTemp(boolean showProgress) throws Exception {
+        List<String> selectedPaths = view().getSelectedFilePaths();
+        if (selectedPaths.isEmpty()) {
+            throw new IllegalStateException(Messages.text("error.files.noSelection"));
+        }
+
+        Device selectedDevice = model().getSelectedDevice().orElse(null);
+        if (!context.isFilesAvailable(selectedDevice)) {
+            throw new IllegalStateException(Messages.text("error.files.deviceRequired"));
+        }
+
+        File tempDir = Files.createTempDirectory("adbmanager-drag-").toFile();
+        try {
+            if (showProgress) {
+                updateDragExportProgress(new FileTransferProgress(0L, 0L, 0L, true));
+            }
+            model().pullSelectedDevicePaths(selectedPaths, tempDir, progress -> {
+                if (showProgress) {
+                    updateDragExportProgress(progress);
+                }
+            });
+            File[] files = tempDir.listFiles();
+            if (files == null || files.length == 0) {
+                tempDir.delete();
+                throw new IllegalStateException(Messages.text("error.files.download"));
+            }
+            return tempDir;
+        } catch (Exception e) {
+            deleteDirectory(tempDir);
+            throw e;
+        } finally {
+            if (showProgress) {
+                SwingUtilities.invokeLater(() -> view().clearFilesTransferProgress());
+            }
+        }
+    }
+
+    private void updateDragExportProgress(FileTransferProgress progress) {
+        SwingUtilities.invokeLater(() -> view().setFilesTransferProgress(
+                true,
+                progress == null || progress.indeterminate(),
+                progress == null ? 0 : progress.percent(),
+                formatTransferProgress(progress)));
+    }
+
+    void cleanupTempDirectory(File tempDir) {
+        if (tempDir != null && tempDir.exists()) {
+            deleteDirectory(tempDir);
+        }
+    }
+
+    private void deleteDirectory(File directory) {
+        File[] files = directory.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    deleteDirectory(file);
+                } else {
+                    file.delete();
+                }
+            }
+        }
+        directory.delete();
     }
 
     void renameSelectedFile() {

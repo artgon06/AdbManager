@@ -7,19 +7,26 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Point;
+import java.awt.SecondaryLoop;
+import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutionException;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
@@ -31,6 +38,8 @@ import javax.swing.JTextField;
 import javax.swing.JViewport;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.TransferHandler;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
@@ -48,6 +57,13 @@ public class FilesPanel extends JPanel {
     public interface FileDropHandler {
         void onDrop(List<File> files);
     }
+
+    public interface DragExportHandler {
+        File prepareTempDirectory(boolean showProgress) throws Exception;
+        void cleanupTempDirectory(File tempDir);
+    }
+
+    private static final long EAGER_DRAG_EXPORT_LIMIT_BYTES = 100L * 1024L * 1024L;
 
     private final JPanel contentPanel = new JPanel(new BorderLayout(0, 12));
     private final JPanel toolbarPanel = new JPanel(new BorderLayout(12, 0));
@@ -92,6 +108,7 @@ public class FilesPanel extends JPanel {
     };
     private FileDropHandler fileDropHandler = files -> {
     };
+    private DragExportHandler dragExportHandler = null;
 
     public FilesPanel() {
         buildPanel();
@@ -153,6 +170,10 @@ public class FilesPanel extends JPanel {
     public void setFileDropHandler(FileDropHandler handler) {
         fileDropHandler = handler == null ? files -> {
         } : handler;
+    }
+
+    public void setDragExportHandler(DragExportHandler handler) {
+        dragExportHandler = handler;
     }
 
     public void setDeviceAvailable(boolean deviceAvailable) {
@@ -428,6 +449,7 @@ public class FilesPanel extends JPanel {
         tableScrollPane.setBorder(BorderFactory.createEmptyBorder());
         TransferHandler transferHandler = createTransferHandler();
         filesTable.setTransferHandler(transferHandler);
+        filesTable.setDragEnabled(true);
         tableScrollPane.setTransferHandler(transferHandler);
     }
 
@@ -476,7 +498,52 @@ public class FilesPanel extends JPanel {
     }
 
     private TransferHandler createTransferHandler() {
-        return new TransferHandler() {
+        return new TransferHandler("files") {
+            private File tempDirectory;
+            private volatile List<File> exportedFiles;
+
+            public int getSourceActions(JComponent c) {
+                // Allow drag only when exactly one item (file or directory) is selected
+                if (!deviceAvailable || busy || getSelectedEntries().size() != 1) {
+                    return NONE;
+                }
+                return COPY;
+            }
+
+            protected Transferable createTransferable(JComponent c) {
+                if (dragExportHandler == null || getSelectedEntries().isEmpty()) {
+                    return null;
+                }
+
+                DeviceFileEntry selectedEntry = getSelectedEntry();
+                if (selectedEntry == null) {
+                    return null;
+                }
+
+                if (shouldDeferDragExport(selectedEntry)) {
+                    setStatus(Messages.text("files.status.ready"), false);
+                    return new LazyFileListTransferable();
+                }
+
+                try {
+                    setStatus(Messages.text("files.status.preparingExport"), false);
+                    tempDirectory = dragExportHandler.prepareTempDirectory(false);
+                    File[] files = tempDirectory.listFiles();
+                    if (files == null || files.length == 0) {
+                        cleanupTempDirectory();
+                        setStatus(Messages.text("error.files.download"), true);
+                        return null;
+                    }
+                    exportedFiles = List.of(files);
+                    setStatus(Messages.text("files.status.ready"), false);
+                    return new FileListTransferable(exportedFiles);
+                } catch (Exception e) {
+                    cleanupTempDirectory();
+                    setStatus(Messages.text("error.files.export"), true);
+                    return null;
+                }
+            }
+
             @Override
             public boolean canImport(TransferSupport support) {
                 return deviceAvailable
@@ -490,6 +557,24 @@ public class FilesPanel extends JPanel {
                 if (!canImport(support)) {
                     return false;
                 }
+                // Ignore drops que provienen de la transferencia interna (misma ventana)
+                // y drops que apunten a archivos temporales creados para exportar (temp dir).
+                try {
+                    List<File> files = (List<File>) support.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
+                    if (files != null) {
+                        // Si alguno de los ficheros está dentro del directorio temporal de exportación,
+                        // tratamos el drop como interno y lo ignoramos.
+                        if (tempDirectory != null) {
+                            for (File f : files) {
+                                if (f != null && f.getAbsolutePath().startsWith(tempDirectory.getAbsolutePath())) {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    // Si falla, seguimos con el comportamiento normal.
+                }
 
                 try {
                     List<File> files = (List<File>) support.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
@@ -502,7 +587,168 @@ public class FilesPanel extends JPanel {
                     return false;
                 }
             }
+
+            public void exportDone(JComponent c, Transferable t, int action) {
+                cleanupTempDirectory();
+                exportedFiles = null;
+                setStatus(" ", false);
+            }
+
+            private void cleanupTempDirectory() {
+                if (tempDirectory != null && dragExportHandler != null) {
+                    try {
+                        dragExportHandler.cleanupTempDirectory(tempDirectory);
+                    } catch (Exception e) {
+                    }
+                    tempDirectory = null;
+                }
+            }
+
+            private boolean shouldDeferDragExport(DeviceFileEntry entry) {
+                return entry.directory() || entry.sizeBytes() > EAGER_DRAG_EXPORT_LIMIT_BYTES;
+            }
+
+            private void setStatusOnEventThread(String message, boolean error) {
+                if (SwingUtilities.isEventDispatchThread()) {
+                    setStatus(message, error);
+                } else {
+                    SwingUtilities.invokeLater(() -> setStatus(message, error));
+                }
+            }
+
+            final class LazyFileListTransferable implements Transferable {
+                private List<File> files;
+                private SwingWorker<List<File>, Void> exportWorker;
+
+                @Override
+                public DataFlavor[] getTransferDataFlavors() {
+                    return new DataFlavor[]{DataFlavor.javaFileListFlavor};
+                }
+
+                @Override
+                public boolean isDataFlavorSupported(DataFlavor flavor) {
+                    return DataFlavor.javaFileListFlavor.equals(flavor);
+                }
+
+                @Override
+                public synchronized Object getTransferData(DataFlavor flavor)
+                        throws UnsupportedFlavorException, IOException {
+                    if (!isDataFlavorSupported(flavor)) {
+                        throw new UnsupportedFlavorException(flavor);
+                    }
+                    if (files != null) {
+                        return files;
+                    }
+
+                    try {
+                        return awaitExport();
+                    } catch (IOException exception) {
+                        throw exception;
+                    } catch (Exception exception) {
+                        cleanupTempDirectory();
+                        setStatusOnEventThread(Messages.text("error.files.export"), true);
+                        throw new IOException(exception);
+                    }
+                }
+
+                private List<File> awaitExport() throws IOException {
+                    if (exportWorker == null) {
+                        exportWorker = createExportWorker();
+                        exportWorker.execute();
+                    }
+
+                    try {
+                        List<File> result;
+                        if (SwingUtilities.isEventDispatchThread()) {
+                            result = waitKeepingEventDispatchThreadAlive(exportWorker);
+                        } else {
+                            result = exportWorker.get();
+                        }
+                        files = result;
+                        exportedFiles = result;
+                        return result;
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException(exception);
+                    } catch (ExecutionException exception) {
+                        Throwable cause = exception.getCause() == null ? exception : exception.getCause();
+                        if (cause instanceof IOException ioException) {
+                            throw ioException;
+                        }
+                        throw new IOException(cause);
+                    }
+                }
+
+                private SwingWorker<List<File>, Void> createExportWorker() {
+                    return new SwingWorker<>() {
+                        @Override
+                        protected List<File> doInBackground() throws Exception {
+                            setStatusOnEventThread(Messages.text("files.status.preparingExport"), false);
+                            tempDirectory = dragExportHandler.prepareTempDirectory(true);
+                            File[] exported = tempDirectory.listFiles();
+                            if (exported == null || exported.length == 0) {
+                                cleanupTempDirectory();
+                                setStatusOnEventThread(Messages.text("error.files.download"), true);
+                                throw new IOException(Messages.text("error.files.download"));
+                            }
+                            return List.of(exported);
+                        }
+
+                        @Override
+                        protected void done() {
+                            if (!isCancelled()) {
+                                setStatus(Messages.text("files.status.ready"), false);
+                            }
+                        }
+                    };
+                }
+
+                private List<File> waitKeepingEventDispatchThreadAlive(SwingWorker<List<File>, Void> worker)
+                        throws InterruptedException, ExecutionException {
+                    if (!worker.isDone()) {
+                        SecondaryLoop secondaryLoop = Toolkit.getDefaultToolkit()
+                                .getSystemEventQueue()
+                                .createSecondaryLoop();
+                        worker.addPropertyChangeListener(event -> {
+                            if ("state".equals(event.getPropertyName())
+                                    && SwingWorker.StateValue.DONE.equals(event.getNewValue())) {
+                                secondaryLoop.exit();
+                            }
+                        });
+                        if (!worker.isDone()) {
+                            secondaryLoop.enter();
+                        }
+                    }
+                    return worker.get();
+                }
+            }
         };
+    }
+
+    private static class FileListTransferable implements Transferable {
+        private final List<File> files;
+
+        FileListTransferable(List<File> files) {
+            this.files = files;
+        }
+
+        @Override
+        public DataFlavor[] getTransferDataFlavors() {
+            return new DataFlavor[]{DataFlavor.javaFileListFlavor};
+        }
+
+        @Override
+        public boolean isDataFlavorSupported(DataFlavor flavor) {
+            return DataFlavor.javaFileListFlavor.equals(flavor);
+        }
+
+        @Override
+        public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException {
+            if (!isDataFlavorSupported(flavor)) {
+                throw new UnsupportedFlavorException(flavor);
+            }
+            return new ArrayList<>(files);
+        }
     }
 
     private void updateControlStates() {

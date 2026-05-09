@@ -94,6 +94,23 @@ public final class ScrcpyService {
         return describeExecutable(installationDirectory.resolve(hostPlatform.executableName("scrcpy")), true);
     }
 
+    public ScrcpyUpdateResult installOrUpdate() throws Exception {
+        adbExecutableService.ensureAvailable();
+        ScrcpyStatus currentStatus = getStatus();
+        ReleaseAsset latestAsset = fetchLatestReleaseAsset();
+        String latestVersion = normalizeReleaseVersion(latestAsset.tag());
+
+        if (currentStatus.available() && versionsMatch(currentStatus.version(), latestVersion)) {
+            return new ScrcpyUpdateResult(currentStatus, false, true, latestVersion);
+        }
+
+        Path installationDirectory = installRelease(latestAsset);
+        ScrcpyStatus updatedStatus = describeExecutable(
+                installationDirectory.resolve(hostPlatform.executableName("scrcpy")),
+                true);
+        return new ScrcpyUpdateResult(updatedStatus, true, false, latestVersion);
+    }
+
     public List<ScrcpyCamera> listCameras(String serial) throws Exception {
         ScrcpyStatus status = ensureAvailable();
         Path executable = Path.of(status.executablePath());
@@ -728,6 +745,30 @@ public final class ScrcpyService {
 
     private String unescapeJson(String value) {
         return value.replace("\\/", "/");
+    }
+
+    private boolean versionsMatch(String currentVersion, String latestVersion) {
+        String normalizedCurrent = normalizeReleaseVersion(currentVersion);
+        String normalizedLatest = normalizeReleaseVersion(latestVersion);
+        return !normalizedCurrent.isBlank() && normalizedCurrent.equals(normalizedLatest);
+    }
+
+    private String normalizeReleaseVersion(String version) {
+        if (version == null) {
+            return "";
+        }
+        String normalized = version.trim().toLowerCase(Locale.ROOT);
+        while (normalized.startsWith("v")) {
+            normalized = normalized.substring(1);
+        }
+        return normalized;
+    }
+
+    public record ScrcpyUpdateResult(
+            ScrcpyStatus status,
+            boolean updated,
+            boolean alreadyLatest,
+            String latestVersion) {
     }
 
     private record ReleaseAsset(String tag, String fileName, URI downloadUri) {

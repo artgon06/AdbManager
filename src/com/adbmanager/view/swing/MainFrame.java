@@ -46,6 +46,7 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
 
+import com.adbmanager.logic.model.AdbToolInfo;
 import com.adbmanager.logic.model.AppDetails;
 import com.adbmanager.logic.model.ControlState;
 import com.adbmanager.logic.model.Device;
@@ -237,6 +238,7 @@ public class MainFrame extends JFrame {
 
     public void setPrepareScrcpyAction(ActionListener actionListener) {
         displayPanel.setPrepareScrcpyAction(actionListener);
+        settingsPanel.setPrepareScrcpyAction(actionListener);
     }
 
     public void setLaunchScrcpyAction(ActionListener actionListener) {
@@ -437,6 +439,10 @@ public class MainFrame extends JFrame {
 
     public void setFilesDropHandler(FilesPanel.FileDropHandler handler) {
         filesPanel.setFileDropHandler(handler);
+    }
+
+    public void setFilesDragExportHandler(FilesPanel.DragExportHandler handler) {
+        filesPanel.setDragExportHandler(handler);
     }
 
     public void setRefreshSystemUsersAction(ActionListener actionListener) {
@@ -832,10 +838,20 @@ public class MainFrame extends JFrame {
 
     public void setScrcpyStatus(ScrcpyStatus status) {
         displayPanel.setScrcpyStatus(status);
+        settingsPanel.setScrcpyStatus(status);
+    }
+
+    public void setAdbToolInfo(AdbToolInfo toolInfo) {
+        settingsPanel.setAdbToolInfo(toolInfo);
     }
 
     public void setScrcpyFeedback(String message, boolean error) {
         displayPanel.setScrcpyFeedback(message, error);
+        settingsPanel.setScrcpyFeedback(message, error);
+    }
+
+    public void setScrcpyUpdateIndicatorState(SettingsPanel.ScrcpyUpdateIndicatorState state) {
+        settingsPanel.setScrcpyUpdateIndicatorState(state);
     }
 
     public void setScrcpyBusy(boolean busy) {
@@ -1425,7 +1441,8 @@ public class MainFrame extends JFrame {
         sideBar.setPreferredSize(new Dimension(width, 0));
         sideBar.setMinimumSize(new Dimension(width, 0));
         navigationTabsPanel.setBorder(new EmptyBorder(12, sidebarCollapsed ? 9 : 12, 12, sidebarCollapsed ? 9 : 12));
-        settingsNavigationPanel.setBorder(new EmptyBorder(12, sidebarCollapsed ? 9 : 12, 16, sidebarCollapsed ? 9 : 12));
+        settingsNavigationPanel
+                .setBorder(new EmptyBorder(12, sidebarCollapsed ? 9 : 12, 16, sidebarCollapsed ? 9 : 12));
         refreshNavigationTexts();
         updateNavigationStyles();
         sideBar.revalidate();
@@ -1543,15 +1560,15 @@ public class MainFrame extends JFrame {
         ButtonStyler.applyStandard(button, currentTheme, false, true, false);
         button.setText("");
         button.setIcon(new ToolbarIcon(
-            (ToolbarIcon.Type) button.getClientProperty("iconType"),
-            18,
-            button.isEnabled() ? currentTheme.textSecondary() : currentTheme.disabledBorder()));
+                (ToolbarIcon.Type) button.getClientProperty("iconType"),
+                18,
+                button.isEnabled() ? currentTheme.textSecondary() : currentTheme.disabledBorder()));
     }
 
     private void styleRefreshButton() {
         ButtonStyler.applyStandard(refreshButton, currentTheme, false, true, false);
         refreshButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.REFRESH, 20,
-            refreshButton.isEnabled() ? currentTheme.actionBackground() : currentTheme.textSecondary()));
+                refreshButton.isEnabled() ? currentTheme.actionBackground() : currentTheme.textSecondary()));
     }
 
     private void styleWirelessButton() {
@@ -1562,7 +1579,7 @@ public class MainFrame extends JFrame {
     private void styleTcpipButton() {
         ButtonStyler.applyStandard(tcpipButton, currentTheme, false, true, false);
         tcpipButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.WIRELESS, 18,
-            tcpipButton.isEnabled() ? currentTheme.actionBackground() : currentTheme.textSecondary()));
+                tcpipButton.isEnabled() ? currentTheme.actionBackground() : currentTheme.textSecondary()));
         tcpipButton.setText("");
     }
 

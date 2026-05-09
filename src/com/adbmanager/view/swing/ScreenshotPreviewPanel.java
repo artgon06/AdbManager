@@ -136,10 +136,12 @@ public class ScreenshotPreviewPanel extends JPanel {
 
         g2d.setColor(theme.placeholderForeground());
         g2d.setFont(new Font("Inter", Font.BOLD, 22));
-        drawCenteredString(g2d, Messages.text("home.preview.empty.title"), previewBounds, previewBounds.y + (previewBounds.height / 2) - 10);
+        drawCenteredString(g2d, Messages.text("home.preview.empty.title"), previewBounds,
+                previewBounds.y + (previewBounds.height / 2) - 10);
 
         g2d.setFont(new Font("Inter", Font.PLAIN, 15));
-        drawCenteredString(g2d, Messages.text("home.preview.empty.subtitle"), previewBounds, previewBounds.y + (previewBounds.height / 2) + 24);
+        drawCenteredString(g2d, Messages.text("home.preview.empty.subtitle"), previewBounds,
+                previewBounds.y + (previewBounds.height / 2) + 24);
     }
 
     private void drawScreenshot(Graphics2D g2d, Rectangle previewBounds) {
@@ -157,7 +159,8 @@ public class ScreenshotPreviewPanel extends JPanel {
         int y = previewBounds.y;
 
         Shape previousClip = g2d.getClip();
-        g2d.setClip(new RoundRectangle2D.Float(x, y, drawWidth, drawHeight, SCREENSHOT_CORNER_RADIUS, SCREENSHOT_CORNER_RADIUS));
+        g2d.setClip(new RoundRectangle2D.Float(x, y, drawWidth, drawHeight, SCREENSHOT_CORNER_RADIUS,
+                SCREENSHOT_CORNER_RADIUS));
         g2d.drawImage(screenshot, x, y, drawWidth, drawHeight, null);
         g2d.setClip(previousClip);
     }
@@ -184,6 +187,12 @@ public class ScreenshotPreviewPanel extends JPanel {
         double centerX = gutterBounds.getCenterX();
         double centerY = gutterBounds.y + LABEL_TOP_PADDING + (textWidth / 2d);
         rotated.translate(centerX, centerY);
+        int sideLabelWidth = 34;
+        int inset = 24;
+        int labelCenterX = getWidth() - inset - (sideLabelWidth / 2);
+        int labelCenterY = getHeight() / 2;
+
+        rotated.translate(labelCenterX, labelCenterY);
         rotated.rotate(Math.PI / 2d);
         int drawX = -textWidth / 2;
         int drawY = (textAscent - textDescent) / 2;
