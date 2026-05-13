@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build AdbManager",
+      "type": "shell",
+      "command": "javac",
+      "args": [
+        "--release",
+        "21",
+        "-d",
+        "bin",
+        "-sourcepath",
+        "src",
+        "-encoding",
+        "UTF-8",
+        "src/com/adbmanager/App.java"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$gcc"],
+      "isBackground": false
+    }
+  ]
+}
