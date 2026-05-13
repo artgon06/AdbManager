@@ -39,6 +39,7 @@ public record UserConfig(
                 null,
                 null,
                 null,
+                false,
                 null,
                 null,
                 "",

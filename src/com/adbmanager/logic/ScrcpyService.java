@@ -158,7 +158,7 @@ public final class ScrcpyService {
     public void launch(String serial, ScrcpyLaunchRequest request) throws Exception {
         ScrcpyStatus status = ensureAvailable();
         Path executable = Path.of(status.executablePath());
-        List<String> command = buildLaunchCommand(executable, serial, request);
+        List<String> command = buildLaunchCommand(executable, serial, request, status);
         Files.createDirectories(scrcpyHomeDirectory());
         Path logFile = scrcpyHomeDirectory().resolve("scrcpy-launch-"
                 + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
@@ -183,7 +183,11 @@ public final class ScrcpyService {
         }
     }
 
-    private List<String> buildLaunchCommand(Path executable, String serial, ScrcpyLaunchRequest request) throws Exception {
+    private List<String> buildLaunchCommand(
+            Path executable,
+            String serial,
+            ScrcpyLaunchRequest request,
+            ScrcpyStatus status) throws Exception {
         List<String> command = new ArrayList<>();
         command.add(executable.toString());
         command.add("-s");
@@ -201,6 +205,9 @@ public final class ScrcpyService {
             case VIRTUAL_DISPLAY -> {
                 String newDisplayValue = buildNewDisplayValue(request);
                 command.add(newDisplayValue.isBlank() ? "--new-display" : "--new-display=" + newDisplayValue);
+                if (request.shouldUseFlexDisplay() && status != null && status.supportsFlexDisplay()) {
+                    command.add("--flex-display");
+                }
             }
             case CAMERA -> {
                 command.add("--video-source=camera");

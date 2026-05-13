@@ -88,6 +88,7 @@ public class ScrcpyLauncherPanel extends JPanel {
     private final JTextField virtualWidthField = new JTextField();
     private final JTextField virtualHeightField = new JTextField();
     private final JTextField virtualDpiField = new JTextField();
+    private final JCheckBox flexDisplayCheck = new JCheckBox();
     private final JPanel cameraPanel = new JPanel(new GridBagLayout());
     private final JLabel cameraTitleLabel = new JLabel();
     private final JLabel cameraIdLabel = new JLabel();
@@ -183,6 +184,7 @@ public class ScrcpyLauncherPanel extends JPanel {
     public void setScrcpyStatus(ScrcpyStatus status) {
         currentStatus = Objects.requireNonNullElse(status, ScrcpyStatus.missing());
         updateMissingScrcpyPanel();
+        updateSourceSpecificControls();
     }
 
     public void setFeedback(String message, boolean error) {
@@ -212,6 +214,7 @@ public class ScrcpyLauncherPanel extends JPanel {
                         null,
                         null,
                         null,
+                        false,
                         null,
                         null,
                         "",
@@ -229,6 +232,7 @@ public class ScrcpyLauncherPanel extends JPanel {
         virtualWidthField.setText(safeRequest.virtualDisplayWidth() == null ? "" : String.valueOf(safeRequest.virtualDisplayWidth()));
         virtualHeightField.setText(safeRequest.virtualDisplayHeight() == null ? "" : String.valueOf(safeRequest.virtualDisplayHeight()));
         virtualDpiField.setText(safeRequest.virtualDisplayDpi() == null ? "" : String.valueOf(safeRequest.virtualDisplayDpi()));
+        flexDisplayCheck.setSelected(safeRequest.flexDisplay());
         cameraWidthField.setText(safeRequest.cameraWidth() == null ? "" : String.valueOf(safeRequest.cameraWidth()));
         cameraHeightField.setText(safeRequest.cameraHeight() == null ? "" : String.valueOf(safeRequest.cameraHeight()));
         audioCombo.setSelectedItem(safeRequest.audioSource());
@@ -296,6 +300,7 @@ public class ScrcpyLauncherPanel extends JPanel {
                 parsePositiveInteger(virtualWidthField.getText()),
                 parsePositiveInteger(virtualHeightField.getText()),
                 parsePositiveInteger(virtualDpiField.getText()),
+                flexDisplayCheck.isSelected(),
                 parsePositiveInteger(cameraWidthField.getText()),
                 parsePositiveInteger(cameraHeightField.getText()),
                 selectedComboValue(cameraCombo),
@@ -322,6 +327,8 @@ public class ScrcpyLauncherPanel extends JPanel {
         virtualWidthLabel.setText(Messages.text("scrcpy.virtual.width"));
         virtualHeightLabel.setText(Messages.text("scrcpy.virtual.height"));
         virtualDpiLabel.setText(Messages.text("scrcpy.virtual.dpi"));
+        flexDisplayCheck.setText(Messages.text("scrcpy.virtual.flexDisplay"));
+        flexDisplayCheck.setToolTipText(Messages.text("scrcpy.virtual.flexDisplay.hint"));
         cameraTitleLabel.setText(Messages.text("scrcpy.camera.title"));
         cameraIdLabel.setText(Messages.text("scrcpy.camera.id"));
         refreshCamerasButton.setText(Messages.text("scrcpy.camera.refresh"));
@@ -389,6 +396,7 @@ public class ScrcpyLauncherPanel extends JPanel {
         styleLabel(virtualWidthLabel);
         styleLabel(virtualHeightLabel);
         styleLabel(virtualDpiLabel);
+        styleCheckBox(flexDisplayCheck);
         styleLabel(cameraTitleLabel);
         styleLabel(cameraIdLabel);
         styleLabel(cameraWidthLabel);
@@ -598,6 +606,9 @@ public class ScrcpyLauncherPanel extends JPanel {
         virtualDisplaySection.add(virtualDisplayTitleLabel);
         virtualDisplaySection.add(Box.createVerticalStrut(8));
         virtualDisplaySection.add(virtualDisplayPanel);
+        virtualDisplaySection.add(Box.createVerticalStrut(8));
+        flexDisplayCheck.setAlignmentX(LEFT_ALIGNMENT);
+        virtualDisplaySection.add(flexDisplayCheck);
         cameraSection.setLayout(new BorderLayout());
         cameraSection.setOpaque(false);
         cameraSection.setAlignmentX(LEFT_ALIGNMENT);
@@ -828,6 +839,10 @@ public class ScrcpyLauncherPanel extends JPanel {
         keyboardCombo.setEnabled(!busy && !cameraMode && !readOnlyCheck.isSelected());
         mouseCombo.setEnabled(!busy && !cameraMode && !readOnlyCheck.isSelected());
         maxSizeField.setEnabled(!busy && !cameraMode);
+        flexDisplayCheck.setEnabled(!busy && virtualDisplayMode && currentStatus.supportsFlexDisplay());
+        flexDisplayCheck.setToolTipText(currentStatus.supportsFlexDisplay()
+                ? Messages.text("scrcpy.virtual.flexDisplay.hint")
+                : Messages.text("scrcpy.virtual.flexDisplay.unsupported"));
         refreshCamerasButton.setEnabled(!busy && cameraMode && deviceAvailable);
         cameraCombo.setEnabled(!busy && cameraMode);
         cameraWidthField.setEnabled(!busy && cameraMode);

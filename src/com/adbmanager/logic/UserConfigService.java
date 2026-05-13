@@ -36,6 +36,7 @@ public final class UserConfigService {
     private static final String SCRCPY_VIRTUAL_WIDTH_KEY = "scrcpy.virtual_width";
     private static final String SCRCPY_VIRTUAL_HEIGHT_KEY = "scrcpy.virtual_height";
     private static final String SCRCPY_VIRTUAL_DPI_KEY = "scrcpy.virtual_dpi";
+    private static final String SCRCPY_FLEX_DISPLAY_KEY = "scrcpy.flex_display";
     private static final String SCRCPY_CAMERA_WIDTH_KEY = "scrcpy.camera_width";
     private static final String SCRCPY_CAMERA_HEIGHT_KEY = "scrcpy.camera_height";
     private static final String SCRCPY_CAMERA_ID_KEY = "scrcpy.camera_id";
@@ -86,6 +87,8 @@ public final class UserConfigService {
                         parseInteger(values.get(SCRCPY_VIRTUAL_WIDTH_KEY)),
                         parseInteger(values.get(SCRCPY_VIRTUAL_HEIGHT_KEY)),
                         parseInteger(values.get(SCRCPY_VIRTUAL_DPI_KEY)),
+                        parseBoolean(values.get(SCRCPY_FLEX_DISPLAY_KEY),
+                                UserConfig.defaultScrcpyLaunchRequest().flexDisplay()),
                         parseInteger(values.get(SCRCPY_CAMERA_WIDTH_KEY)),
                         parseInteger(values.get(SCRCPY_CAMERA_HEIGHT_KEY)),
                         valueOrBlank(values.get(SCRCPY_CAMERA_ID_KEY)),
@@ -134,6 +137,7 @@ public final class UserConfigService {
         builder.append(SCRCPY_VIRTUAL_WIDTH_KEY).append("=").append(integerValue(safeConfig.scrcpyLaunchRequest().virtualDisplayWidth())).append(System.lineSeparator());
         builder.append(SCRCPY_VIRTUAL_HEIGHT_KEY).append("=").append(integerValue(safeConfig.scrcpyLaunchRequest().virtualDisplayHeight())).append(System.lineSeparator());
         builder.append(SCRCPY_VIRTUAL_DPI_KEY).append("=").append(integerValue(safeConfig.scrcpyLaunchRequest().virtualDisplayDpi())).append(System.lineSeparator());
+        builder.append(SCRCPY_FLEX_DISPLAY_KEY).append("=").append(safeConfig.scrcpyLaunchRequest().flexDisplay()).append(System.lineSeparator());
         builder.append(SCRCPY_CAMERA_WIDTH_KEY).append("=").append(integerValue(safeConfig.scrcpyLaunchRequest().cameraWidth())).append(System.lineSeparator());
         builder.append(SCRCPY_CAMERA_HEIGHT_KEY).append("=").append(integerValue(safeConfig.scrcpyLaunchRequest().cameraHeight())).append(System.lineSeparator());
         builder.append(SCRCPY_CAMERA_ID_KEY).append("=").append(textValue(safeConfig.scrcpyLaunchRequest().cameraId())).append(System.lineSeparator());

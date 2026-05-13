@@ -16,6 +16,7 @@ public record ScrcpyLaunchRequest(
         Integer virtualDisplayWidth,
         Integer virtualDisplayHeight,
         Integer virtualDisplayDpi,
+        boolean flexDisplay,
         Integer cameraWidth,
         Integer cameraHeight,
         String cameraId,
@@ -73,6 +74,10 @@ public record ScrcpyLaunchRequest(
 
     public boolean hasVirtualDisplayDpi() {
         return virtualDisplayDpi != null && virtualDisplayDpi > 0;
+    }
+
+    public boolean shouldUseFlexDisplay() {
+        return usesVirtualDisplay() && flexDisplay;
     }
 
     public boolean hasCameraSize() {

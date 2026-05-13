@@ -1,1 +1,10 @@
 /bin/
+/build/
+/dist/
+/tools/
+/package-build/
+/release/
+/release-test/
+/jp-debug-out/
+/jp-temp-debug/
+/dist-installer-*/

@@ -8,9 +8,13 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import javax.imageio.ImageIO;
 import javax.swing.SwingWorker;
@@ -38,6 +42,7 @@ public class SwingController {
     private final ControlController controlController;
     private final SystemController systemController;
     private final WirelessController wirelessController;
+    private String lastRejectedCustomAdbPath = "";
 
     public SwingController(AdbModel model, ScrcpyService scrcpyService, MainFrame view) {
         this.context = new SwingControllerContext(model, scrcpyService, view);
@@ -479,9 +484,89 @@ public class SwingController {
     }
 
     private void applyAdbPathSettings() {
+        if (view().isUseCustomAdbPathSelected()) {
+            String customAdbPath = view().getCustomAdbPath();
+            if (customAdbPath.isBlank()) {
+                lastRejectedCustomAdbPath = "";
+                return;
+            }
+
+            if (!isValidCustomAdbPath(customAdbPath)) {
+                showCustomAdbPathErrorOnce(customAdbPath);
+                return;
+            }
+        }
+
+        lastRejectedCustomAdbPath = "";
         context.saveUserConfigSafely();
         refreshToolStatus(true);
         refreshDevices();
+    }
+
+    private boolean isValidCustomAdbPath(String customAdbPath) {
+        try {
+            Path adbExecutable = resolveCustomAdbExecutable(customAdbPath);
+            if (adbExecutable == null) {
+                return false;
+            }
+
+            Process process = new ProcessBuilder(adbExecutable.toString(), "version")
+                    .redirectErrorStream(true)
+                    .start();
+            boolean finished = process.waitFor(4, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                return false;
+            }
+
+            String output = new String(process.getInputStream().readAllBytes());
+            return process.exitValue() == 0
+                    && output.toLowerCase(Locale.ROOT).contains("android debug bridge");
+        } catch (Exception exception) {
+            return false;
+        }
+    }
+
+    private Path resolveCustomAdbExecutable(String customAdbPath) {
+        Path candidate = Path.of(stripWrappingQuotes(customAdbPath)).toAbsolutePath().normalize();
+        if (Files.isDirectory(candidate)) {
+            Path windowsExecutable = candidate.resolve("adb.exe");
+            if (Files.isRegularFile(windowsExecutable)) {
+                return windowsExecutable;
+            }
+
+            Path unixExecutable = candidate.resolve("adb");
+            return Files.isRegularFile(unixExecutable) ? unixExecutable : null;
+        }
+
+        if (!Files.isRegularFile(candidate)) {
+            return null;
+        }
+
+        String fileName = candidate.getFileName() == null
+                ? ""
+                : candidate.getFileName().toString().toLowerCase(Locale.ROOT);
+        return ("adb.exe".equals(fileName) || "adb".equals(fileName)) ? candidate : null;
+    }
+
+    private String stripWrappingQuotes(String value) {
+        String trimmed = value == null ? "" : value.trim();
+        while (trimmed.length() >= 2
+                && ((trimmed.startsWith("\"") && trimmed.endsWith("\""))
+                || (trimmed.startsWith("'") && trimmed.endsWith("'")))) {
+            trimmed = trimmed.substring(1, trimmed.length() - 1).trim();
+        }
+        return trimmed;
+    }
+
+    private void showCustomAdbPathErrorOnce(String customAdbPath) {
+        String normalized = stripWrappingQuotes(customAdbPath);
+        if (Objects.equals(lastRejectedCustomAdbPath, normalized)) {
+            return;
+        }
+
+        lastRejectedCustomAdbPath = normalized;
+        view().showError(Messages.text("error.adb.customPathInvalid"));
     }
 
     private void showSettingsScreen() {
