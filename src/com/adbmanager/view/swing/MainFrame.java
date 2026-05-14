@@ -4,6 +4,9 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.RenderingHints;
 import java.awt.Cursor;
 import java.awt.Component;
 import java.awt.KeyEventDispatcher;
@@ -14,6 +17,7 @@ import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -27,6 +31,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.DefaultComboBoxModel;
+import javax.imageio.ImageIO;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
@@ -74,6 +79,7 @@ public class MainFrame extends JFrame {
     private static final String FILES_TAB = "files";
     private static final String SYSTEM_TAB = "system";
     private static final String SETTINGS_TAB = "settings";
+    private static final String APP_ICON_RESOURCE = "/com/adbmanager/view/assets/app-icon.png";
     private static final int TOP_BAR_HEIGHT = 56;
     private static final int SIDE_BAR_WIDTH = 172;
     private static final int SIDE_BAR_COLLAPSED_WIDTH = 64;
@@ -1301,6 +1307,7 @@ public class MainFrame extends JFrame {
     }
 
     private void buildFrame() {
+        setWindowIcon();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setMinimumSize(new Dimension(1240, 820));
         setSize(new Dimension(1440, 900));
@@ -1310,6 +1317,36 @@ public class MainFrame extends JFrame {
         addTopBar();
         addContent();
         installTabNavigationShortcuts();
+    }
+
+    private void setWindowIcon() {
+        try {
+            BufferedImage icon = ImageIO.read(MainFrame.class.getResource(APP_ICON_RESOURCE));
+            if (icon == null) {
+                return;
+            }
+            setIconImages(List.of(
+                    scaleWindowIcon(icon, 16),
+                    scaleWindowIcon(icon, 24),
+                    scaleWindowIcon(icon, 32),
+                    scaleWindowIcon(icon, 48),
+                    scaleWindowIcon(icon, 64),
+                    scaleWindowIcon(icon, 128),
+                    scaleWindowIcon(icon, 256)));
+        } catch (IOException | IllegalArgumentException ex) {
+            // El icono es decorativo: si no se puede cargar, la app debe seguir arrancando.
+        }
+    }
+
+    private Image scaleWindowIcon(BufferedImage source, int size) {
+        BufferedImage scaled = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = scaled.createGraphics();
+        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        graphics.drawImage(source, 0, 0, size, size, null);
+        graphics.dispose();
+        return scaled;
     }
 
     private void addTopBar() {

@@ -206,8 +206,39 @@ function New-CleanJar {
         "--file", $JarPath,
         "--main-class", $MainClassName,
         "-C", $classesDir, ".",
-        "-C", $srcDir, "com/adbmanager/view/i18n"
+        "-C", $srcDir, "com/adbmanager/view/i18n",
+        "-C", $srcDir, "com/adbmanager/view/assets"
     ) $Root
+}
+
+function Resolve-PackageIcon {
+    param(
+        [string] $Root,
+        [string] $TargetName
+    )
+
+    $assetsDir = Join-Path $Root "src\com\adbmanager\view\assets"
+    switch ($TargetName) {
+        "windows" {
+            $icon = Join-Path $assetsDir "app-icon.ico"
+            if (Test-Path -LiteralPath $icon) {
+                return $icon
+            }
+        }
+        "linux" {
+            $icon = Join-Path $assetsDir "app-icon.png"
+            if (Test-Path -LiteralPath $icon) {
+                return $icon
+            }
+        }
+        "macos" {
+            $icon = Join-Path $assetsDir "app-icon.icns"
+            if (Test-Path -LiteralPath $icon) {
+                return $icon
+            }
+        }
+    }
+    return ""
 }
 
 function New-Package {
@@ -221,6 +252,7 @@ function New-Package {
         [string] $MainJar,
         [string] $MainClassName,
         [string] $VendorName,
+        [string] $IconPath,
         [switch] $AddStartMenu,
         [switch] $AddDesktopShortcut
     )
@@ -237,6 +269,10 @@ function New-Package {
         "--app-version", $Version,
         "--vendor", $VendorName
     )
+
+    if (-not [string]::IsNullOrWhiteSpace($IconPath) -and (Test-Path -LiteralPath $IconPath)) {
+        $arguments += @("--icon", $IconPath)
+    }
 
     if ((Get-CurrentTarget) -eq "windows" -and $PackageType -in @("msi", "exe")) {
         $tempDir = Join-Path $Destination "jpackage-temp"
@@ -382,6 +418,7 @@ foreach ($targetName in $targets) {
             New-Item -ItemType Directory -Force -Path $dest | Out-Null
 
             Write-Host "Generando $packageType para $targetName/$archName..." -ForegroundColor Cyan
+            $packageIcon = Resolve-PackageIcon $projectRoot $targetName
             New-Package `
                 -Root $projectRoot `
                 -InputDir $inputDir `
@@ -392,6 +429,7 @@ foreach ($targetName in $targets) {
                 -MainJar $jarName `
                 -MainClassName $MainClass `
                 -VendorName $Vendor `
+                -IconPath $packageIcon `
                 -AddStartMenu:$StartMenu `
                 -AddDesktopShortcut:$DesktopShortcut
 
