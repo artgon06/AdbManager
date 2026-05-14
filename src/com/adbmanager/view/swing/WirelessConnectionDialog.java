@@ -295,9 +295,7 @@ public class WirelessConnectionDialog extends JDialog {
         for (JPanel panel : surfacePanels) {
             panel.setOpaque(true);
             panel.setBackground(theme.background());
-            panel.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(theme.border(), 1),
-                    BorderFactory.createEmptyBorder(18, 18, 18, 18)));
+            panel.setBorder(BorderFactory.createLineBorder(theme.border(), 1));
         }
 
         capabilityCard.setBorder(BorderFactory.createCompoundBorder(
@@ -344,6 +342,9 @@ public class WirelessConnectionDialog extends JDialog {
         limitVerticalGrowth(pairCard);
         limitVerticalGrowth(pairContent);
         limitVerticalGrowth(rootContent);
+        limitVerticalGrowth(connectNoteLabel);
+        limitVerticalGrowth(pairCodeNoteLabel);
+        limitVerticalGrowth(qrInfoLabel);
 
         qrPreviewOuterPanel.setOpaque(true);
         qrPreviewOuterPanel.setBackground(theme.background());
@@ -508,6 +509,7 @@ public class WirelessConnectionDialog extends JDialog {
         connectCard.setAlignmentX(Component.LEFT_ALIGNMENT);
         wrappingTextAreas.add(connectNoteLabel);
 
+        connectCard.add(Box.createVerticalStrut(20));
         connectCard.add(buildFieldRow(Messages.text("wireless.connect.host"), connectHostField));
         connectCard.add(Box.createVerticalStrut(12));
         connectCard.add(buildFieldRow(Messages.text("wireless.connect.port"), connectPortField));
@@ -516,12 +518,15 @@ public class WirelessConnectionDialog extends JDialog {
         JPanel actionsPanel = new JPanel();
         actionsPanel.setOpaque(false);
         actionsPanel.setLayout(new BoxLayout(actionsPanel, BoxLayout.X_AXIS));
+        actionsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        actionsPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         actionsPanel.add(connectButton);
         actionsPanel.add(Box.createHorizontalGlue());
 
+        connectCard.add(Box.createVerticalStrut(4));
         connectCard.add(actionsPanel);
         connectCard.add(Box.createVerticalStrut(14));
-        connectCard.add(connectNoteLabel);
+        connectCard.add(buildFullWidthText(connectNoteLabel));
         return connectCard;
     }
 
@@ -530,6 +535,7 @@ public class WirelessConnectionDialog extends JDialog {
         pairCard.setLayout(new BoxLayout(pairCard, BoxLayout.Y_AXIS));
         pairCard.setAlignmentX(Component.LEFT_ALIGNMENT);
 
+        pairCard.add(Box.createVerticalStrut(20));
         pairCard.add(buildSecondaryTabs());
         pairCard.add(Box.createVerticalStrut(14));
         pairCard.add(buildPairContent());
@@ -561,6 +567,7 @@ public class WirelessConnectionDialog extends JDialog {
         pairCodePanel.setOpaque(true);
         pairCodePanel.setLayout(new BoxLayout(pairCodePanel, BoxLayout.Y_AXIS));
         wrappingTextAreas.add(pairCodeNoteLabel);
+        pairCodePanel.add(Box.createVerticalStrut(20));
         pairCodePanel.add(buildFieldRow(Messages.text("wireless.code.host"), pairHostField));
         pairCodePanel.add(Box.createVerticalStrut(12));
         pairCodePanel.add(buildFieldRow(Messages.text("wireless.code.pairPort"), pairPortField));
@@ -571,12 +578,15 @@ public class WirelessConnectionDialog extends JDialog {
         JPanel actionsPanel = new JPanel();
         actionsPanel.setOpaque(false);
         actionsPanel.setLayout(new BoxLayout(actionsPanel, BoxLayout.X_AXIS));
+        actionsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        actionsPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         actionsPanel.add(pairButton);
         actionsPanel.add(Box.createHorizontalGlue());
 
+        pairCodePanel.add(Box.createVerticalStrut(4));
         pairCodePanel.add(actionsPanel);
         pairCodePanel.add(Box.createVerticalStrut(14));
-        pairCodePanel.add(pairCodeNoteLabel);
+        pairCodePanel.add(buildFullWidthText(pairCodeNoteLabel));
         return pairCodePanel;
     }
 
@@ -584,8 +594,11 @@ public class WirelessConnectionDialog extends JDialog {
         JPanel leftColumn = new JPanel();
         leftColumn.setOpaque(false);
         leftColumn.setLayout(new BoxLayout(leftColumn, BoxLayout.Y_AXIS));
+        leftColumn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        leftColumn.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         wrappingTextAreas.add(qrInfoLabel);
-        leftColumn.add(qrInfoLabel);
+        leftColumn.add(Box.createVerticalStrut(20));
+        leftColumn.add(buildFullWidthText(qrInfoLabel));
         leftColumn.add(Box.createVerticalStrut(16));
         leftColumn.add(buildFieldRow(Messages.text("wireless.qr.service"), qrServiceField));
         leftColumn.add(Box.createVerticalStrut(12));
@@ -595,6 +608,8 @@ public class WirelessConnectionDialog extends JDialog {
         JPanel actionsPanel = new JPanel();
         actionsPanel.setOpaque(false);
         actionsPanel.setLayout(new BoxLayout(actionsPanel, BoxLayout.X_AXIS));
+        actionsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        actionsPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         actionsPanel.add(generateQrButton);
         actionsPanel.add(Box.createHorizontalStrut(10));
         actionsPanel.add(pairQrButton);
@@ -613,14 +628,36 @@ public class WirelessConnectionDialog extends JDialog {
     }
 
     private JPanel buildFieldRow(String labelText, JTextField field) {
-        JPanel row = new JPanel(new BorderLayout(12, 0));
+        JPanel row = new JPanel();
         row.setOpaque(false);
+        row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 74));
+        row.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
 
         JLabel label = new JLabel(labelText);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        field.setAlignmentX(Component.LEFT_ALIGNMENT);
         secondaryLabels.add(label);
-        row.add(label, BorderLayout.WEST);
-        row.add(field, BorderLayout.CENTER);
+        row.add(label);
+        row.add(Box.createVerticalStrut(8));
+        row.add(field);
         return row;
+    }
+
+    private JPanel buildFullWidthText(WrappingTextArea textArea) {
+        textArea.setMargin(new Insets(0, 0, 0, 0));
+        textArea.setBorder(BorderFactory.createEmptyBorder());
+        textArea.setAlignmentX(Component.LEFT_ALIGNMENT);
+        textArea.setRows(1);
+
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setOpaque(false);
+        wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
+        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        wrapper.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        wrapper.add(textArea, BorderLayout.CENTER);
+        return wrapper;
     }
 
     private void configureTabButton(
@@ -699,6 +736,8 @@ public class WirelessConnectionDialog extends JDialog {
                 BorderFactory.createLineBorder(theme.border(), 1),
                 BorderFactory.createEmptyBorder(9, 10, 9, 10)));
         field.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+        field.setPreferredSize(new Dimension(0, 40));
+        field.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
     }
 
     private void styleActionButton(JButton button, boolean primary) {

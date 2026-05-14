@@ -99,7 +99,7 @@ public class SettingsPanel extends JPanel {
     private final WrappingTextArea appUpdateStatusLabel = new WrappingTextArea();
     private final JButton checkAppUpdatesButton = new JButton();
     private final JLabel appUpdateIndicatorLabel = new JLabel();
-    private final JPanel toolsGridPanel = new JPanel(new GridLayout(1, 3, 14, 0));
+    private final JPanel toolsGridPanel = new JPanel(new GridLayout(1, 2, 14, 0));
     private final Timer scrcpySpinnerTimer = new Timer(90, event -> animateScrcpySpinner());
     private final Timer appUpdateSpinnerTimer = new Timer(90, event -> animateAppUpdateSpinner());
     private ScrcpyUpdateIndicatorState scrcpyUpdateIndicatorState = ScrcpyUpdateIndicatorState.NONE;
@@ -450,15 +450,15 @@ public class SettingsPanel extends JPanel {
         buildBehaviorPanel();
         buildAdbPanel();
 
-        content.add(aboutPanel);
-        content.add(Box.createVerticalStrut(18));
-        content.add(toolsPanel);
-        content.add(Box.createVerticalStrut(18));
         content.add(appearancePanel);
         content.add(Box.createVerticalStrut(18));
         content.add(behaviorPanel);
         content.add(Box.createVerticalStrut(18));
         content.add(adbPanel);
+        content.add(Box.createVerticalStrut(18));
+        content.add(toolsPanel);
+        content.add(Box.createVerticalStrut(18));
+        content.add(aboutPanel);
         content.add(Box.createVerticalGlue());
 
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -476,6 +476,10 @@ public class SettingsPanel extends JPanel {
         brandRow.add(appNameValue);
         brandRow.add(Box.createHorizontalStrut(14));
         brandRow.add(versionBadge);
+        brandRow.add(Box.createHorizontalStrut(10));
+        brandRow.add(checkAppUpdatesButton);
+        brandRow.add(Box.createHorizontalStrut(8));
+        brandRow.add(appUpdateIndicatorLabel);
         brandRow.add(Box.createHorizontalGlue());
 
         repositoryButton.setUI(new BasicButtonUI());
@@ -506,6 +510,8 @@ public class SettingsPanel extends JPanel {
         brandRow.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, 46));
         aboutPanel.add(brandRow);
         aboutPanel.add(Box.createVerticalStrut(12));
+        aboutPanel.add(buildAppUpdatePanel());
+        aboutPanel.add(Box.createVerticalStrut(18));
         aboutSummaryLabel.setAlignmentX(LEFT_ALIGNMENT);
         aboutSummaryLabel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         scrcpyCreditLabel.setAlignmentX(LEFT_ALIGNMENT);
@@ -614,7 +620,6 @@ public class SettingsPanel extends JPanel {
 
         toolsGridPanel.add(adbStatusPanel);
         toolsGridPanel.add(scrcpyStatusPanel);
-        toolsGridPanel.add(buildAppUpdatePanel());
         toolsPanel.add(toolsGridPanel);
     }
 
@@ -631,26 +636,11 @@ public class SettingsPanel extends JPanel {
         appUpdateIndicatorLabel.setPreferredSize(new java.awt.Dimension(26, 26));
         appUpdateIndicatorLabel.setHorizontalAlignment(JLabel.CENTER);
 
-        updatePanel.add(appUpdateStatusTitleLabel);
-        updatePanel.add(Box.createVerticalStrut(12));
-        updatePanel.add(createToolRow(appUpdateCurrentLabel, appUpdateCurrentValueLabel));
-        updatePanel.add(Box.createVerticalStrut(8));
         updatePanel.add(createToolRow(appUpdateLatestLabel, appUpdateLatestValueLabel));
         updatePanel.add(Box.createVerticalStrut(10));
         appUpdateStatusLabel.setAlignmentX(LEFT_ALIGNMENT);
         appUpdateStatusLabel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         updatePanel.add(appUpdateStatusLabel);
-        updatePanel.add(Box.createVerticalStrut(12));
-
-        JPanel actionRow = new JPanel();
-        actionRow.setOpaque(false);
-        actionRow.setLayout(new BoxLayout(actionRow, BoxLayout.X_AXIS));
-        actionRow.setAlignmentX(LEFT_ALIGNMENT);
-        actionRow.add(checkAppUpdatesButton);
-        actionRow.add(Box.createHorizontalStrut(10));
-        actionRow.add(appUpdateIndicatorLabel);
-        actionRow.add(Box.createHorizontalGlue());
-        updatePanel.add(actionRow);
         return updatePanel;
     }
 

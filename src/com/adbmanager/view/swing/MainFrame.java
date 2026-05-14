@@ -92,9 +92,10 @@ public class MainFrame extends JFrame {
     private final JPanel settingsNavigationPanel = new JPanel(new BorderLayout());
     private final JPanel deviceSelectorPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
     private final JPanel brandPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 10));
-    private final JPanel topBarRightSpacer = new JPanel();
+    private final JPanel topBarRightSpacer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 9));
     private final JLabel appTitleLabel = new JLabel();
     private final JButton sidebarToggleButton = new JButton();
+    private final JButton appUpdateTopBarButton = new JButton();
     private final ButtonGroup navigationGroup = new ButtonGroup();
     private final DeviceComboBoxRenderer deviceRenderer = new DeviceComboBoxRenderer();
     private final JComboBox<Device> deviceSelector = new JComboBox<>();
@@ -250,6 +251,10 @@ public class MainFrame extends JFrame {
 
     public void setCheckAppUpdatesAction(ActionListener actionListener) {
         settingsPanel.setCheckAppUpdatesAction(actionListener);
+    }
+
+    public void setTopBarAppUpdateAction(ActionListener actionListener) {
+        appUpdateTopBarButton.addActionListener(actionListener);
     }
 
     public void setLaunchScrcpyAction(ActionListener actionListener) {
@@ -557,6 +562,12 @@ public class MainFrame extends JFrame {
         wirelessButton.setToolTipText(Messages.text("navigation.wireless.tooltip"));
         tcpipButton.setToolTipText(Messages.text("navigation.tcpip.tooltip"));
         refreshButton.setToolTipText(Messages.text("navigation.refresh.tooltip"));
+        if (appUpdateTopBarButton.isVisible()) {
+            Object latestVersion = appUpdateTopBarButton.getClientProperty("latestVersion");
+            appUpdateTopBarButton.setToolTipText(latestVersion == null
+                    ? Messages.text("settings.appUpdate.checking")
+                    : Messages.format("settings.appUpdate.topbar.available", latestVersion));
+        }
         for (Map.Entry<DevicePowerAction, JMenuItem> entry : powerMenuItems.entrySet()) {
             entry.getValue().setText(Messages.text(entry.getKey().messageKey()));
         }
@@ -879,6 +890,34 @@ public class MainFrame extends JFrame {
 
     public void setAppUpdateIndicatorState(SettingsPanel.AppUpdateIndicatorState state) {
         settingsPanel.setAppUpdateIndicatorState(state);
+    }
+
+    public void setTopBarAppUpdateChecking(boolean checking) {
+        if (checking) {
+            appUpdateTopBarButton.putClientProperty("latestVersion", null);
+            appUpdateTopBarButton.setToolTipText(Messages.text("settings.appUpdate.checking"));
+            appUpdateTopBarButton.setEnabled(false);
+            appUpdateTopBarButton.setVisible(true);
+        } else if (appUpdateTopBarButton.getClientProperty("latestVersion") == null) {
+            appUpdateTopBarButton.setVisible(false);
+        }
+        styleAppUpdateTopBarButton();
+    }
+
+    public void setTopBarAppUpdateAvailable(String latestVersion) {
+        appUpdateTopBarButton.putClientProperty("latestVersion", latestVersion);
+        appUpdateTopBarButton.setToolTipText(Messages.format("settings.appUpdate.topbar.available", latestVersion));
+        appUpdateTopBarButton.setEnabled(true);
+        appUpdateTopBarButton.setVisible(true);
+        styleAppUpdateTopBarButton();
+    }
+
+    public void setTopBarAppUpdateVisible(boolean visible) {
+        if (!visible) {
+            appUpdateTopBarButton.putClientProperty("latestVersion", null);
+        }
+        appUpdateTopBarButton.setVisible(visible);
+        styleAppUpdateTopBarButton();
     }
 
     public void setScrcpyBusy(boolean busy) {
@@ -1230,7 +1269,9 @@ public class MainFrame extends JFrame {
         sideBar.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, theme.border()));
         brandPanel.setBackground(theme.surface());
         topBarRightSpacer.setBackground(theme.surface());
-        topBarRightSpacer.setPreferredSize(new Dimension(brandPanel.getPreferredSize().width, TOP_BAR_HEIGHT));
+        topBarRightSpacer.setPreferredSize(new Dimension(
+                Math.max(brandPanel.getPreferredSize().width, 220),
+                TOP_BAR_HEIGHT));
         navigationTabsPanel.setBackground(theme.surface());
         settingsNavigationPanel.setBackground(theme.surface());
         deviceSelectorPanel.setBackground(theme.surface());
@@ -1270,6 +1311,7 @@ public class MainFrame extends JFrame {
         styleWirelessButton();
         styleTcpipButton();
         styleRefreshButton();
+        styleAppUpdateTopBarButton();
         stylePowerMenu();
         applySidebarMode();
 
@@ -1382,6 +1424,7 @@ public class MainFrame extends JFrame {
         configureWirelessButton();
         configureTcpipButton();
         configureRefreshButton();
+        configureAppUpdateTopBarButton();
         buildPowerMenu();
         homePanel.setPowerButtonAction(event -> {
             if (event.getSource() instanceof Component source && source.isShowing()) {
@@ -1431,6 +1474,8 @@ public class MainFrame extends JFrame {
 
         brandPanel.add(sidebarToggleButton);
         brandPanel.add(appTitleLabel);
+        topBarRightSpacer.add(appUpdateTopBarButton);
+        appUpdateTopBarButton.setVisible(false);
         topBar.add(brandPanel, BorderLayout.WEST);
         topBar.add(deviceSelectorPanel, BorderLayout.CENTER);
         topBar.add(topBarRightSpacer, BorderLayout.EAST);
@@ -1547,6 +1592,17 @@ public class MainFrame extends JFrame {
         deviceSelector.setMaximumRowCount(12);
     }
 
+    private void configureAppUpdateTopBarButton() {
+        appUpdateTopBarButton.setUI(new BasicButtonUI());
+        appUpdateTopBarButton.setFocusable(false);
+        appUpdateTopBarButton.setFocusPainted(false);
+        appUpdateTopBarButton.setRolloverEnabled(true);
+        appUpdateTopBarButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        appUpdateTopBarButton.setPreferredSize(new Dimension(40, 36));
+        appUpdateTopBarButton.setMargin(new java.awt.Insets(0, 0, 0, 0));
+        appUpdateTopBarButton.getModel().addChangeListener(event -> styleAppUpdateTopBarButton());
+    }
+
     private void configureWirelessButton() {
         wirelessButton.setUI(new BasicButtonUI());
         wirelessButton.setFocusable(false);
@@ -1653,6 +1709,28 @@ public class MainFrame extends JFrame {
                 BorderFactory.createLineBorder(currentTheme.border(), 1),
                 BorderFactory.createEmptyBorder(0, 0, 0, 0)));
         refreshButton.setIcon(new ToolbarIcon(ToolbarIcon.Type.REFRESH, 20, refreshButton.getForeground()));
+    }
+
+    private void styleAppUpdateTopBarButton() {
+        boolean hovered = appUpdateTopBarButton.getModel().isRollover() && appUpdateTopBarButton.isEnabled();
+        appUpdateTopBarButton.setOpaque(true);
+        appUpdateTopBarButton.setContentAreaFilled(true);
+        appUpdateTopBarButton.setBackground(hovered
+                ? ThemeUtils.blend(currentTheme.actionBackground(), currentTheme.selectionBackground(), 0.34d)
+                : ThemeUtils.blend(currentTheme.surface(), currentTheme.actionBackground(), 0.18d));
+        appUpdateTopBarButton.setForeground(appUpdateTopBarButton.isEnabled()
+                ? currentTheme.actionBackground()
+                : currentTheme.textSecondary());
+        appUpdateTopBarButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(appUpdateTopBarButton.isEnabled()
+                        ? currentTheme.actionBackground()
+                        : currentTheme.border(), 1),
+                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
+        appUpdateTopBarButton.setIcon(new ToolbarIcon(
+                ToolbarIcon.Type.REFRESH,
+                20,
+                appUpdateTopBarButton.getForeground()));
+        appUpdateTopBarButton.setText("");
     }
 
     private void styleWirelessButton() {

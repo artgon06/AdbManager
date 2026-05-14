@@ -15,7 +15,6 @@ import javax.swing.BoxLayout;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -24,6 +23,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.JToggleButton;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
 import javax.swing.plaf.basic.BasicButtonUI;
@@ -56,14 +56,14 @@ public class SystemPanel extends JPanel {
     private final JButton refreshUsersButton = new JButton();
 
     private final JPanel localesPanel = new JPanel();
-    private final JCheckBox showAllAppLanguagesCheck = new JCheckBox();
+    private final JLabel showAllAppLanguagesLabel = new JLabel();
+    private final JToggleButton showAllAppLanguagesToggle = new JToggleButton();
     private final WrappingTextArea appLanguagesHintLabel = new WrappingTextArea();
-    private final JButton applyAppLanguagesButton = new JButton();
 
     private final JPanel gesturesPanel = new JPanel();
-    private final JCheckBox gesturesCheck = new JCheckBox();
+    private final JLabel gesturesLabel = new JLabel();
+    private final JToggleButton gesturesToggle = new JToggleButton();
     private final WrappingTextArea gesturesHintLabel = new WrappingTextArea();
-    private final JButton applyGesturesButton = new JButton();
 
     private final JPanel keyboardsPanel = new JPanel();
     private final JLabel currentKeyboardLabel = new JLabel();
@@ -82,7 +82,12 @@ public class SystemPanel extends JPanel {
     private AppTheme theme = AppTheme.LIGHT;
     private boolean deviceAvailable;
     private boolean busy;
+    private boolean syncingToggles;
     private SystemState currentState = SystemState.empty();
+    private ActionListener appLanguagesToggleAction = event -> {
+    };
+    private ActionListener gesturesToggleAction = event -> {
+    };
 
     public SystemPanel() {
         buildPanel();
@@ -108,11 +113,13 @@ public class SystemPanel extends JPanel {
     }
 
     public void setApplyAppLanguagesAction(ActionListener actionListener) {
-        applyAppLanguagesButton.addActionListener(actionListener);
+        appLanguagesToggleAction = actionListener == null ? event -> {
+        } : actionListener;
     }
 
     public void setApplyGesturesAction(ActionListener actionListener) {
-        applyGesturesButton.addActionListener(actionListener);
+        gesturesToggleAction = actionListener == null ? event -> {
+        } : actionListener;
     }
 
     public void setRefreshKeyboardsAction(ActionListener actionListener) {
@@ -154,11 +161,11 @@ public class SystemPanel extends JPanel {
     }
 
     public boolean isShowAllAppLanguagesSelected() {
-        return showAllAppLanguagesCheck.isSelected();
+        return showAllAppLanguagesToggle.isSelected();
     }
 
     public boolean isGesturesSelected() {
-        return gesturesCheck.isSelected();
+        return gesturesToggle.isSelected();
     }
 
     public boolean isGesturalNavigationSelected() {
@@ -201,13 +208,11 @@ public class SystemPanel extends JPanel {
         deleteUserButton.setText(Messages.text("system.users.delete"));
         refreshUsersButton.setText(Messages.text("system.users.refresh"));
 
-        showAllAppLanguagesCheck.setText(Messages.text("system.locales.toggle"));
+        showAllAppLanguagesLabel.setText(Messages.text("system.locales.toggle"));
         appLanguagesHintLabel.setText(Messages.text("system.locales.hint"));
-        applyAppLanguagesButton.setText(Messages.text("system.locales.apply"));
 
-        gesturesCheck.setText(Messages.text("system.gestures.toggle"));
+        gesturesLabel.setText(Messages.text("system.gestures.toggle"));
         gesturesHintLabel.setText(Messages.text("system.gestures.hint"));
-        applyGesturesButton.setText(Messages.text("system.gestures.apply"));
 
         currentKeyboardLabel.setText(Messages.text("system.keyboards.current"));
         keyboardSelectionLabel.setText(Messages.text("system.keyboards.selection"));
@@ -258,7 +263,9 @@ public class SystemPanel extends JPanel {
                 userSelectionLabel,
                 newUserLabel,
                 currentKeyboardLabel,
-                keyboardSelectionLabel)) {
+                keyboardSelectionLabel,
+                showAllAppLanguagesLabel,
+                gesturesLabel)) {
             label.setForeground(theme.textSecondary());
             label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
         }
@@ -277,14 +284,12 @@ public class SystemPanel extends JPanel {
         styleTextField(newUserField);
         styleComboBox(usersCombo, userRenderer);
         styleComboBox(keyboardCombo, keyboardRenderer);
-        styleCheckBox(showAllAppLanguagesCheck);
-        styleCheckBox(gesturesCheck);
+        styleToggle(showAllAppLanguagesToggle);
+        styleToggle(gesturesToggle);
         styleButton(createUserButton, false);
         styleButton(switchUserButton, false);
         styleButton(deleteUserButton, false);
         styleButton(refreshUsersButton, false);
-        styleButton(applyAppLanguagesButton, true);
-        styleButton(applyGesturesButton, true);
         styleButton(enableKeyboardButton, false);
         styleButton(setKeyboardButton, true);
         styleButton(refreshKeyboardsButton, false);
@@ -386,26 +391,28 @@ public class SystemPanel extends JPanel {
         localesPanel.setLayout(new BoxLayout(localesPanel, BoxLayout.Y_AXIS));
         localesPanel.setAlignmentX(LEFT_ALIGNMENT);
         localesPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
-        configureButton(applyAppLanguagesButton);
-        applyAppLanguagesButton.setAlignmentX(LEFT_ALIGNMENT);
-        localesPanel.add(showAllAppLanguagesCheck);
+        configureToggle(showAllAppLanguagesToggle, event -> {
+            if (!syncingToggles) {
+                appLanguagesToggleAction.actionPerformed(event);
+            }
+        });
+        localesPanel.add(createToggleRow(showAllAppLanguagesLabel, showAllAppLanguagesToggle));
         localesPanel.add(Box.createVerticalStrut(10));
         localesPanel.add(appLanguagesHintLabel);
-        localesPanel.add(Box.createVerticalStrut(10));
-        localesPanel.add(applyAppLanguagesButton);
     }
 
     private void buildGesturesPanel() {
         gesturesPanel.setLayout(new BoxLayout(gesturesPanel, BoxLayout.Y_AXIS));
         gesturesPanel.setAlignmentX(LEFT_ALIGNMENT);
         gesturesPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
-        configureButton(applyGesturesButton);
-        applyGesturesButton.setAlignmentX(LEFT_ALIGNMENT);
-        gesturesPanel.add(gesturesCheck);
+        configureToggle(gesturesToggle, event -> {
+            if (!syncingToggles) {
+                gesturesToggleAction.actionPerformed(event);
+            }
+        });
+        gesturesPanel.add(createToggleRow(gesturesLabel, gesturesToggle));
         gesturesPanel.add(Box.createVerticalStrut(10));
         gesturesPanel.add(gesturesHintLabel);
-        gesturesPanel.add(Box.createVerticalStrut(10));
-        gesturesPanel.add(applyGesturesButton);
     }
 
     private void buildKeyboardsPanel() {
@@ -470,8 +477,13 @@ public class SystemPanel extends JPanel {
         }
         usersArea.setCaretPosition(0);
 
-        showAllAppLanguagesCheck.setSelected(Boolean.TRUE.equals(currentState.showAllAppLanguages()));
-        gesturesCheck.setSelected(Boolean.TRUE.equals(currentState.gesturesEnabled()));
+        syncingToggles = true;
+        try {
+            showAllAppLanguagesToggle.setSelected(Boolean.TRUE.equals(currentState.showAllAppLanguages()));
+            gesturesToggle.setSelected(Boolean.TRUE.equals(currentState.gesturesEnabled()));
+        } finally {
+            syncingToggles = false;
+        }
 
         KeyboardInputMethod currentKeyboard = currentState.selectedKeyboard();
         currentKeyboardValueLabel.setText(currentKeyboard == null ? "-" : formatKeyboard(currentKeyboard));
@@ -493,10 +505,8 @@ public class SystemPanel extends JPanel {
         newUserField.setEnabled(enabled);
         createUserButton.setEnabled(enabled);
         refreshUsersButton.setEnabled(enabled);
-        showAllAppLanguagesCheck.setEnabled(enabled);
-        applyAppLanguagesButton.setEnabled(enabled);
-        gesturesCheck.setEnabled(enabled);
-        applyGesturesButton.setEnabled(enabled);
+        showAllAppLanguagesToggle.setEnabled(enabled);
+        gesturesToggle.setEnabled(enabled);
         refreshKeyboardsButton.setEnabled(enabled);
 
         boolean hasUsers = enabled && usersCombo.getItemCount() > 0;
@@ -593,12 +603,35 @@ public class SystemPanel extends JPanel {
         comboBox.setForeground(theme.textPrimary());
     }
 
-    private void styleCheckBox(JCheckBox checkBox) {
-        checkBox.setOpaque(true);
-        checkBox.setBackground(theme.background());
-        checkBox.setForeground(checkBox.isEnabled() ? theme.textPrimary() : theme.textSecondary());
-        checkBox.setFocusPainted(false);
-        checkBox.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+    private JPanel createToggleRow(JLabel label, JToggleButton toggle) {
+        JPanel row = new JPanel(new BorderLayout(12, 0));
+        row.setOpaque(false);
+        row.setAlignmentX(LEFT_ALIGNMENT);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+        row.add(label, BorderLayout.WEST);
+        row.add(toggle, BorderLayout.EAST);
+        return row;
+    }
+
+    private void configureToggle(JToggleButton toggle, ActionListener actionListener) {
+        toggle.setOpaque(false);
+        toggle.setContentAreaFilled(false);
+        toggle.setBorderPainted(false);
+        toggle.setFocusPainted(false);
+        toggle.setFocusable(false);
+        toggle.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        toggle.addActionListener(actionListener);
+    }
+
+    private void styleToggle(JToggleButton toggle) {
+        toggle.setOpaque(false);
+        toggle.setContentAreaFilled(false);
+        toggle.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        toggle.setForeground(toggle.isEnabled() ? theme.textPrimary() : theme.textSecondary());
+        toggle.setIcon(new ToggleSwitchIcon(theme, false, toggle.isEnabled()));
+        toggle.setSelectedIcon(new ToggleSwitchIcon(theme, true, toggle.isEnabled()));
+        toggle.setDisabledIcon(new ToggleSwitchIcon(theme, false, false));
+        toggle.setDisabledSelectedIcon(new ToggleSwitchIcon(theme, true, false));
     }
 
     private void configureButton(JButton button) {

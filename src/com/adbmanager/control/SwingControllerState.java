@@ -9,6 +9,7 @@ import javax.swing.SwingWorker;
 import com.adbmanager.logic.model.DeviceDirectoryListing;
 import com.adbmanager.logic.model.FileTransferProgress;
 import com.adbmanager.logic.model.InstalledApp;
+import com.adbmanager.logic.model.AppUpdateInfo;
 import com.adbmanager.logic.model.WirelessEndpointDiscovery;
 import com.adbmanager.logic.model.WirelessPairingQrPayload;
 
@@ -30,6 +31,7 @@ final class SwingControllerState {
     boolean applyingControlAction;
     boolean applyingFileAction;
     boolean loadingAppUpdate;
+    AppUpdateInfo availableAppUpdate;
     String currentSelectedSerial;
     String applicationsLoadedSerial;
     String filesLoadedSerial;

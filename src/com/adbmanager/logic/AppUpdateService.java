@@ -108,6 +108,10 @@ public final class AppUpdateService {
         return targetFile;
     }
 
+    public boolean supportsCurrentPlatform() {
+        return hostPlatform.isWindows();
+    }
+
     public void launchInstallerAfterExit(Path installerPath) throws IOException {
         if (!hostPlatform.isWindows()) {
             throw new UnsupportedOperationException("Las actualizaciones automáticas solo están disponibles en Windows por ahora.");

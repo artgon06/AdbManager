@@ -102,6 +102,7 @@ public class SwingController {
         view().showWindow();
         context.saveUserConfigSafely();
         refreshToolStatus(false);
+        checkAppUpdatesSilently();
         refreshDevices();
     }
 
@@ -132,7 +133,8 @@ public class SwingController {
         view().setControlKeyEventAction(event -> controlController.applyManualKeyEvent());
         view().setControlRawInputAction(event -> controlController.applyRawInputCommand());
         view().setPrepareScrcpyAction(event -> displayController.prepareScrcpy());
-        view().setCheckAppUpdatesAction(event -> checkAppUpdates(isForceAppUpdateEvent(event)));
+        view().setCheckAppUpdatesAction(event -> checkAppUpdates(isForceAppUpdateEvent(event), true));
+        view().setTopBarAppUpdateAction(event -> installAvailableAppUpdate());
         view().setLaunchScrcpyAction(event -> displayController.launchScrcpy());
         view().setBrowseScrcpyRecordPathAction(event -> displayController.chooseScrcpyRecordingPath());
         view().setRefreshScrcpyCamerasAction(event -> displayController.refreshScrcpyCameras(true));
@@ -438,13 +440,22 @@ public class SwingController {
         return (modifiers & (ActionEvent.SHIFT_MASK | InputEvent.SHIFT_DOWN_MASK)) != 0;
     }
 
-    private void checkAppUpdates(boolean force) {
+    private void checkAppUpdatesSilently() {
+        if (!appUpdateService.supportsCurrentPlatform()) {
+            view().setTopBarAppUpdateVisible(false);
+            return;
+        }
+        checkAppUpdates(false, false);
+    }
+
+    private void checkAppUpdates(boolean force, boolean promptInstall) {
         if (state().loadingAppUpdate) {
             return;
         }
 
         state().loadingAppUpdate = true;
         view().setAppUpdateBusy(true);
+        view().setTopBarAppUpdateChecking(true);
         view().setAppUpdateStatus(Messages.text(force
                 ? "settings.appUpdate.checkingForced"
                 : "settings.appUpdate.checking"), false);
@@ -461,6 +472,8 @@ public class SwingController {
                     AppUpdateInfo updateInfo = get();
                     view().setAppUpdateLatestVersion(updateInfo.latestVersion());
                     if (!updateInfo.updateAvailable()) {
+                        SwingController.this.state().availableAppUpdate = null;
+                        view().setTopBarAppUpdateVisible(false);
                         view().setAppUpdateStatus(
                                 Messages.format("settings.appUpdate.latestAvailable", updateInfo.latestVersion()),
                                 false);
@@ -469,11 +482,13 @@ public class SwingController {
                         return;
                     }
 
+                    SwingController.this.state().availableAppUpdate = updateInfo;
+                    view().setTopBarAppUpdateAvailable(updateInfo.latestVersion());
                     view().setAppUpdateStatus(
                             Messages.format("settings.appUpdate.available", updateInfo.latestVersion(), updateInfo.assetName()),
                             false);
                     view().setAppUpdateIndicatorState(SettingsPanel.AppUpdateIndicatorState.SUCCESS);
-                    if (!view().confirmAction(
+                    if (!promptInstall || !view().confirmAction(
                             Messages.text("settings.appUpdate.confirm.title"),
                             Messages.format("settings.appUpdate.confirm.message",
                                     updateInfo.latestVersion(),
@@ -522,9 +537,28 @@ public class SwingController {
         }.execute();
     }
 
+    private void installAvailableAppUpdate() {
+        AppUpdateInfo updateInfo = state().availableAppUpdate;
+        if (updateInfo == null) {
+            checkAppUpdates(true, true);
+            return;
+        }
+
+        if (!view().confirmAction(
+                Messages.text("settings.appUpdate.confirm.title"),
+                Messages.format("settings.appUpdate.confirm.message",
+                        updateInfo.latestVersion(),
+                        updateInfo.assetName()))) {
+            return;
+        }
+
+        downloadAndInstallAppUpdate(updateInfo);
+    }
+
     private void finishAppUpdateOperation() {
         state().loadingAppUpdate = false;
         view().setAppUpdateBusy(false);
+        view().setTopBarAppUpdateChecking(false);
     }
 
     private void executePowerAction(DevicePowerAction action) {

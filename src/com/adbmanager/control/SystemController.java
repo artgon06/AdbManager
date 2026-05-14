@@ -128,7 +128,7 @@ final class SystemController {
         boolean enabled = view().isShowAllAppLanguagesSelected();
         runSystemCommand(
                 Messages.text("error.system.locales"),
-                Messages.text("info.system.localesUpdated"),
+                null,
                 () -> model().setSelectedDeviceShowAllAppLanguages(enabled));
     }
 
@@ -136,7 +136,7 @@ final class SystemController {
         boolean enabled = view().isGesturalNavigationSelected();
         runSystemCommand(
                 Messages.text("error.system.gestures"),
-                Messages.text("info.system.gesturesUpdated"),
+                null,
                 () -> model().setSelectedDeviceGesturalNavigation(enabled));
     }
 
