@@ -248,6 +248,10 @@ public class MainFrame extends JFrame {
         settingsPanel.setPrepareScrcpyAction(actionListener);
     }
 
+    public void setCheckAppUpdatesAction(ActionListener actionListener) {
+        settingsPanel.setCheckAppUpdatesAction(actionListener);
+    }
+
     public void setLaunchScrcpyAction(ActionListener actionListener) {
         displayPanel.setLaunchScrcpyAction(actionListener);
     }
@@ -859,6 +863,22 @@ public class MainFrame extends JFrame {
 
     public void setScrcpyUpdateIndicatorState(SettingsPanel.ScrcpyUpdateIndicatorState state) {
         settingsPanel.setScrcpyUpdateIndicatorState(state);
+    }
+
+    public void setAppUpdateStatus(String message, boolean error) {
+        settingsPanel.setAppUpdateStatus(message, error);
+    }
+
+    public void setAppUpdateLatestVersion(String version) {
+        settingsPanel.setAppUpdateLatestVersion(version);
+    }
+
+    public void setAppUpdateBusy(boolean busy) {
+        settingsPanel.setAppUpdateBusy(busy);
+    }
+
+    public void setAppUpdateIndicatorState(SettingsPanel.AppUpdateIndicatorState state) {
+        settingsPanel.setAppUpdateIndicatorState(state);
     }
 
     public void setScrcpyBusy(boolean busy) {

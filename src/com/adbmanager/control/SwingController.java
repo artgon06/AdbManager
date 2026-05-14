@@ -1,6 +1,8 @@
 package com.adbmanager.control;
 
 import java.awt.Desktop;
+import java.awt.event.ActionEvent;
+import java.awt.event.InputEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
@@ -21,7 +23,9 @@ import javax.swing.SwingWorker;
 import javax.swing.Timer;
 
 import com.adbmanager.logic.AdbModel;
+import com.adbmanager.logic.AppUpdateService;
 import com.adbmanager.logic.ScrcpyService;
+import com.adbmanager.logic.model.AppUpdateInfo;
 import com.adbmanager.logic.model.Device;
 import com.adbmanager.logic.model.DeviceDetails;
 import com.adbmanager.logic.model.DevicePowerAction;
@@ -31,6 +35,7 @@ import com.adbmanager.logic.model.UserConfig;
 import com.adbmanager.view.Messages;
 import com.adbmanager.view.Messages.Language;
 import com.adbmanager.view.swing.MainFrame;
+import com.adbmanager.view.swing.SettingsPanel;
 import com.adbmanager.view.swing.WirelessConnectionDialog;
 
 public class SwingController {
@@ -42,10 +47,12 @@ public class SwingController {
     private final ControlController controlController;
     private final SystemController systemController;
     private final WirelessController wirelessController;
+    private final AppUpdateService appUpdateService;
     private String lastRejectedCustomAdbPath = "";
 
     public SwingController(AdbModel model, ScrcpyService scrcpyService, MainFrame view) {
         this.context = new SwingControllerContext(model, scrcpyService, view);
+        this.appUpdateService = new AppUpdateService();
         this.displayController = new DisplayController(context, this::updateDevicePresentation);
         this.applicationsController = new ApplicationsController(context, displayController::reloadApplicationsIfVisible);
         this.filesController = new FilesController(context);
@@ -125,6 +132,7 @@ public class SwingController {
         view().setControlKeyEventAction(event -> controlController.applyManualKeyEvent());
         view().setControlRawInputAction(event -> controlController.applyRawInputCommand());
         view().setPrepareScrcpyAction(event -> displayController.prepareScrcpy());
+        view().setCheckAppUpdatesAction(event -> checkAppUpdates(isForceAppUpdateEvent(event)));
         view().setLaunchScrcpyAction(event -> displayController.launchScrcpy());
         view().setBrowseScrcpyRecordPathAction(event -> displayController.chooseScrcpyRecordingPath());
         view().setRefreshScrcpyCamerasAction(event -> displayController.refreshScrcpyCameras(true));
@@ -423,6 +431,100 @@ public class SwingController {
 
     private void openRepository() {
         openUrl(Messages.repositoryUrl());
+    }
+
+    private boolean isForceAppUpdateEvent(ActionEvent event) {
+        int modifiers = event == null ? 0 : event.getModifiers();
+        return (modifiers & (ActionEvent.SHIFT_MASK | InputEvent.SHIFT_DOWN_MASK)) != 0;
+    }
+
+    private void checkAppUpdates(boolean force) {
+        if (state().loadingAppUpdate) {
+            return;
+        }
+
+        state().loadingAppUpdate = true;
+        view().setAppUpdateBusy(true);
+        view().setAppUpdateStatus(Messages.text(force
+                ? "settings.appUpdate.checkingForced"
+                : "settings.appUpdate.checking"), false);
+
+        new SwingWorker<AppUpdateInfo, Void>() {
+            @Override
+            protected AppUpdateInfo doInBackground() throws Exception {
+                return appUpdateService.checkForUpdates(Messages.version(), force);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    AppUpdateInfo updateInfo = get();
+                    view().setAppUpdateLatestVersion(updateInfo.latestVersion());
+                    if (!updateInfo.updateAvailable()) {
+                        view().setAppUpdateStatus(
+                                Messages.format("settings.appUpdate.latestAvailable", updateInfo.latestVersion()),
+                                false);
+                        view().setAppUpdateIndicatorState(SettingsPanel.AppUpdateIndicatorState.SUCCESS);
+                        finishAppUpdateOperation();
+                        return;
+                    }
+
+                    view().setAppUpdateStatus(
+                            Messages.format("settings.appUpdate.available", updateInfo.latestVersion(), updateInfo.assetName()),
+                            false);
+                    view().setAppUpdateIndicatorState(SettingsPanel.AppUpdateIndicatorState.SUCCESS);
+                    if (!view().confirmAction(
+                            Messages.text("settings.appUpdate.confirm.title"),
+                            Messages.format("settings.appUpdate.confirm.message",
+                                    updateInfo.latestVersion(),
+                                    updateInfo.assetName()))) {
+                        finishAppUpdateOperation();
+                        return;
+                    }
+
+                    downloadAndInstallAppUpdate(updateInfo);
+                } catch (Exception exception) {
+                    view().setAppUpdateStatus(context.extractErrorMessage(
+                            exception,
+                            Messages.text("error.appUpdate.check")), true);
+                    finishAppUpdateOperation();
+                }
+            }
+        }.execute();
+    }
+
+    private void downloadAndInstallAppUpdate(AppUpdateInfo updateInfo) {
+        view().setAppUpdateBusy(true);
+        view().setAppUpdateStatus(Messages.format("settings.appUpdate.downloading", updateInfo.assetName()), false);
+
+        new SwingWorker<Path, Void>() {
+            @Override
+            protected Path doInBackground() throws Exception {
+                return appUpdateService.downloadInstaller(updateInfo);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    Path installer = get();
+                    view().setAppUpdateStatus(Messages.text("settings.appUpdate.launchingInstaller"), false);
+                    appUpdateService.launchInstallerAfterExit(installer);
+                    view().showInfo(Messages.text("settings.appUpdate.restartNotice"));
+                    view().dispose();
+                    System.exit(0);
+                } catch (Exception exception) {
+                    view().setAppUpdateStatus(context.extractErrorMessage(
+                            exception,
+                            Messages.text("error.appUpdate.install")), true);
+                    finishAppUpdateOperation();
+                }
+            }
+        }.execute();
+    }
+
+    private void finishAppUpdateOperation() {
+        state().loadingAppUpdate = false;
+        view().setAppUpdateBusy(false);
     }
 
     private void executePowerAction(DevicePowerAction action) {

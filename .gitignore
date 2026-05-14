@@ -5,6 +5,7 @@
 /package-build/
 /release/
 /release-test/
+/release-*/
 /jp-debug-out/
 /jp-temp-debug/
 /dist-installer-*/

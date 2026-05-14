@@ -29,6 +29,7 @@ final class SwingControllerState {
     boolean applyingSystemAction;
     boolean applyingControlAction;
     boolean applyingFileAction;
+    boolean loadingAppUpdate;
     String currentSelectedSerial;
     String applicationsLoadedSerial;
     String filesLoadedSerial;

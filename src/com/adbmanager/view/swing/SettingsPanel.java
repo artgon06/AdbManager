@@ -46,6 +46,13 @@ public class SettingsPanel extends JPanel {
         ERROR
     }
 
+    public enum AppUpdateIndicatorState {
+        NONE,
+        LOADING,
+        SUCCESS,
+        ERROR
+    }
+
     private final JLabel titleLabel = new JLabel();
     private final JLabel subtitleLabel = new JLabel();
     private final ScrollableContentPanel content = new ScrollableContentPanel();
@@ -84,10 +91,21 @@ public class SettingsPanel extends JPanel {
     private final WrappingTextArea scrcpyLocationValueLabel = new WrappingTextArea("-");
     private final JButton prepareScrcpyButton = new JButton();
     private final JLabel scrcpyUpdateIndicatorLabel = new JLabel();
-    private final JPanel toolsGridPanel = new JPanel(new GridLayout(1, 2, 14, 0));
+    private final JLabel appUpdateStatusTitleLabel = new JLabel();
+    private final JLabel appUpdateCurrentLabel = new JLabel();
+    private final JLabel appUpdateCurrentValueLabel = new JLabel("-");
+    private final JLabel appUpdateLatestLabel = new JLabel();
+    private final JLabel appUpdateLatestValueLabel = new JLabel("-");
+    private final WrappingTextArea appUpdateStatusLabel = new WrappingTextArea();
+    private final JButton checkAppUpdatesButton = new JButton();
+    private final JLabel appUpdateIndicatorLabel = new JLabel();
+    private final JPanel toolsGridPanel = new JPanel(new GridLayout(1, 3, 14, 0));
     private final Timer scrcpySpinnerTimer = new Timer(90, event -> animateScrcpySpinner());
+    private final Timer appUpdateSpinnerTimer = new Timer(90, event -> animateAppUpdateSpinner());
     private ScrcpyUpdateIndicatorState scrcpyUpdateIndicatorState = ScrcpyUpdateIndicatorState.NONE;
+    private AppUpdateIndicatorState appUpdateIndicatorState = AppUpdateIndicatorState.NONE;
     private int scrcpySpinnerFrame;
+    private int appUpdateSpinnerFrame;
 
     private final JLabel themeLabel = new JLabel();
     private final JToggleButton lightThemeButton = new JToggleButton();
@@ -135,6 +153,10 @@ public class SettingsPanel extends JPanel {
         prepareScrcpyButton.addActionListener(actionListener);
     }
 
+    public void setCheckAppUpdatesAction(ActionListener actionListener) {
+        checkAppUpdatesButton.addActionListener(actionListener);
+    }
+
     public void setScrcpyStatus(ScrcpyStatus status) {
         ScrcpyStatus safeStatus = status == null ? ScrcpyStatus.missing() : status;
         scrcpyAvailabilityValueLabel.setText(Messages.text(safeStatus.available()
@@ -175,6 +197,36 @@ public class SettingsPanel extends JPanel {
                 ? "wireless.support.available"
                 : "wireless.support.unavailable"));
         applyTheme(theme);
+    }
+
+    public void setAppUpdateStatus(String message, boolean error) {
+        appUpdateStatusLabel.setText(message == null ? "" : message);
+        if (error) {
+            setAppUpdateIndicatorState(AppUpdateIndicatorState.ERROR);
+        }
+        applyTheme(theme);
+    }
+
+    public void setAppUpdateLatestVersion(String version) {
+        appUpdateLatestValueLabel.setText(version == null || version.isBlank() ? "-" : version);
+    }
+
+    public void setAppUpdateBusy(boolean busy) {
+        checkAppUpdatesButton.setEnabled(!busy);
+        if (busy) {
+            setAppUpdateIndicatorState(AppUpdateIndicatorState.LOADING);
+        }
+        applyTheme(theme);
+    }
+
+    public void setAppUpdateIndicatorState(AppUpdateIndicatorState state) {
+        appUpdateIndicatorState = state == null ? AppUpdateIndicatorState.NONE : state;
+        if (appUpdateIndicatorState == AppUpdateIndicatorState.LOADING) {
+            appUpdateSpinnerTimer.start();
+        } else {
+            appUpdateSpinnerTimer.stop();
+        }
+        updateAppUpdateIndicator();
     }
 
     public void setAutoRefreshOnFocusChangeAction(ActionListener actionListener) {
@@ -268,6 +320,17 @@ public class SettingsPanel extends JPanel {
         scrcpyAvailabilityLabel.setText(Messages.text("scrcpy.status.availability"));
         scrcpyVersionLabel.setText(Messages.text("scrcpy.status.version"));
         scrcpyLocationLabel.setText(Messages.text("scrcpy.status.location"));
+        appUpdateStatusTitleLabel.setText(Messages.text("settings.tools.appUpdate"));
+        appUpdateCurrentLabel.setText(Messages.text("settings.appUpdate.current"));
+        appUpdateCurrentValueLabel.setText(Messages.version());
+        appUpdateLatestLabel.setText(Messages.text("settings.appUpdate.latest"));
+        if (appUpdateLatestValueLabel.getText() == null || appUpdateLatestValueLabel.getText().isBlank()) {
+            appUpdateLatestValueLabel.setText("-");
+        }
+        if (appUpdateStatusLabel.getText() == null || appUpdateStatusLabel.getText().isBlank()) {
+            appUpdateStatusLabel.setText(Messages.text("settings.appUpdate.ready"));
+        }
+        checkAppUpdatesButton.setText(Messages.text("settings.appUpdate.check"));
         if (prepareScrcpyButton.getText() == null || prepareScrcpyButton.getText().isBlank()) {
             prepareScrcpyButton.setText(Messages.text("settings.tools.scrcpy.install"));
         }
@@ -329,6 +392,7 @@ public class SettingsPanel extends JPanel {
         styleLinkButton(scrcpyRepositoryButton, theme);
         styleLinkButton(deviceCatalogButton, theme);
         styleSecondaryButton(prepareScrcpyButton, theme);
+        styleSecondaryButton(checkAppUpdatesButton, theme);
         styleToolLabels();
         styleSectionLabel(themeLabel, theme);
         styleSectionLabel(languageLabel, theme);
@@ -550,7 +614,44 @@ public class SettingsPanel extends JPanel {
 
         toolsGridPanel.add(adbStatusPanel);
         toolsGridPanel.add(scrcpyStatusPanel);
+        toolsGridPanel.add(buildAppUpdatePanel());
         toolsPanel.add(toolsGridPanel);
+    }
+
+    private JPanel buildAppUpdatePanel() {
+        JPanel updatePanel = new JPanel();
+        updatePanel.setOpaque(false);
+        updatePanel.setLayout(new BoxLayout(updatePanel, BoxLayout.Y_AXIS));
+
+        checkAppUpdatesButton.setUI(new BasicButtonUI());
+        checkAppUpdatesButton.setFocusPainted(false);
+        checkAppUpdatesButton.setRolloverEnabled(true);
+        checkAppUpdatesButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        checkAppUpdatesButton.getModel().addChangeListener(event -> styleSecondaryButton(checkAppUpdatesButton, theme));
+        appUpdateIndicatorLabel.setPreferredSize(new java.awt.Dimension(26, 26));
+        appUpdateIndicatorLabel.setHorizontalAlignment(JLabel.CENTER);
+
+        updatePanel.add(appUpdateStatusTitleLabel);
+        updatePanel.add(Box.createVerticalStrut(12));
+        updatePanel.add(createToolRow(appUpdateCurrentLabel, appUpdateCurrentValueLabel));
+        updatePanel.add(Box.createVerticalStrut(8));
+        updatePanel.add(createToolRow(appUpdateLatestLabel, appUpdateLatestValueLabel));
+        updatePanel.add(Box.createVerticalStrut(10));
+        appUpdateStatusLabel.setAlignmentX(LEFT_ALIGNMENT);
+        appUpdateStatusLabel.setMaximumSize(new java.awt.Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        updatePanel.add(appUpdateStatusLabel);
+        updatePanel.add(Box.createVerticalStrut(12));
+
+        JPanel actionRow = new JPanel();
+        actionRow.setOpaque(false);
+        actionRow.setLayout(new BoxLayout(actionRow, BoxLayout.X_AXIS));
+        actionRow.setAlignmentX(LEFT_ALIGNMENT);
+        actionRow.add(checkAppUpdatesButton);
+        actionRow.add(Box.createHorizontalStrut(10));
+        actionRow.add(appUpdateIndicatorLabel);
+        actionRow.add(Box.createHorizontalGlue());
+        updatePanel.add(actionRow);
+        return updatePanel;
     }
 
     private JPanel createToolRow(JLabel titleLabel, JLabel valueLabel) {
@@ -637,7 +738,8 @@ public class SettingsPanel extends JPanel {
     private void styleToolLabels() {
         for (JLabel label : new JLabel[] {
                 adbStatusTitleLabel,
-                scrcpyStatusTitleLabel }) {
+                scrcpyStatusTitleLabel,
+                appUpdateStatusTitleLabel }) {
             label.setForeground(theme.textPrimary());
             label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 17));
         }
@@ -648,7 +750,9 @@ public class SettingsPanel extends JPanel {
                 adbQrLabel,
                 scrcpyAvailabilityLabel,
                 scrcpyVersionLabel,
-                scrcpyLocationLabel }) {
+                scrcpyLocationLabel,
+                appUpdateCurrentLabel,
+                appUpdateLatestLabel }) {
             label.setForeground(theme.textSecondary());
             label.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
         }
@@ -657,14 +761,18 @@ public class SettingsPanel extends JPanel {
                 adbPairValueLabel,
                 adbQrValueLabel,
                 scrcpyAvailabilityValueLabel,
-                scrcpyVersionValueLabel }) {
+                scrcpyVersionValueLabel,
+                appUpdateCurrentValueLabel,
+                appUpdateLatestValueLabel }) {
             label.setForeground(theme.textPrimary());
             label.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
         }
         toolsGridPanel.setBackground(theme.background());
         adbLocationValueLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textPrimary());
         scrcpyLocationValueLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textPrimary());
+        appUpdateStatusLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.PLAIN, 13), theme.textSecondary());
         updateScrcpyUpdateIndicator();
+        updateAppUpdateIndicator();
     }
 
     private void styleLinkButton(AppTheme theme) {
@@ -709,6 +817,11 @@ public class SettingsPanel extends JPanel {
         updateScrcpyUpdateIndicator();
     }
 
+    private void animateAppUpdateSpinner() {
+        appUpdateSpinnerFrame = (appUpdateSpinnerFrame + 1) % 12;
+        updateAppUpdateIndicator();
+    }
+
     private void updateScrcpyUpdateIndicator() {
         Icon icon = switch (scrcpyUpdateIndicatorState) {
             case LOADING -> new SpinnerStatusIcon(theme.actionBackground(), scrcpySpinnerFrame);
@@ -724,6 +837,23 @@ public class SettingsPanel extends JPanel {
             case NONE -> null;
         });
         scrcpyUpdateIndicatorLabel.repaint();
+    }
+
+    private void updateAppUpdateIndicator() {
+        Icon icon = switch (appUpdateIndicatorState) {
+            case LOADING -> new SpinnerStatusIcon(theme.actionBackground(), appUpdateSpinnerFrame);
+            case SUCCESS -> new ToolbarIcon(ToolbarIcon.Type.ENABLE, 18, theme.actionBackground());
+            case ERROR -> new ToolbarIcon(ToolbarIcon.Type.DISABLE, 18, new java.awt.Color(214, 80, 80));
+            case NONE -> null;
+        };
+        appUpdateIndicatorLabel.setIcon(icon);
+        appUpdateIndicatorLabel.setToolTipText(switch (appUpdateIndicatorState) {
+            case LOADING -> Messages.text("settings.appUpdate.checking");
+            case SUCCESS -> Messages.text("settings.appUpdate.latestAvailable");
+            case ERROR -> Messages.text("error.appUpdate.check");
+            case NONE -> null;
+        });
+        appUpdateIndicatorLabel.repaint();
     }
 
     private static final class SpinnerStatusIcon implements Icon {

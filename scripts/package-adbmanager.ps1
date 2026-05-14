@@ -10,7 +10,8 @@ param(
     [string] $OutputDir = "",
     [string] $AppName = "ADB Manager",
     [string] $MainClass = "com.adbmanager.App",
-    [string] $Vendor = "artgon06"
+    [string] $Vendor = "artgon06",
+    [string] $WinUpgradeUuid = "7d4a1514-8db4-4b56-a38f-a639b0afdb6c"
 )
 
 $ErrorActionPreference = "Stop"
@@ -253,6 +254,7 @@ function New-Package {
         [string] $MainClassName,
         [string] $VendorName,
         [string] $IconPath,
+        [string] $WindowsUpgradeUuid,
         [switch] $AddStartMenu,
         [switch] $AddDesktopShortcut
     )
@@ -275,6 +277,9 @@ function New-Package {
     }
 
     if ((Get-CurrentTarget) -eq "windows" -and $PackageType -in @("msi", "exe")) {
+        if (-not [string]::IsNullOrWhiteSpace($WindowsUpgradeUuid)) {
+            $arguments += @("--win-upgrade-uuid", $WindowsUpgradeUuid)
+        }
         $tempDir = Join-Path $Destination "jpackage-temp"
         if (Test-Path -LiteralPath $tempDir) {
             Remove-Item -LiteralPath $tempDir -Recurse -Force
@@ -430,6 +435,7 @@ foreach ($targetName in $targets) {
                 -MainClassName $MainClass `
                 -VendorName $Vendor `
                 -IconPath $packageIcon `
+                -WindowsUpgradeUuid $WinUpgradeUuid `
                 -AddStartMenu:$StartMenu `
                 -AddDesktopShortcut:$DesktopShortcut
 
