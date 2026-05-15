@@ -264,6 +264,7 @@ public class ScrcpyLauncherPanel extends JPanel {
             model.addElement(camera);
         }
         cameraCombo.setModel(model);
+        cameraCombo.setEditable(false);
         cameraCombo.getEditor().setItem(currentSelection);
     }
 
@@ -311,7 +312,7 @@ public class ScrcpyLauncherPanel extends JPanel {
 
     public void refreshTexts() {
         introLabel.setText(Messages.text("scrcpy.intro"));
-        prepareButton.setText(Messages.text("settings.tools.scrcpy.install"));
+        prepareButton.setText(Messages.text("scrcpy.missing.download"));
         missingScrcpyLabel.setText(Messages.text("scrcpy.missing.notice"));
 
         targetLabel.setText(Messages.text("scrcpy.target.label"));
@@ -914,6 +915,7 @@ public class ScrcpyLauncherPanel extends JPanel {
         missingScrcpyPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(theme.actionBackground(), 1),
                 BorderFactory.createEmptyBorder(12, 14, 12, 14)));
+        prepareButton.setText(Messages.text("scrcpy.missing.download"));
         missingScrcpyLabel.applyTheme(theme, new Font(Font.SANS_SERIF, Font.BOLD, 13), theme.textPrimary());
     }
 
@@ -1035,7 +1037,11 @@ public class ScrcpyLauncherPanel extends JPanel {
         button.setFocusable(false);
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.setFont(new Font(Font.SANS_SERIF, Font.BOLD, button == launchButton ? 15 : 13));
-        button.setPreferredSize(new Dimension(0, button == launchButton ? 46 : 38));
+        int preferredWidth = button == prepareButton ? 190 : 0;
+        button.setPreferredSize(new Dimension(preferredWidth, button == launchButton ? 46 : 38));
+        if (button == prepareButton) {
+            button.setMinimumSize(new Dimension(170, 38));
+        }
         if (button == prepareButton) {
             button.setIcon(new ToolbarIcon(ToolbarIcon.Type.DOWNLOAD, 16,
                     enabled ? theme.textPrimary() : theme.textSecondary()));

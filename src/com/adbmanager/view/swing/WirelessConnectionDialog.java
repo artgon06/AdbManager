@@ -42,6 +42,8 @@ import com.adbmanager.view.Messages;
 
 public class WirelessConnectionDialog extends JDialog {
 
+    private static final int CARD_HORIZONTAL_PADDING = 16;
+
     private static final String ROOT_CONNECT = "connect";
     private static final String ROOT_PAIR = "pair";
     private static final String PAIR_CODE = "pair-code";
@@ -515,16 +517,8 @@ public class WirelessConnectionDialog extends JDialog {
         connectCard.add(buildFieldRow(Messages.text("wireless.connect.port"), connectPortField));
         connectCard.add(Box.createVerticalStrut(16));
 
-        JPanel actionsPanel = new JPanel();
-        actionsPanel.setOpaque(false);
-        actionsPanel.setLayout(new BoxLayout(actionsPanel, BoxLayout.X_AXIS));
-        actionsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        actionsPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        actionsPanel.add(connectButton);
-        actionsPanel.add(Box.createHorizontalGlue());
-
         connectCard.add(Box.createVerticalStrut(4));
-        connectCard.add(actionsPanel);
+        connectCard.add(buildPaddedActionRow(connectButton, null));
         connectCard.add(Box.createVerticalStrut(14));
         connectCard.add(buildFullWidthText(connectNoteLabel));
         return connectCard;
@@ -575,16 +569,8 @@ public class WirelessConnectionDialog extends JDialog {
         pairCodePanel.add(buildFieldRow(Messages.text("wireless.code.pairCode"), pairCodeField));
         pairCodePanel.add(Box.createVerticalStrut(16));
 
-        JPanel actionsPanel = new JPanel();
-        actionsPanel.setOpaque(false);
-        actionsPanel.setLayout(new BoxLayout(actionsPanel, BoxLayout.X_AXIS));
-        actionsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        actionsPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        actionsPanel.add(pairButton);
-        actionsPanel.add(Box.createHorizontalGlue());
-
         pairCodePanel.add(Box.createVerticalStrut(4));
-        pairCodePanel.add(actionsPanel);
+        pairCodePanel.add(buildPaddedActionRow(pairButton, null));
         pairCodePanel.add(Box.createVerticalStrut(14));
         pairCodePanel.add(buildFullWidthText(pairCodeNoteLabel));
         return pairCodePanel;
@@ -605,16 +591,7 @@ public class WirelessConnectionDialog extends JDialog {
         leftColumn.add(buildFieldRow(Messages.text("wireless.qr.password"), qrPasswordField));
         leftColumn.add(Box.createVerticalStrut(16));
 
-        JPanel actionsPanel = new JPanel();
-        actionsPanel.setOpaque(false);
-        actionsPanel.setLayout(new BoxLayout(actionsPanel, BoxLayout.X_AXIS));
-        actionsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        actionsPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        actionsPanel.add(generateQrButton);
-        actionsPanel.add(Box.createHorizontalStrut(10));
-        actionsPanel.add(pairQrButton);
-        actionsPanel.add(Box.createHorizontalGlue());
-        leftColumn.add(actionsPanel);
+        leftColumn.add(buildPaddedActionRow(generateQrButton, pairQrButton));
         leftColumn.add(Box.createVerticalGlue());
 
         qrPreviewOuterPanel.setPreferredSize(new Dimension(360, 360));
@@ -633,7 +610,7 @@ public class WirelessConnectionDialog extends JDialog {
         row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 74));
-        row.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        row.setBorder(BorderFactory.createEmptyBorder(0, CARD_HORIZONTAL_PADDING, 0, CARD_HORIZONTAL_PADDING));
 
         JLabel label = new JLabel(labelText);
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -655,9 +632,29 @@ public class WirelessConnectionDialog extends JDialog {
         wrapper.setOpaque(false);
         wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
         wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
-        wrapper.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        wrapper.setBorder(BorderFactory.createEmptyBorder(0, CARD_HORIZONTAL_PADDING, 0, CARD_HORIZONTAL_PADDING));
         wrapper.add(textArea, BorderLayout.CENTER);
         return wrapper;
+    }
+
+    private JPanel buildPaddedActionRow(JButton primaryButton, JButton secondaryButton) {
+        JPanel outer = new JPanel(new BorderLayout());
+        outer.setOpaque(false);
+        outer.setAlignmentX(Component.LEFT_ALIGNMENT);
+        outer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        outer.setBorder(BorderFactory.createEmptyBorder(0, CARD_HORIZONTAL_PADDING, 0, CARD_HORIZONTAL_PADDING));
+
+        JPanel row = new JPanel();
+        row.setOpaque(false);
+        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
+        row.add(primaryButton);
+        if (secondaryButton != null) {
+            row.add(Box.createHorizontalStrut(10));
+            row.add(secondaryButton);
+        }
+        row.add(Box.createHorizontalGlue());
+        outer.add(row, BorderLayout.CENTER);
+        return outer;
     }
 
     private void configureTabButton(

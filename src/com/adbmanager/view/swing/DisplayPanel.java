@@ -58,7 +58,7 @@ public class DisplayPanel extends JPanel {
 
     private final JLabel titleLabel = new JLabel();
     private final JPanel headerPanel = new JPanel(new BorderLayout());
-    private final JPanel headerActionsPanel = new JPanel(new GridLayout(1, 2, 10, 0));
+    private final JPanel manualActionsPanel = new JPanel(new GridLayout(1, 2, 10, 0));
     private final JPanel metricsPanel = new JPanel(new BorderLayout());
     private final JPanel metricsContent = new JPanel();
     private final JPanel controlsPanel = new JPanel(new BorderLayout());
@@ -319,7 +319,7 @@ public class DisplayPanel extends JPanel {
         this.theme = theme;
         setBackground(theme.background());
         headerPanel.setBackground(theme.background());
-        headerActionsPanel.setBackground(theme.background());
+        manualActionsPanel.setBackground(theme.background());
         titleLabel.setForeground(theme.textPrimary());
         titleLabel.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
 
@@ -387,12 +387,8 @@ public class DisplayPanel extends JPanel {
         resetButton.setMinimumSize(new Dimension(126, 38));
         applyButton.setPreferredSize(new Dimension(104, 38));
         applyButton.setMinimumSize(new Dimension(104, 38));
-        headerActionsPanel.setOpaque(false);
-        headerActionsPanel.add(resetButton);
-        headerActionsPanel.add(applyButton);
         headerPanel.setOpaque(false);
         headerPanel.add(titleLabel, BorderLayout.WEST);
-        headerPanel.add(headerActionsPanel, BorderLayout.EAST);
         add(headerPanel, BorderLayout.NORTH);
 
         JPanel content = new JPanel(new GridBagLayout());
@@ -493,6 +489,7 @@ public class DisplayPanel extends JPanel {
         addInlineFormField(formPanel, heightLabel, heightField, 1);
         addInlineFormField(formPanel, densityLabel, densityField, 2);
         addInlineFormField(formPanel, timeoutLabel, timeoutField, 3);
+        addManualActions(formPanel);
 
         ratioPanel.setOpaque(false);
         ratioPanel.setLayout(new BoxLayout(ratioPanel, BoxLayout.X_AXIS));
@@ -540,14 +537,26 @@ public class DisplayPanel extends JPanel {
         fieldConstraints.insets = new Insets(0, 0, 0, pairIndex == 3 ? 0 : 12);
         formPanel.add(field, fieldConstraints);
 
-        if (pairIndex == 3) {
-            GridBagConstraints glueConstraints = new GridBagConstraints();
-            glueConstraints.gridx = 8;
-            glueConstraints.gridy = 0;
-            glueConstraints.weightx = 1.0;
-            glueConstraints.fill = GridBagConstraints.HORIZONTAL;
-            formPanel.add(Box.createHorizontalGlue(), glueConstraints);
-        }
+    }
+
+    private void addManualActions(JPanel formPanel) {
+        manualActionsPanel.setOpaque(false);
+        manualActionsPanel.add(resetButton);
+        manualActionsPanel.add(applyButton);
+
+        GridBagConstraints glueConstraints = new GridBagConstraints();
+        glueConstraints.gridx = 8;
+        glueConstraints.gridy = 0;
+        glueConstraints.weightx = 1.0;
+        glueConstraints.fill = GridBagConstraints.HORIZONTAL;
+        formPanel.add(Box.createHorizontalGlue(), glueConstraints);
+
+        GridBagConstraints actionsConstraints = new GridBagConstraints();
+        actionsConstraints.gridx = 9;
+        actionsConstraints.gridy = 0;
+        actionsConstraints.anchor = GridBagConstraints.EAST;
+        actionsConstraints.insets = new Insets(0, 16, 0, 0);
+        formPanel.add(manualActionsPanel, actionsConstraints);
     }
 
     private JPanel createInfoRow(String fieldKey) {

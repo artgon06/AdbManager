@@ -128,6 +128,17 @@ public class SettingsPanel extends JPanel {
         applyTheme(AppTheme.LIGHT);
     }
 
+    public void scrollToTop() {
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            if (scrollPane.getVerticalScrollBar() != null) {
+                scrollPane.getVerticalScrollBar().setValue(0);
+            }
+            if (scrollPane.getHorizontalScrollBar() != null) {
+                scrollPane.getHorizontalScrollBar().setValue(0);
+            }
+        });
+    }
+
     public void setThemeChangeAction(ActionListener actionListener) {
         lightThemeButton.addActionListener(actionListener);
         darkThemeButton.addActionListener(actionListener);

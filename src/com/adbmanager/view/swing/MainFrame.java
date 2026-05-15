@@ -678,6 +678,7 @@ public class MainFrame extends JFrame {
 
     public void showSettingsScreen() {
         cardLayout.show(contentPanel, SETTINGS_TAB);
+        settingsPanel.scrollToTop();
         homeButton.setSelected(false);
         displayButton.setSelected(false);
         mirroringButton.setSelected(false);
