@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    name: Build Windows installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build MSI installer
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          powershell -ExecutionPolicy Bypass -File .\scripts\package-adbmanager.ps1 `
+            -ProjectDir . `
+            -Target windows `
+            -Arch x64 `
+            -Package installer `
+            -StartMenu `
+            -OutputDir ".\release-$version"
+
+          Copy-Item `
+            -LiteralPath ".\release-$version\windows-x64-msi\ADB Manager-$version.msi" `
+            -Destination ".\release-$version\ADB-Manager-$version-windows-x64.msi" `
+            -Force
+
+      - name: Publish prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ADB Manager ${{ github.ref_name }}
+          prerelease: true
+          body: |
+            ## ADB Manager ${{ github.ref_name }}
+
+            Prerelease centrada en pequeños ajustes de interfaz y actualización incremental desde la versión anterior.
+
+            - Ajustes: al abrir la pestaña se vuelve siempre al inicio.
+            - Pantalla: botones de aplicar/restablecer recolocados junto a los campos manuales.
+            - Mirroring: textos y aviso de scrcpy más claros, con opción de descarga visible.
+            - Conexión inalámbrica: espaciado horizontal refinado en el asistente.
+
+            Incluye instalador MSI para Windows x64 compatible con la actualización desde versiones anteriores.
+          files: release-*/ADB-Manager-*-windows-x64.msi
